@@ -69,7 +69,7 @@ public function patient(){
 
 public function secretary(){
 
-    return $this->belongsTo(Appointment::class);
+    return $this->belongsTo(Secretary::class);
 }
 
 

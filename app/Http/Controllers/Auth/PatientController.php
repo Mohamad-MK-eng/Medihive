@@ -10,10 +10,12 @@ use App\Models\DoctorSchedule;
 use App\Models\Payment;
 use App\Models\Prescription;
 use App\Models\Secretary;
+use App\Models\TimeSlot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use DB;
 use Storage;
 
 class PatientController extends Controller
@@ -130,13 +132,100 @@ get payment history
 
 
 
-    public function getDoctorSchedules($doctorId)
-    {
-        $schedules = DoctorSchedule::where('doctor_id', $doctorId)
-            ->get(['day', 'start_time', 'end_time']);
 
-        return response()->json($schedules);
-    }
+
+// Get clinics with specialties
+public function getClinicsWithSpecialties()
+{
+    return Clinic::with('doctors.user:id,first_name,last_name')
+        ->get(['id', 'name', 'location']);
+}
+
+// Get doctors with available slots for a clinic
+
+
+
+
+
+
+public function getClinicDoctorsWithSlots($clinicId, Request $request)
+{
+    $request->validate([
+        'date' => 'sometimes|date'
+    ]);
+
+    // Default to 7 days from now to match your seeder
+    $date = $request->input('date')
+        ? Carbon::parse($request->date)->format('Y-m-d')
+        : now()->addDays(7)->format('Y-m-d');
+
+    $doctors = Doctor::with(['user:id,first_name,last_name', 'timeSlots' => function($query) use ($date) {
+            $query->where('date', $date)
+                  ->where('is_booked', false)
+                  ->orderBy('start_time');
+        }])
+        ->where('clinic_id', $clinicId)
+        ->get()
+        ->map(function($doctor) use ($date) {
+            return [
+                'id' => $doctor->id,
+                'name' => $doctor->user->first_name . ' ' . $doctor->user->last_name,
+                'specialty' => $doctor->specialty,
+                'available_slots' => $doctor->timeSlots->map(function($slot) {
+                    return [
+                        'id' => $slot->id,
+                        'start_time' => $slot->formatted_start_time,
+                        'end_time' => $slot->formatted_end_time,
+                        'date' => $slot->date->format('Y-m-d')
+                    ];
+                }),
+                '_debug' => [
+                    'doctor_id' => $doctor->id,
+                    'date_queried' => $date,
+                    'slots_count' => $doctor->timeSlots->count()
+                ]
+            ];
+        });
+
+    return response()->json($doctors);
+}
+
+
+
+
+
+
+
+// Book appointment from available slot
+public function bookFromAvailableSlot(Request $request)
+{
+    $validated = $request->validate([
+        'doctor_id' => 'required|exists:doctors,id',
+        'date' => 'required|date|after:now',
+        'slot_start' => 'required|date_format:g:i A',
+        'slot_end' => 'required|date_format:g:i A',
+        'reason' => 'required|string|max:500'
+    ]);
+
+    $appointmentDate = Carbon::createFromFormat(
+        'Y-m-d g:i A',
+        $validated['date'] . ' ' . $validated['slot_start']
+    );
+
+    $appointment = Appointment::create([
+        'patient_id' => Auth::user()->patient->id,
+        'doctor_id' => $validated['doctor_id'],
+        'appointment_date' => $appointmentDate,
+        'reason' => $validated['reason'],
+        'status' => 'confirmed'
+    ]);
+
+    return response()->json([
+        'message' => 'Appointment booked successfully',
+        'appointment' => $appointment
+    ]);
+}
+
 
 
 
@@ -176,6 +265,59 @@ get payment history
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Get available slots
+public function getAvailableSlots($doctorId, $date) {
+    $slots = TimeSlot::where('doctor_id', $doctorId)
+        ->where('date', $date)
+        ->where('is_booked', false)
+        ->get();
+
+    return response()->json($slots);
+}
+
+// Book appointment
+public function bookAppointment(Request $request) {
+    $validated = $request->validate([
+        'slot_id' => 'required|exists:time_slots,id',
+        'reason' => 'required|string|max:500'
+    ]);
+
+    DB::transaction(function () use ($validated) {
+        $slot = TimeSlot::find($validated['slot_id']);
+        $slot->update(['is_booked' => true]);
+
+        Appointment::create([
+            'patient_id' => Auth::id(),
+            'doctor_id' => $slot->doctor_id,
+            'appointment_date' => $slot->date,
+            'start_time' => $slot->start_time,
+            'end_time' => $slot->end_time,
+            'status' => 'confirmed',
+            'reason' => $validated['reason']
+        ]);
+    });
+
+    return response()->json(['message' => 'Appointment booked successfully']);
+}
 
 
 
@@ -265,6 +407,9 @@ get payment history
             $existingAppointmentsCount = Appointment::where('doctor_id', $doctor->id)
                 ->whereDate('appointment_date', $dateOnly)
                 ->count();
+
+
+
 
             if ($existingAppointmentsCount >= 3) {
                 return response()->json([
@@ -430,7 +575,33 @@ get payment history
 
 
 
+// Add to PatientController
+public function getWalletBalance()
+{
+    $patient = Auth::user()->patient;
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
 
+    return response()->json([
+        'balance' => $patient->wallet_balance,
+        'wallet_activated' => !is_null($patient->wallet_activated_at)
+    ]);
+}
+
+public function getWalletTransactions()
+{
+    $patient = Auth::user()->patient;
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    $transactions = $patient->walletTransactions()
+        ->orderBy('created_at', 'desc')
+        ->paginate(10);
+
+    return response()->json($transactions);
+}
 
 
 

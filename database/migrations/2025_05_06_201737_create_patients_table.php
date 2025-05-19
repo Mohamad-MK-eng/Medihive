@@ -20,6 +20,9 @@ return new class extends Migration
             $table->date('date_of_birth');
             $table->string('address');
             $table->string('phone_number');
+               $table->decimal('wallet_balance', 10, 2)->default(0);
+    $table->string('wallet_pin', 60)->nullable(); // Hashed PIN
+    $table->timestamp('wallet_activated_at')->nullable();
             $table->enum('gender',['male','female']);
             $table->string('blood_type')->nullable();
             $table->text('chronic_conditions')->nullable(); // JSON array of conditions
@@ -35,6 +38,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('patients');
-    }
-};
 
+            Schema::table('patients', function (Blueprint $table) {
+            $table->dropColumn(['wallet_balance', 'wallet_pin', 'wallet_activated_at']);
+            });
+}
+};

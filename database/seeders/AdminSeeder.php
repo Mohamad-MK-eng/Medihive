@@ -1,32 +1,30 @@
 <?php
+
 namespace Database\Seeders;
 
-use App\Models\Appointment;
-use App\Models\Clinic;
-use App\Models\DoctorSchedule;
+use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, Patient, Role, Secretary, TimeSlot};
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use App\Models\User;
-use App\Models\Doctor;
-use App\Models\Patient;
-use App\Models\Role;
-use App\Models\Secretary;
+use Carbon\Carbon;
 
 class AdminSeeder extends Seeder
 {
     public function run(): void
     {
-        $adminRole = Role::where('name','admin')->first();
-        $doctorRole = Role::where('name','doctor')->first();
-        $secretaryRole = Role::where('name','secretary')->first();
-        $patientRole = Role::where('name','patient')->first();
+        // Create roles
+        $roles = [
+            'admin' => Role::firstOrCreate(['name' => 'admin']),
+            'doctor' => Role::firstOrCreate(['name' => 'doctor']),
+            'secretary' => Role::firstOrCreate(['name' => 'secretary']),
+            'patient' => Role::firstOrCreate(['name' => 'patient'])
+        ];
 
-        // Create clinic first
+        // Create clinic
         $clinic = Clinic::create([
             'name' => 'Central Clinic',
             'location' => '123 Health St',
-            'opening_time'=> '09:00',
-            'closing_time'=>'19:00'
+            'opening_time' => '09:00',
+            'closing_time' => '19:00'
         ]);
 
         // Create patient
@@ -35,10 +33,10 @@ class AdminSeeder extends Seeder
             'last_name' => 'Patient',
             'email' => 'patient@example.com',
             'password' => Hash::make('password'),
-            'role_id' => $patientRole->id,
+            'role_id' => $roles['patient']->id,
         ]);
 
-        Patient::create([
+        $patient = Patient::create([
             'user_id' => $patientUser->id,
             'phone_number' => '1234567890',
             'date_of_birth' => '1990-01-01',
@@ -54,19 +52,18 @@ class AdminSeeder extends Seeder
             'last_name' => 'User',
             'email' => 'admin@example.com',
             'password' => Hash::make('password'),
-            'role_id' => $adminRole->id,
+            'role_id' => $roles['admin']->id,
         ]);
 
-        // Create doctor user
+        // Create doctor
         $doctorUser = User::create([
             'first_name' => 'John',
             'last_name' => 'Smith',
             'email' => 'doctor@example.com',
             'password' => Hash::make('password'),
-            'role_id' => $doctorRole->id,
+            'role_id' => $roles['doctor']->id,
         ]);
 
-        // Create doctor record
         $doctor = Doctor::create([
             'user_id' => $doctorUser->id,
             'clinic_id' => $clinic->id,
@@ -91,7 +88,7 @@ class AdminSeeder extends Seeder
             'last_name' => 'Secretary',
             'email' => 'secretary@example.com',
             'password' => Hash::make('password'),
-            'role_id' => $secretaryRole->id,
+            'role_id' => $roles['secretary']->id,
         ]);
 
         Secretary::create([
@@ -100,18 +97,76 @@ class AdminSeeder extends Seeder
             'workdays' => json_encode(['Sunday', 'Monday', 'Tuesday']),
         ]);
 
+        // Create time slots for the next 7 days
+        $timeSlots = [];
+        $appointmentDate = now()->addDays(7)->format('Y-m-d');
 
-        $appointment = Appointment::create([
-            'patient_id' => $patientUser->patient->id,
+        // Create time slots (morning and afternoon)
+        $morningSlots = [
+            ['09:00:00', '10:00:00'],
+            ['10:00:00', '11:00:00'],
+            ['11:00:00', '12:00:00']
+        ];
+
+        $afternoonSlots = [
+            ['13:00:00', '14:00:00'],
+            ['14:00:00', '15:00:00'],
+            ['15:00:00', '16:00:00']
+        ];
+
+        for ($i = 1; $i <= 7; $i++) {
+            $date = now()->addDays($i)->format('Y-m-d');
+
+            foreach ($morningSlots as $slot) {
+                $timeSlots[] = [
+                    'doctor_id' => $doctor->id,
+                    'date' => $date,
+                    'start_time' => $slot[0],
+                    'end_time' => $slot[1],
+                    'is_booked' => false,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+            }
+
+            foreach ($afternoonSlots as $slot) {
+                $timeSlots[] = [
+                    'doctor_id' => $doctor->id,
+                    'date' => $date,
+                    'start_time' => $slot[0],
+                    'end_time' => $slot[1],
+                    'is_booked' => false,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+            }
+        }
+
+        // Insert all time slots at once for better performance
+        TimeSlot::insert($timeSlots);
+
+        // Get a specific time slot for the appointment
+        $appointmentSlot = TimeSlot::where('doctor_id', $doctor->id)
+            ->where('date', $appointmentDate)
+            ->where('start_time', '09:00:00')
+            ->first();
+
+        // Mark the slot as booked
+        if ($appointmentSlot) {
+            $appointmentSlot->update(['is_booked' => true]);
+        }
+
+        // Create appointment
+        Appointment::create([
+            'patient_id' => $patient->id,
             'doctor_id' => $doctor->id,
             'clinic_id' => $clinic->id,
-            'appointment_date' => now()->addDays(7),
+            'time_slot_id' => $appointmentSlot->id ?? null,
+            'appointment_date' => $appointmentDate . ' 09:00:00',
             'reason' => 'Initial consultation',
             'status' => 'confirmed',
-            'price' => 100.00
+            'price' => 100.00,
+            'fee' => 80.00 // Don't forget the fee field
         ]);
     }
-
-
-
 }

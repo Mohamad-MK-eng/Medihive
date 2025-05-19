@@ -18,11 +18,14 @@ return new class extends Migration
             $table->foreignId('doctor_id')->constrained('doctors')->onDelete('cascade');
             $table->foreignId('clinic_id')->constrained('clinics')->onDelete('cascade');
             $table->foreignId('service_id')->nullable()->constrained('services')->onDelete('restrict');
+$table->foreignId('time_slot_id')->references('id')->on('time_slots')->onDelete('cascade');
 
             $table->datetime('appointment_date')->nullable(false);
             $table->enum('status', ['pending', 'confirmed', 'cancelled','completed']);
             $table->decimal('price', 10, 2)->nullable();
+            $table->decimal('fee',8,2)->nullable();
 $table->string('reason')->nullable();
+$table->string('payment_status')->default('unpaid');
 $table->date('cancelled_at')->nullable();
 $table->date(column: 'previous_date')->nullable();
             $table->text('notes')->nullable();

@@ -18,8 +18,12 @@ return new class extends Migration
             $table->foreignId('appointment_id')->constrained('appointments')->onDelete('cascade');
             $table->foreignId('service_id')->constrained('services')->onDelete('restrict');
             $table->decimal('amount', 10, 2)->nullable(false);
+
+
             $table->enum('status', ['pending', 'paid', 'cancelled']);
             $table->enum('method', ['cash', 'card', 'insurance']);
+                      $table->string('transaction_id')->nullable();
+
             $table->timestamp('paid_at')->nullable();
             $table->timestamps();
         });

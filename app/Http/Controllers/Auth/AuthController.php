@@ -98,9 +98,10 @@ class AuthController extends Controller
         $token = $user->createToken('Personal Access Token')->accessToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->load('role'),
             'access_token' => $token,
-            'token_type' => 'Bearer'
+            'token_type' => 'Bearer',
+'role_name'=> $user->role->name
         ]);
     }
 }

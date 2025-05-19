@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use DB;
 use Dom\Document;
 use Illuminate\Database\Eloquent\Model;
 
@@ -59,7 +60,10 @@ class Patient extends Model
 'blood_type',
 'chronic_conditions',
 'insurance_provider',
-'emergency_contact'
+'emergency_contact',
+'wallet_balance',
+    'wallet_pin',
+    'wallet_activated_at'
     ];
 
 protected $casts =[
@@ -70,7 +74,9 @@ protected $casts =[
 
     'emergency_contact',
 'chronic_conditions'=>'array',
-'insurance_provider'=>'array'
+'insurance_provider'=>'array',
+    'wallet_activated_at' => 'datetime'
+
 ];
 
 public function user(){
@@ -142,6 +148,73 @@ public function getMedicalHistory()
 
 
 
+
+
+
+
+
+
+public function walletTransactions()
+{
+    return $this->hasMany(WalletTransaction::class);
+}
+
+
+
+
+
+
+
+
+// In Patient model (add these methods)
+public function deposit($amount, $notes = null, $adminId = null)
+{
+    return DB::transaction(function () use ($amount, $notes, $adminId) {
+        $previousBalance = $this->wallet_balance;
+        $newBalance = $previousBalance + $amount;
+
+        $transaction = WalletTransaction::create([
+            'patient_id' => $this->id,
+            'admin_id' => $adminId,
+            'amount' => $amount,
+            'type' => 'deposit',
+            'reference' => 'DEP-'.now()->format('YmdHis'),
+            'balance_before' => $previousBalance,
+            'balance_after' => $newBalance,
+            'notes' => $notes
+        ]);
+
+        $this->update(['wallet_balance' => $newBalance]);
+
+        return $transaction;
+    });
+}
+
+public function withdraw($amount, $notes = null)
+{
+    if ($this->wallet_balance < $amount) {
+        throw new \Exception('Insufficient wallet balance');
+    }
+
+    return DB::transaction(function () use ($amount, $notes) {
+        $previousBalance = $this->wallet_balance;
+        $newBalance = $previousBalance - $amount;
+
+        $transaction = WalletTransaction::create([
+            'patient_id' => $this->id,
+            'amount' => $amount,
+            'type' => 'withdrawal',
+            'reference' => 'WTH-'.now()->format('YmdHis'),
+            'balance_before' => $previousBalance,
+            'balance_after' => $newBalance,
+            'notes' => $notes
+        ]);
+
+        $this->update(['wallet_balance' => $newBalance]);
+
+        return $transaction;
+    });
+}
 
 
 

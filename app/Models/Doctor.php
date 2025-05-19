@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -76,10 +77,11 @@ public function clinic(){
     return $this->belongsTo(Clinic::class);
 }
 
-
-public function availableTimeSlots(){
-    return $this->hasMany(DoctorSchedule::class);
+public function timeSlots()
+{
+    return $this->hasMany(TimeSlot::class);
 }
+
 
   // Helper methods
   public function isAvailable($date, $time)
@@ -92,6 +94,47 @@ public function availableTimeSlots(){
       return $this->services()->get();
   }
 
+
+
+// In App\Models\Doctor.php
+
+public function getAvailableSlots($date)
+{
+    $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
+
+    // Check if doctor works this day
+    $schedule = $this->schedules()->where('day', $dayOfWeek)->first();
+    if (!$schedule) {
+        return collect();
+    }
+
+    // Generate fixed slots (e.g., 5 per day)
+    $slots = [];
+    $start = Carbon::parse($schedule->start_time);
+    $end = Carbon::parse($schedule->end_time);
+    $interval = $start->diffInMinutes($end) / 5; // 5 slots per day
+
+    for ($i = 0; $i < 5; $i++) {
+        $slotStart = $start->copy()->addMinutes($i * $interval);
+        $slotEnd = $slotStart->copy()->addMinutes($interval);
+
+        // Check if slot is already booked
+        $isBooked = Appointment::where('doctor_id', $this->id)
+            ->whereDate('appointment_date', $date)
+            ->whereTime('appointment_date', '>=', $slotStart->format('H:i:s'))
+            ->whereTime('appointment_date', '<', $slotEnd->format('H:i:s'))
+            ->exists();
+
+        if (!$isBooked) {
+            $slots[] = [
+                'start_time' => $slotStart->format('g:i A'),
+                'end_time' => $slotEnd->format('g:i A')
+            ];
+        }
+    }
+
+    return collect($slots);
+}
 
 
   public function schedules()
