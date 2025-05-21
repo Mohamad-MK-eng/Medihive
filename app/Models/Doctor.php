@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HandlesFiles;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
@@ -34,9 +35,12 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Doctor extends Model
 {
+    use HandlesFiles;
     protected $fillable =[
  'user_id',
  'clinic_id',
+         'profile_picture',
+
  'specialty',
  'workdays'
     ];

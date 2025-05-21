@@ -116,6 +116,7 @@ class WalletController extends Controller
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
             'appointment_id' => 'required|exists:appointments,id',
+              'service_id' => 'required|exists:services,id',
             'pin' => 'required|digits:4'
         ]);
 
@@ -148,6 +149,7 @@ class WalletController extends Controller
             $payment = Payment::create([
                 'appointment_id' => $validated['appointment_id'],
                 'patient_id' => $patient->id,
+                'service_id' => $validated['service_id'],
                 'amount' => $validated['amount'],
                 'method' => 'wallet',
                 'status' => 'completed',

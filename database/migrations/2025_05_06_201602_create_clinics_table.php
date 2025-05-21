@@ -17,6 +17,7 @@ return new class extends Migration
     $table->string('location');
     $table->time('opening_time');
     $table->time('closing_time');
+    $table->string('description_picture')->nullable();
     $table->timestamps();
         });
     }

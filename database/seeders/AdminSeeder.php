@@ -27,6 +27,18 @@ class AdminSeeder extends Seeder
             'closing_time' => '19:00'
         ]);
 
+
+
+            \App\Models\Service::create([
+        'name' => 'General Consultation',
+        'price' => 50.00,
+    ]);
+
+    \App\Models\Service::create([
+        'name' => 'Specialist Consultation',
+        'price' => 100.00,
+    ]);
+
         // Create patient
         $patientUser = User::create([
             'first_name' => 'Test',

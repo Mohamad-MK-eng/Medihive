@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\SalarySetting;
+use App\Traits\HandlesFiles;
+
 /**
  *
  *
@@ -36,8 +38,11 @@ use App\Models\SalarySetting;
  */
 class Secretary extends Model
 {
+        use HandlesFiles;
+
     protected $fillable =[
-'user_id','workdays','emergency_absences','performance_metrics'
+'user_id','workdays','emergency_absences','performance_metrics'   ,     'profile_picture'
+
 
     ];
 

@@ -19,7 +19,7 @@ $table->foreignId('clinic_id')->constrained('clinics')->onDelete('cascade');
             $table->string('specialty')->nullable(false);
             $table->text('bio')->nullable();
                         $table->json('workdays')->nullable();
-
+$table->string('profile_picture')->nullable();
             $table->float('rating')->default(0);
             $table->decimal('consultation_fee',8,2)->default(100);
             $table->integer('experience_years')->default(2);

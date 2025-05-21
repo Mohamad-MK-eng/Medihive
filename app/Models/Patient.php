@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HandlesFiles;
 use DB;
 use Dom\Document;
 use Illuminate\Database\Eloquent\Model;
@@ -49,12 +50,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Patient extends Model
 {
+        use HandlesFiles;
+
+        // هون عدلت
     protected $fillable =[
 'user_id',
 'first_name',
 'last_name',
-'date_of_birth',
+/* 'date_of_birth',
 'address',
+ 'profile_picture',
 'phone_number',
 'gender',
 'blood_type',
@@ -63,12 +68,12 @@ class Patient extends Model
 'emergency_contact',
 'wallet_balance',
     'wallet_pin',
-    'wallet_activated_at'
+    'wallet_activated_at' */
     ];
 
 protected $casts =[
     'user_id',
-'date_of_birth',
+'date_of_birth'=> 'date',
 
 'phone_number',
 

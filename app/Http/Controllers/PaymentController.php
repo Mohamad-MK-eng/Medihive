@@ -47,6 +47,7 @@ class PaymentController extends Controller
             'appointment_id' => 'required|exists:appointments,id',
             'amount' => 'required|numeric|min:0',
             'method' => 'required|in:cash,wallet,card,insurance',
+              'service_id' => 'required|exists:services,id',
             'card_details' => 'required_if:method,card|array',
             'card_details.number' => 'required_if:method,card',
             'card_details.expiry' => 'required_if:method,card',
@@ -60,6 +61,7 @@ class PaymentController extends Controller
         $payment = Payment::create([
             'appointment_id' => $appointment->id,
             'patient_id' => $appointment->patient_id,
+            'service_id' => $appointment['service_id'],
             'amount' => $data['amount'],
             'method' => 'cash',
             'status' => 'pending',

@@ -33,60 +33,89 @@ class PatientController extends Controller
         return response()->json($patient->load('user'));
     }
 
-    public function updateProfile(Request $request)
-    {
-        $user = Auth::user();
-        $patient = $user->patient;
+   public function updateProfile(Request $request)
+{
+    $user = Auth::user();
+    $patient = $user->patient;
 
-        $validator = Validator::make($request->all(), [
-            'first_name' => 'sometimes|string|max:255',
-            'last_name' => 'sometimes|string|max:255',
-            'phone_number' => 'sometimes|string|max:20',
-            'address' => 'sometimes|string|nullable',
-            'date_of_birth' => 'sometimes|date',
-            'gender' => 'sometimes|string|in:male,female,other',
-            'blood_type' => 'sometimes|string|nullable',
-            'emergency_contact' => 'sometimes|string|max:255',
-            'profile_picture' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048'
-        ]);
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'sometimes|string|max:255',
+        'last_name' => 'sometimes|string|max:255',
+        'phone_number' => 'sometimes|string|max:20',
+        'address' => 'sometimes|string|nullable',
+        'date_of_birth' => 'sometimes|date',
+        'gender' => 'sometimes|string|in:male,female,other',
+        'blood_type' => 'sometimes|string|nullable',
+        'emergency_contact' => 'sometimes|string|max:255'
+        // Removed profile_picture from here
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
 
+    // Update user
+    if ($request->has('first_name')) $user->first_name = $request->first_name;
+    if ($request->has('last_name')) $user->last_name = $request->last_name;
+    $user->save();
 
+    // Update patient
+    $patient->update($validator->validated());
 
-
-//update the user
-
-
-        if ($request->has('first_name')) $user->first_name = $request->first_name;
-        if ($request->has('last_name')) $user->last_name = $request->last_name;
-        $user->save();
-
-
-
-
-        // Update patient data
-        $patientData = $validator->validated();
-        if ($request->hasFile('profile_picture')) {
+    return response()->json([
+        'patient' => $patient->fresh()->load('user'),
+        'message' => 'Profile updated successfully'
+    ]);
+}
 
 
-            // Delete old profile picture if exists
-            if ($patient->profile_picture) {
-                Storage::disk('public')->delete($patient->profile_picture);
-            }
-            $path = $request->file('profile_picture')->store('profile_pictures', 'public');
-            $patientData['profile_picture'] = $path;
-        }
 
-        $patient->update($patientData);
 
+
+
+
+
+
+
+
+
+
+
+
+public function updateProfilePicture(Request $request)
+{
+    $request->validate([
+        'profile_picture' => 'required|image|mimes:jpg,jpeg|max:2048'
+    ]);
+
+    $patient = Auth::user()->patient;
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    if ($path = $patient->uploadProfilePicture($request->file('profile_picture'))) {
         return response()->json([
-            'patient' => $patient->fresh()->load('user'),
-            'message' => 'Profile updated successfully'
+            'success' => true,
+            'url' => $patient->getProfilePictureUrl(),
+            'message' => 'Profile picture updated successfully'
         ]);
     }
+
+    return response()->json([
+        'error' => 'Invalid image file. Only JPG/JPEG files under 2MB are allowed'
+    ], 400);
+}
+
+
+
+
+
+
+
+
+
+
 
 
 

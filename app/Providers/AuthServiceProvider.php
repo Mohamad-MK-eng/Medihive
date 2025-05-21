@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -22,5 +23,22 @@ class AuthServiceProvider extends ServiceProvider
 
         // Only include this if using Passport v11+
         // Passport::routes();
+
+
+
+    $this->registerPolicies();
+
+    Gate::before(function ($user, $ability) {
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+    });
+
+    foreach (['secretary', 'doctor', 'patient'] as $role) {
+        Gate::define($role, function ($user) use ($role) {
+            return $user->hasRole($role);
+        });
     }
 }
+    }
+

@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->decimal('salary', 10, 2)->nullable(); // ✅ Add this
-
+$table->string('profile_picture')->nullable();
             $table->json('workdays')->nullable(false); // Regular working hours
             $table->json('emergency_absences')->nullable(); // Track unexpected absences
             $table->json('performance_metrics')->nullable(); // Track performance data

@@ -17,17 +17,18 @@ return new class extends Migration
 
 
             $table->foreignId('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->date('date_of_birth');
-            $table->string('address');
-            $table->string('phone_number');
+            $table->date('date_of_birth')->nullable();
+            $table->string('address')->nullable();
+            $table->string('phone_number')->nullable();
+            $table->string('profile_picture')->nullable();
                $table->decimal('wallet_balance', 10, 2)->default(0);
     $table->string('wallet_pin', 60)->nullable(); // Hashed PIN
     $table->timestamp('wallet_activated_at')->nullable();
-            $table->enum('gender',['male','female']);
+            $table->enum('gender',['male','female'])->nullable();
             $table->string('blood_type')->nullable();
             $table->text('chronic_conditions')->nullable(); // JSON array of conditions
             $table->string('insurance_provider')->nullable();
-            $table->string('emergency_contact');
+            $table->string('emergency_contact')->nullable();
             $table->timestamps();
         });
     }
