@@ -17,7 +17,7 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         // هون عدلت
-        $validator = Validator::make($request->all(), [
+        /* $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -28,11 +28,15 @@ class AuthController extends Controller
             'date_of_birth' => 'nullable|date',
             'blood_type' => 'nullable|string',
             'emergency_contact' => 'nullable|string' */
+        //  ]); */
+
+        $validator  = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:8',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
 
         return DB::transaction(function () use ($request) {
             $patientRole = Role::firstOrCreate(
@@ -43,7 +47,7 @@ class AuthController extends Controller
             $user = User::create([
                 'first_name' => $request->first_name,
                 'last_name' => $request->last_name,
-             //   'name' => $request->first_name . ' ' . $request->last_name,
+                //   'name' => $request->first_name . ' ' . $request->last_name,
                 'email' => $request->email,
                 /* 'date_of_birth' => $request->date_of_birth,
                 'blood_type' => $request->blood_type,
@@ -55,12 +59,12 @@ class AuthController extends Controller
 
             Patient::create([
                 'user_id' => $user->id,
-             //   'phone_number' => $request->phone_number,
-              //  'date_of_birth' => $request->date_of_birth,
-              //  'address' => $request->address,
-              //  'gender' => $request->gender,
-             //   'blood_type' => $request->blood_type,
-              //  'emergency_contact' => $request->emergency_contact,
+                //   'phone_number' => $request->phone_number,
+                //  'date_of_birth' => $request->date_of_birth,
+                //  'address' => $request->address,
+                //  'gender' => $request->gender,
+                //   'blood_type' => $request->blood_type,
+                //  'emergency_contact' => $request->emergency_contact,
             ]);
 
 
@@ -81,7 +85,7 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-       
+
         $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string'
@@ -100,23 +104,22 @@ class AuthController extends Controller
         $token = $user->createToken('Personal Access Token')->accessToken;
 
         // in case patient
-      if ($user->role->name === 'patient')
-      {
-        
-        return response()->json([
-            'message' => 'Patient logged in successfully',
-            'user' => $user->load('patient'),
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-                
-        ]);
-      }
+        if ($user->role->name === 'patient') {
+
+            return response()->json([
+                'message' => 'Patient logged in successfully',
+                'user' => $user->load('patient'),
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+
+            ]);
+        }
 
         return response()->json([
             'user' => $user->load('role'),
             'access_token' => $token,
             'token_type' => 'Bearer',
-             'role_name'=> $user->role->name
+            'role_name' => $user->role->name
         ]);
     }
 }
