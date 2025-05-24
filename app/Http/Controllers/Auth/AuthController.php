@@ -56,7 +56,7 @@ class AuthController extends Controller
                 //'phone_number' => $request->phone_number,
                 'role_id' => $patientRole->id,
             ]);
-
+                //  this is fucking insan
             Patient::create([
                 'user_id' => $user->id,
                 //   'phone_number' => $request->phone_number,
