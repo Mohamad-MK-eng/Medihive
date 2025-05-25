@@ -6,6 +6,7 @@ use App\Traits\HandlesFiles;
 use DB;
 use Dom\Document;
 use Illuminate\Database\Eloquent\Model;
+use Storage;
 
 /**
  *
@@ -228,4 +229,86 @@ class Patient extends Model
             return $transaction;
         });
     }
+
+
+
+
+
+public function uploadProfilePicture($file)
+{
+    if (!$file) {
+        return null;
+    }
+
+    // Delete old picture if exists
+    if ($this->profile_picture) {
+        $this->deleteProfilePicture();
+    }
+
+    // Store new picture - use hashName() for secure filenames
+    $path = $file->store('profile_pictures', 'public');
+
+    // Update profile picture path (store only relative path)
+    $this->profile_picture = $path;
+    $this->save();
+
+    return $path;
 }
+
+
+
+
+
+
+public function deleteProfilePicture()
+{
+    if ($this->profile_picture) {
+        // Remove storage/app/public/ prefix if present
+        $path = str_replace('storage/', '', $this->profile_picture);
+        Storage::disk('public')->delete($path);
+    }
+}
+
+
+
+
+
+
+
+
+public function getProfilePictureAttribute($value)
+{
+    if (!$value) return null;
+
+    // If it's already a full URL, return it
+    if (filter_var($value, FILTER_VALIDATE_URL)) {
+        return $value;
+    }
+
+    // If it's a relative path, convert to full URL
+    return Storage::disk('public')->url($value);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+

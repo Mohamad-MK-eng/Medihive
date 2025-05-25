@@ -81,6 +81,50 @@ class PatientController extends Controller
 
 
 
+public function getProfilePicture()
+{
+    $patient = Auth::user()->patient;
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient not found'], 404);
+    }
+
+    if (!$patient->profile_picture) {
+        return response()->json(['message' => 'No profile picture set'], 404);
+    }
+
+    try {
+        // Extract just the filename from the URL
+        $filename = basename($patient->profile_picture);
+        $relativePath = 'profile_pictures/' . $filename;
+
+        if (!Storage::disk('public')->exists($relativePath)) {
+            return response()->json([
+                'message' => 'Profile picture file not found',
+                'debug' => [
+                    'database_value' => $patient->profile_picture,
+                    'storage_path' => $relativePath,
+                    'files_in_directory' => Storage::disk('public')->files('profile_pictures')
+                ]
+            ], 404);
+        }
+
+        $fullPath = storage_path('app/public/' . $relativePath);
+        return response()->file($fullPath);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error retrieving profile picture',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+
+
 
 public function updateProfilePicture(Request $request)
 {
@@ -141,10 +185,52 @@ get payment history
     {
         $clinics = Clinic::select('id', 'name', 'location', 'opening_time', 'closing_time')
             ->withCount('doctors')
-            ->get();
+            ->get()
 
-        return response()->json($clinics);
-    }
+              ->map(function($clinic) {
+            $clinicData = $clinic->toArray();
+            $clinicData['image_url'] = $clinic->getClinicImageUrl();
+            return $clinicData;
+        });
+
+    return response()->json($clinics);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+public function getClinicsWithSpecialties()
+{
+    return Clinic::with('doctors.user:id,first_name,last_name')
+        ->get(['id', 'name', 'location', 'description_picture'])
+        ->map(function($clinic) {
+            $clinicData = $clinic->toArray();
+            $clinicData['image_url'] = $clinic->getClinicImageUrl();
+            return $clinicData;
+        });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public function getClinicDoctors($clinicId)
     {
@@ -158,19 +244,6 @@ get payment history
 
 
 
-
-
-
-
-
-// Get clinics with specialties
-public function getClinicsWithSpecialties()
-{
-    return Clinic::with('doctors.user:id,first_name,last_name')
-        ->get(['id', 'name', 'location']);
-}
-
-// Get doctors with available slots for a clinic
 
 
 
@@ -258,7 +331,46 @@ public function bookFromAvailableSlot(Request $request)
 
 
 
+/* second try :
 
+public function bookFromAvailableSlot(Request $request)
+{
+    $validated = $request->validate([
+        'slot_id' => 'required|exists:time_slots,id',
+        'reason' => 'nullable|string|max:500',
+        'notes' => 'nullable|string'
+    ]);
+
+    return DB::transaction(function () use ($validated) {
+        $slot = TimeSlot::findOrFail($validated['slot_id']);
+
+        // Check if slot is still available
+        if ($slot->is_booked) {
+            return response()->json(['message' => 'This time slot is no longer available'], 409);
+        }
+
+        // Mark slot as booked
+        $slot->update(['is_booked' => true]);
+
+        // Create appointment
+        $appointment = Appointment::create([
+            'patient_id' => Auth::user()->patient->id,
+            'doctor_id' => $slot->doctor_id,
+            'time_slot_id' => $slot->id,
+            'appointment_date' => $slot->date->format('Y-m-d') . ' ' . $slot->start_time,
+            'end_time' => $slot->end_time,
+            'reason' => $validated['reason'],
+            'notes' => $validated['notes'] ?? null,
+            'status' => 'confirmed'
+        ]);
+
+        return response()->json([
+            'appointment' => $appointment->load('doctor.user', 'clinic'),
+            'message' => 'Appointment booked successfully'
+        ], 201);
+    });
+}
+*/
 
 
 
@@ -580,6 +692,16 @@ public function bookAppointment(Request $request) {
 
 
 
+
+
+
+
+
+
+
+
+
+
 //  not tested yet
 
     public function uploadDocument(Request $request)
@@ -805,6 +927,23 @@ public function markAllNotificationsAsRead()
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
+
 
 

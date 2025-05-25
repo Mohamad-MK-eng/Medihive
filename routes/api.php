@@ -5,36 +5,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\PatientController;
+use App\Http\Controllers\ClinicController;
 use App\Http\Controllers\DoctorController;
-use App\Http\Controllers\HomeController;
 use App\Http\Middleware\ApiAuthMiddleware;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SecretaryController;
-
-
-
-
-
-
-
-
+use App\Http\Controllers\SpecialtyController;
 
 // Public Routes (No Authentication Required)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'sendPasswordResetLink']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-
-
-
-
-Route::middleware(['auth:api', 'api.role:patient,doctor'])->group(function () {
-    // Home dashboard (different for doctor & patient)
-    Route::get('/home', [HomeController::class, 'getHomeData']);
-});
-
-
 
 // Authenticated Routes (All logged-in users)
 Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
@@ -46,13 +29,13 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-////////
+
 
     // Patient-Specific Routes
 Route::middleware(['role:patient'])->group(function () {
     // Profile Management
     Route::prefix('patient')->group(function () {
-        Route::get('/profile', [PatientController::class, 'getProfile']);
+        Route::get('/profile-picture', [PatientController::class, 'getProfilePicture']);
         Route::put('/profile', [PatientController::class, 'updateProfile']);
         Route::post('/profile-picture', [PatientController::class, 'updateProfilePicture']); // Fixed this line
 
@@ -64,11 +47,39 @@ Route::middleware(['role:patient'])->group(function () {
             // Appointments
             Route::prefix('appointments')->group(function () {
                 Route::get('/', [PatientController::class, 'getAppointments']);
-                Route::post('/', [PatientController::class, 'createAppointment']);
+              // flexible implementation required   Route::post('/', [PatientController::class, 'createAppointment']);
                 Route::post('/book-from-slot', [PatientController::class, 'bookFromAvailableSlot']);
                 Route::put('/{id}', [PatientController::class, 'updateAppointment']);
                 Route::delete('/{id}', [PatientController::class, 'cancelAppointment']);
             });
+
+
+
+
+
+
+
+
+
+            // Specialty routes
+Route::get('/specialties', [SpecialtyController::class, 'index']);
+Route::post('/specialties/{id}/upload-icon', [SpecialtyController::class, 'uploadIcon']);
+Route::get('/specialties/{id}/icon', [SpecialtyController::class, 'getIcon']);
+
+
+
+
+//for clinic branches viewing
+// Clinic image routes
+Route::post('/clinics/{id}/upload-image', [ClinicController::class, 'uploadImage']);
+Route::get('/clinics/{id}/image', [ClinicController::class, 'getImage']);
+
+
+
+
+
+
+
 
             // Medical Records
             Route::get('/medical-history', [PatientController::class, 'getMedicalHistory']);
