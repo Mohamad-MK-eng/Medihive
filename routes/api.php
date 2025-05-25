@@ -6,10 +6,18 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\PatientController;
 use App\Http\Controllers\DoctorController;
+use App\Http\Controllers\HomeController;
 use App\Http\Middleware\ApiAuthMiddleware;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SecretaryController;
+
+
+
+
+
+
+
 
 
 // Public Routes (No Authentication Required)
@@ -17,6 +25,16 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'sendPasswordResetLink']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+
+
+
+Route::middleware(['auth:api', 'api.role:patient,doctor'])->group(function () {
+    // Home dashboard (different for doctor & patient)
+    Route::get('/home', [HomeController::class, 'getHomeData']);
+});
+
+
 
 // Authenticated Routes (All logged-in users)
 Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
@@ -28,7 +46,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-
+////////
 
     // Patient-Specific Routes
 Route::middleware(['role:patient'])->group(function () {
