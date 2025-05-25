@@ -50,14 +50,14 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Patient extends Model
 {
-        use HandlesFiles;
+    use HandlesFiles;
 
-        // هون عدلت
-    protected $fillable =[
-'user_id',
-'first_name',
-'last_name',
-/* 'date_of_birth',
+    // هون عدلت
+    protected $fillable = [
+        'user_id',
+        'first_name',
+        'last_name',
+        /* 'date_of_birth',
 'address',
  'profile_picture',
 'phone_number',
@@ -71,158 +71,161 @@ class Patient extends Model
     'wallet_activated_at' */
     ];
 
-protected $casts =[
-    'user_id',
-'date_of_birth'=> 'date',
+    protected $casts = [
+        'user_id',
+        'date_of_birth' => 'date',
 
-'phone_number',
+        'phone_number',
+        'wallet_balance'  => 'double',
 
-    'emergency_contact',
-'chronic_conditions'=>'array',
-'insurance_provider'=>'array',
-    'wallet_activated_at' => 'datetime'
+        'emergency_contact',
+        'chronic_conditions' => 'array',
+        'insurance_provider' => 'array',
+        'wallet_activated_at' => 'datetime'
 
-];
+    ];
 
-public function user(){
-
-
-    return $this->belongsTo(User::class);
-}
-
-public function appointments(){
-
-    return $this->hasMany(Appointment::class);
-}
+    public function user()
+    {
 
 
-public function prescription(){
-    return $this->hasManyThrough(Prescription::class,Appointment::class);
-}
-
-
-
-
-
-public function payments(){
-
-    return $this->hasMany(Payment::class);
-}
-
-public function documents(){
-
-    return $this->hasMany(Document::class);
-}
-public function notifications(){
-    return $this->hasMany(Notification::class);
-}
-
-
-public function hasChronicCondition($condition){
-
-return in_array($condition,$this->chronic_conditions);
-
-}
-
-
-public function getInsuranceDetails()
-{
-
-    return $this->insurance_provider;
-}
-
-
-
-
-public function getUpcomingAppointments(){
-
-    return $this->appointments()
-->where('appointment_date', '>=',now())
-    ->where('status','confirmed')
-    ->orderBy('appointment_date')->get();
-}
-
-public function getMedicalHistory()
-{
-    return $this->appointments()
-    ->with('prescriptions')
-    ->where('appointment_date', '<=', now())
-    ->orderBy('appointment_date', 'desc')
-    ->get();
-}
-
-
-
-
-
-
-
-
-
-public function walletTransactions()
-{
-    return $this->hasMany(WalletTransaction::class);
-}
-
-
-
-
-
-
-
-
-// In Patient model (add these methods)
-public function deposit($amount, $notes = null, $adminId = null)
-{
-    return DB::transaction(function () use ($amount, $notes, $adminId) {
-        $previousBalance = $this->wallet_balance;
-        $newBalance = $previousBalance + $amount;
-
-        $transaction = WalletTransaction::create([
-            'patient_id' => $this->id,
-            'admin_id' => $adminId,
-            'amount' => $amount,
-            'type' => 'deposit',
-            'reference' => 'DEP-'.now()->format('YmdHis'),
-            'balance_before' => $previousBalance,
-            'balance_after' => $newBalance,
-            'notes' => $notes
-        ]);
-
-        $this->update(['wallet_balance' => $newBalance]);
-
-        return $transaction;
-    });
-}
-
-public function withdraw($amount, $notes = null)
-{
-    if ($this->wallet_balance < $amount) {
-        throw new \Exception('Insufficient wallet balance');
+        return $this->belongsTo(User::class);
     }
 
-    return DB::transaction(function () use ($amount, $notes) {
-        $previousBalance = $this->wallet_balance;
-        $newBalance = $previousBalance - $amount;
+    public function appointments()
+    {
 
-        $transaction = WalletTransaction::create([
-            'patient_id' => $this->id,
-            'amount' => $amount,
-            'type' => 'withdrawal',
-            'reference' => 'WTH-'.now()->format('YmdHis'),
-            'balance_before' => $previousBalance,
-            'balance_after' => $newBalance,
-            'notes' => $notes
-        ]);
+        return $this->hasMany(Appointment::class);
+    }
 
-        $this->update(['wallet_balance' => $newBalance]);
 
-        return $transaction;
-    });
-}
+    public function prescription()
+    {
+        return $this->hasManyThrough(Prescription::class, Appointment::class);
+    }
 
 
 
 
 
+    public function payments()
+    {
+
+        return $this->hasMany(Payment::class);
+    }
+
+    public function documents()
+    {
+
+        return $this->hasMany(Document::class);
+    }
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
+
+    public function hasChronicCondition($condition)
+    {
+
+        return in_array($condition, $this->chronic_conditions);
+    }
+
+
+    public function getInsuranceDetails()
+    {
+
+        return $this->insurance_provider;
+    }
+
+
+
+
+    public function getUpcomingAppointments()
+    {
+
+        return $this->appointments()
+            ->where('appointment_date', '>=', now())
+            ->where('status', 'confirmed')
+            ->orderBy('appointment_date')->get();
+    }
+
+    public function getMedicalHistory()
+    {
+        return $this->appointments()
+            ->with('prescriptions')
+            ->where('appointment_date', '<=', now())
+            ->orderBy('appointment_date', 'desc')
+            ->get();
+    }
+
+
+
+
+
+
+
+
+
+    public function walletTransactions()
+    {
+        return $this->hasMany(WalletTransaction::class);
+    }
+
+
+
+
+
+
+
+
+    // In Patient model (add these methods)
+    public function deposit($amount, $notes = null, $adminId = null)
+    {
+        return DB::transaction(function () use ($amount, $notes, $adminId) {
+            $previousBalance = $this->wallet_balance;
+            $newBalance = $previousBalance + $amount;
+
+            $transaction = WalletTransaction::create([
+                'patient_id' => $this->id,
+                'admin_id' => $adminId,
+                'amount' => $amount,
+                'type' => 'deposit',
+                'reference' => 'DEP-' . now()->format('YmdHis'),
+                'balance_before' => $previousBalance,
+                'balance_after' => $newBalance,
+                'notes' => $notes
+            ]);
+
+            $this->update(['wallet_balance' => $newBalance]);
+
+            return $transaction;
+        });
+    }
+
+    public function withdraw($amount, $notes = null)
+    {
+        if ($this->wallet_balance < $amount) {
+            throw new \Exception('Insufficient wallet balance');
+        }
+
+        return DB::transaction(function () use ($amount, $notes) {
+            $previousBalance = $this->wallet_balance;
+            $newBalance = $previousBalance - $amount;
+
+            $transaction = WalletTransaction::create([
+                'patient_id' => $this->id,
+                'amount' => $amount,
+                'type' => 'withdrawal',
+                'reference' => 'WTH-' . now()->format('YmdHis'),
+                'balance_before' => $previousBalance,
+                'balance_after' => $newBalance,
+                'notes' => $notes
+            ]);
+
+            $this->update(['wallet_balance' => $newBalance]);
+
+            return $transaction;
+        });
+    }
 }
