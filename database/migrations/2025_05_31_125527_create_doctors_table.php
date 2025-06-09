@@ -23,8 +23,7 @@ $table->string('profile_picture')->nullable();
             $table->float('rating')->default(0);
             $table->decimal('consultation_fee',8,2)->default(100);
             $table->integer('experience_years')->default(2);
-            $table->double('salary')->default(7000);
-
+            $table->foreignId('salary_id')->constrained('salaries')->onDelete('cascade');
 
 
             $table->timestamps();

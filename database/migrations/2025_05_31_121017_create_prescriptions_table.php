@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('documents', function (Blueprint $table) {
+        Schema::create('prescriptions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('patient_id')->constrained('patients');
-            $table->string('title');
-            $table->enum('type', ['lab_report', 'prescription', 'scan', 'other']);
-            $table->string('file_path');
-            $table->text('notes')->nullable();
+
+           $table->text('medication')->nullable(false);
+           $table->text('dosage')->nullable(false);
+           $table->text('instructions');
+
             $table->timestamps();
         });
     }
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('documents');
+        Schema::dropIfExists('prescriptions');
     }
 };

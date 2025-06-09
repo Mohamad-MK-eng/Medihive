@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('prescriptions', function (Blueprint $table) {
+        Schema::create('time_slots', function (Blueprint $table) {
             $table->id();
-
-            $table->foreignId('appointment_id')->constrained('appointments')->onDelete('cascade');
-           $table->text('medication')->nullable(false);
-           $table->text('dosage')->nullable(false);
-
-
+            $table->foreignId('doctor_id')->unique()->constrained('doctors')->onDelete('cascade');
+            $table->date('date')->unique();
+    $table->time('start_time');
+    $table->time('end_time');
+    $table->boolean('is_booked')->default(false);
             $table->timestamps();
         });
     }
@@ -28,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('prescriptions');
+        Schema::dropIfExists('time_slots');
     }
 };

@@ -9,6 +9,7 @@ use App\Models\Doctor;
 use App\Models\DoctorSchedule;
 use App\Models\Payment;
 use App\Models\Prescription;
+use App\Models\Review;
 use App\Models\Secretary;
 use App\Models\TimeSlot;
 use Illuminate\Http\Request;
@@ -24,14 +25,62 @@ class PatientController extends Controller
 
 
 
-    public function getProfile()
-    {
-        $patient = Auth::user()->patient;
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
-        return response()->json($patient->load('user'));
+  public function getProfile()
+{
+    $patient = Auth::user()->patient;
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
     }
+
+       $profile = $patient->load([
+        'user',
+        'appointments.doctor.user',
+        'prescriptions.medications',
+        'payments',
+        'notifications',
+        'walletTransactions'
+    ])->toArray();
+
+
+
+
+
+    // Add profile picture URL
+    $profile['profile_picture_url'] = $patient->getProfilePictureUrl();
+
+
+    // Add wallet balance
+    $profile['wallet_balance'] = $patient->wallet_balance;
+    $profile['wallet_activated'] = !is_null($patient->wallet_activated_at);
+ $profile['medical_history'] = $patient->getMedicalHistory();
+
+
+
+
+    // Add recent prescriptions
+    $profile['recent_prescriptions'] = $patient->prescription()
+        ->with('medications')
+        ->orderBy('created_at', 'desc')
+        ->take(3)
+        ->get();
+
+    return response()->json($profile);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
    public function updateProfile(Request $request)
 {
@@ -45,9 +94,9 @@ class PatientController extends Controller
         'address' => 'sometimes|string|nullable',
         'date_of_birth' => 'sometimes|date',
         'gender' => 'sometimes|string|in:male,female,other',
-        'blood_type' => 'sometimes|string|nullable',
+        'blood_type' => 'sometimes|in:A+,A-,B+,B-,AB+,AB-,O+,O-',                'chronic_conditions' => 'nullable|array',
+
         'emergency_contact' => 'sometimes|string|max:255'
-        // Removed profile_picture from here
     ]);
 
     if ($validator->fails()) {
@@ -59,6 +108,8 @@ class PatientController extends Controller
     if ($request->has('last_name')) $user->last_name = $request->last_name;
     $user->save();
 
+
+    $patient = Auth::user()->patient;
     // Update patient
     $patient->update($validator->validated());
 
@@ -138,17 +189,25 @@ public function updateProfilePicture(Request $request)
         return response()->json(['message' => 'Patient profile not found'], 404);
     }
 
-    if ($path = $patient->uploadProfilePicture($request->file('profile_picture'))) {
-        return response()->json([
-            'success' => true,
-            'url' => $patient->getProfilePictureUrl(),
-            'message' => 'Profile picture updated successfully'
-        ]);
-    }
+        try {
+        if ($patient->uploadProfilePicture($request->file('profile_picture'))) {
+            return response()->json([
+                'success' => true,
+                'url' => $patient->getProfilePictureUrl(),
+                'message' => 'Profile picture updated successfully'
+            ]);
+        }
 
-    return response()->json([
-        'error' => 'Invalid image file. Only JPG/JPEG files under 2MB are allowed'
-    ], 400);
+        return response()->json([
+            'error' => 'Invalid image file'
+        ], 400);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to upload picture',
+            'message' => $e->getMessage()
+        ], 500);
+    }
 }
 
 
@@ -297,40 +356,6 @@ public function getClinicDoctorsWithSlots($clinicId, Request $request)
 
 
 
-
-// Book appointment from available slot
-public function bookFromAvailableSlot(Request $request)
-{
-    $validated = $request->validate([
-        'doctor_id' => 'required|exists:doctors,id',
-        'date' => 'required|date|after:now',
-        'slot_start' => 'required|date_format:g:i A',
-        'slot_end' => 'required|date_format:g:i A',
-        'reason' => 'required|string|max:500'
-    ]);
-
-    $appointmentDate = Carbon::createFromFormat(
-        'Y-m-d g:i A',
-        $validated['date'] . ' ' . $validated['slot_start']
-    );
-
-    $appointment = Appointment::create([
-        'patient_id' => Auth::user()->patient->id,
-        'doctor_id' => $validated['doctor_id'],
-        'appointment_date' => $appointmentDate,
-        'reason' => $validated['reason'],
-        'status' => 'confirmed'
-    ]);
-
-    return response()->json([
-        'message' => 'Appointment booked successfully',
-        'appointment' => $appointment
-    ]);
-}
-
-
-
-
 /* second try :
 
 public function bookFromAvailableSlot(Request $request)
@@ -435,30 +460,6 @@ public function getAvailableSlots($doctorId, $date) {
     return response()->json($slots);
 }
 
-// Book appointment
-public function bookAppointment(Request $request) {
-    $validated = $request->validate([
-        'slot_id' => 'required|exists:time_slots,id',
-        'reason' => 'required|string|max:500'
-    ]);
-
-    DB::transaction(function () use ($validated) {
-        $slot = TimeSlot::find($validated['slot_id']);
-        $slot->update(['is_booked' => true]);
-
-        Appointment::create([
-            'patient_id' => Auth::id(),
-            'doctor_id' => $slot->doctor_id,
-            'appointment_date' => $slot->date,
-            'start_time' => $slot->start_time,
-            'end_time' => $slot->end_time,
-            'status' => 'confirmed',
-            'reason' => $validated['reason']
-        ]);
-    });
-
-    return response()->json(['message' => 'Appointment booked successfully']);
-}
 
 
 
@@ -470,14 +471,15 @@ public function bookAppointment(Request $request) {
 
 
 
-
+//too complex the real one is in the appointment controller
+/*
     public function createAppointment(Request $request)
     {
         $validated = $request->validate([
             'doctor_id' => 'required|exists:doctors,id',
             'clinic_id' => 'required|exists:clinics,id',
             'appointment_date' => 'required|date|after:now',
-            'reason' => 'required|string|max:500',
+            'reason' => 'sometimes|string|max:500',
             'notes' => 'sometimes|string|nullable'
         ]);
 
@@ -601,7 +603,9 @@ public function bookAppointment(Request $request) {
 
             return response()->json([
                 'appointment' => $appointment,
-                'message' => 'Appointment booked successfully'
+                'message' => 'Appointment booked successfully'  // && بدي يرجعلي معلومات عن الطبيب ك تابع get profile
+                // clinic name , doctor name ,
+
             ], 201);
 
         } catch (\Exception $e) {
@@ -612,7 +616,7 @@ public function bookAppointment(Request $request) {
         }
     }
 
-
+*/
 
 
     public function updateAppointment(Request $request, $id)
@@ -670,7 +674,7 @@ public function bookAppointment(Request $request) {
             'status' => 'cancelled',
             'cancelled_at' => now(),
             'cancellation_reason' => $validated['reason']
-        ]);
+        ]); // بدي عالج قصة الخصم
 
         /*  لا تقيم الكومنت لا تقيم الكومنت لا تقيم الكومنت
         $appointment->patient->notifications()->create([
@@ -771,6 +775,25 @@ public function getWalletTransactions()
         return response()->json(['message' => 'Patient profile not found'], 404);
     }
 
+
+     return $request->user()->patient->appointments()
+        ->with(['prescription', 'medicalNotes', 'doctor.user', 'clinic'])
+        ->where('appointment_date', '<=', now())
+        ->orderBy('appointment_date', 'desc')
+        ->get()
+        ->map(function ($appointment) {
+            return [
+                'id' => $appointment->id,
+                'date' => $appointment->appointment_date,
+                'clinic' => $appointment->clinic->name,
+                'doctor' => $appointment->doctor->user->name,
+                'diagnosis' => $appointment->diagnosis,
+                'treatment' => $appointment->treatment_notes,
+                'prescription' => $appointment->prescription,
+                'follow_up' => $appointment->follow_up_date
+            ];
+        });
+/*
     $history = $patient->appointments()
         ->with(['doctor.user:id,first_name,last_name', 'prescriptions.medications'])
         ->where('status', 'completed')
@@ -784,6 +807,8 @@ public function getWalletTransactions()
         ->get();
 
     return response()->json($history);
+
+    */
 }
 
 
@@ -930,6 +955,22 @@ public function markAllNotificationsAsRead()
 
 
 
+public function submitRating(Request $request)
+{
+    $validated = $request->validate([
+        'doctor_id' => 'required|exists:doctors,id',
+        'appointment_id' => 'required|exists:appointments,id',
+        'rating' => 'required|integer|between:1,5',
+        'comment' => 'nullable|string|max:500'
+    ]);
+
+    $review = Review::create([
+        'patient_id' => $request->user()->patient->id,
+        ...$validated
+    ]);
+
+    return response()->json($review, 201);
+}
 
 
 

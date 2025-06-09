@@ -16,7 +16,6 @@ return new class extends Migration
             $table->foreignId('patient_id')->nullable()->constrained('patients')->onDelete('cascade');
             $table->foreignId('secretary_id')->nullable()->constrained('secretaries')->onDelete('cascade');
             $table->foreignId('appointment_id')->constrained('appointments')->onDelete('cascade');
-            $table->foreignId('service_id')->constrained('services')->onDelete('restrict');
             $table->decimal('amount', 10, 2)->nullable(false);
 
 
@@ -37,3 +36,5 @@ return new class extends Migration
         Schema::dropIfExists('payments');
     }
 };
+
+

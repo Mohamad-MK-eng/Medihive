@@ -21,7 +21,6 @@ use Illuminate\Database\Eloquent\Model;
  * @property-read \App\Models\Patient $patient
  * @property-read \App\Models\Payment|null $payment
  * @property-read \App\Models\Prescription|null $prescription
- * @property-read \App\Models\Service $service
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment query()
@@ -83,10 +82,6 @@ public function patient(){
 public function doctor(){
     return $this->belongsTo(Doctor::class);
 
-}
-
-public function service(){
-    return $this->belongsTo(Service::class);
 }
 
 

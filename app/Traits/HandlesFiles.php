@@ -59,4 +59,39 @@ trait HandlesFiles
         }
         return true;
     }
+
+
+
+
+
+
+
+
+// In HandlesFiles trait, add:
+
+/**
+ * Specific for profile pictures
+ */
+public function uploadProfilePicture($file)
+{
+    return $this->uploadFile(
+        $file,
+        'profile_picture',
+        'profile_pictures',
+        ['jpg', 'jpeg', 'png'],
+        2048 // 2MB max
+    );
+}
+
+/**
+ * Get profile picture URL with default
+ */
+public function getProfilePictureUrl()
+{
+    return $this->getFileUrl(
+        'profile_picture',
+        'images/default-profile.jpg'
+    );
+}
+
 }

@@ -80,4 +80,26 @@ public function getIcon($id)
     return response()->file($filePath);
 }
 
+
+
+
+// try
+/*
+// Get all specialties for a clinic
+$clinic = Clinic::find(1);
+$specialties = $clinic->specialties;
+
+// Get all clinics offering a specialty
+$specialty = Specialty::find(1);
+$clinics = $specialty->clinics;
+
+// Get doctors for a specialty
+$doctors = $specialty->doctors;
+
+// Get specialty for a doctor
+$doctor = Doctor::find(1);
+$specialty = $doctor->specialty;
+
+
+*/
 }

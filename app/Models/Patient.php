@@ -58,7 +58,8 @@ class Patient extends Model
         'user_id',
         'first_name',
         'last_name',
-        /* 'date_of_birth',
+
+         'date_of_birth',
 'address',
  'profile_picture',
 'phone_number',
@@ -69,7 +70,7 @@ class Patient extends Model
 'emergency_contact',
 'wallet_balance',
     'wallet_pin',
-    'wallet_activated_at' */
+    'wallet_activated_at'
     ];
 
     protected $casts = [
@@ -151,15 +152,24 @@ class Patient extends Model
             ->orderBy('appointment_date')->get();
     }
 
-    public function getMedicalHistory()
-    {
-        return $this->appointments()
-            ->with('prescriptions')
-            ->where('appointment_date', '<=', now())
-            ->orderBy('appointment_date', 'desc')
-            ->get();
-    }
-
+   public function getMedicalHistory()
+{
+    return $this->appointments()
+        ->with(['doctor.user', 'clinic', 'prescriptions'])
+        ->where('appointment_date', '<=', now())
+        ->orderBy('appointment_date', 'desc')
+        ->get()
+        ->map(function ($appointment) {
+            return [
+                'id' => $appointment->id,
+                'date' => $appointment->appointment_date,
+                'clinic' => $appointment->clinic->name,
+                'doctor' => $appointment->doctor->user->full_name,
+                'prescription' => $appointment->prescription,
+                'notes' => $appointment->notes
+            ];
+        });
+}
 
 
 

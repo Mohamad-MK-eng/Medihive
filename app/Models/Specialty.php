@@ -16,6 +16,17 @@ class Specialty extends Model
         'image_path'
     ];
 
+
+
+    public function doctors()
+{
+    return $this->hasMany(Doctor::class);
+}
+
+public function clinics()
+{
+    return $this->hasManyThrough(Clinic::class, Doctor::class);
+}
     public function getIconUrl()
     {
         if (!$this->image_path) {
@@ -42,3 +53,4 @@ class Specialty extends Model
         return false;
     }
 }
+//

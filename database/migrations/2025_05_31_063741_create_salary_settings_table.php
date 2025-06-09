@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('patient_documents', function (Blueprint $table) {
+        Schema::create('salary_settings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('patient_id')->constrained();
-            $table->string('file_path');
-            $table->enum('type', ['lab_report', 'prescription', 'scan']);
-            $table->timestamp('uploaded_at');
+            $table->decimal('per_patient_bonus', 10, 2);
+$table->foreignId('specialty_id')->constrained('clinics')->onDelete('cascade');
+
             $table->timestamps();
-        });
+          });
     }
 
     /**
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('patient_documents');
+        Schema::dropIfExists('salary_settings');
     }
 };

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AppointmentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
@@ -16,8 +17,13 @@ use App\Http\Controllers\SpecialtyController;
 // Public Routes (No Authentication Required)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
 Route::post('/forgot-password', [AuthController::class, 'sendPasswordResetLink']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+Route::middleware('auth:api')->group(function () {
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
+});
+
 
 // Authenticated Routes (All logged-in users)
 Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
@@ -48,8 +54,10 @@ Route::middleware(['role:patient'])->group(function () {
             Route::prefix('appointments')->group(function () {
                 Route::get('/', [PatientController::class, 'getAppointments']);
               // flexible implementation required   Route::post('/', [PatientController::class, 'createAppointment']);
-                Route::post('/book-from-slot', [PatientController::class, 'bookFromAvailableSlot']);
-                Route::put('/{id}', [PatientController::class, 'updateAppointment']);
+
+Route::post('/appointments', [AppointmentController::class, 'bookAppointment']);
+
+              Route::put('/{id}', [PatientController::class, 'updateAppointment']);
                 Route::delete('/{id}', [PatientController::class, 'cancelAppointment']);
             });
 

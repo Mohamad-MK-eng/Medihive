@@ -19,7 +19,6 @@ use Illuminate\Database\Eloquent\Model;
  * @property-read int|null $appointments_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Prescription> $prescriptions
  * @property-read int|null $prescriptions_count
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Service> $services
  * @property-read int|null $services_count
  * @property-read \App\Models\User $user
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Doctor newModelQuery()
@@ -72,9 +71,6 @@ public function prescriptions(){
 }
 
 
-public function services(){
-    return $this->belongsToMany(Service::class);
-}
 
 
 public function clinic(){
@@ -140,6 +136,11 @@ public function getAvailableSlots($date)
     return collect($slots);
 }
 
+
+public function reviews()
+{
+    return $this->hasMany(Review::class);
+}
 
   public function schedules()
   {
