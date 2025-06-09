@@ -6,38 +6,57 @@ use Illuminate\Support\Facades\Storage;
 
 trait HandlesFiles
 {
-    public function uploadProfilePicture($file)
+    /**
+     * Uploads a file with configurable options
+     */
+    public function uploadFile($file, $fieldName = 'profile_picture', $directory = 'profile_pictures', $allowedTypes = ['jpg', 'jpeg', 'png'], $maxSize = 2048000)
     {
-        // Validate it's a JPG image (max 2MB)
+        // Validate the file
         if (!$file->isValid() ||
-            !in_array($file->getClientOriginalExtension(), ['jpg', 'jpeg']) ||
-            $file->getSize() > 2000000) {
+            !in_array(strtolower($file->getClientOriginalExtension()), $allowedTypes) ||
+            $file->getSize() > $maxSize) {
             return false;
         }
 
         // Generate unique filename
-        $filename = 'profile_'.time().'.'.$file->getClientOriginalExtension();
-        $path = 'profile_pictures/'.$filename;
+        $filename = time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
+        $path = $directory.'/'.$filename;
 
         // Store the file
         Storage::disk('public')->put($path, file_get_contents($file));
 
-        // Delete old picture if exists
-        if ($this->profile_picture) {
-            Storage::disk('public')->delete($this->profile_picture);
+        // Delete old file if exists
+        if ($this->{$fieldName}) {
+            $this->deleteFile($fieldName);
         }
 
         // Save new path
-        $this->profile_picture = $path;
+        $this->{$fieldName} = $path;
         $this->save();
 
         return $path;
     }
 
-    public function getProfilePictureUrl()
+    /**
+     * Gets the URL for a file field
+     */
+    public function getFileUrl($fieldName = 'profile_picture', $default = 'images/default-profile.jpg')
     {
-        return $this->profile_picture
-            ? Storage::disk('public')->url($this->profile_picture)
-            : asset('images/default-profile.jpg');
+        return $this->{$fieldName}
+            ? Storage::url($this->{$fieldName})
+            : asset($default);
+    }
+
+    /**
+     * Deletes a file
+     */
+    public function deleteFile($fieldName = 'profile_picture')
+    {
+        if ($this->{$fieldName} && Storage::disk('public')->exists($this->{$fieldName})) {
+            Storage::disk('public')->delete($this->{$fieldName});
+            $this->{$fieldName} = null;
+            $this->save();
+        }
+        return true;
     }
 }

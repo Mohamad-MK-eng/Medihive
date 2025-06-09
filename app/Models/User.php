@@ -71,7 +71,7 @@ class User extends Authenticatable
         'profile_picture',
         'role_id',
         'history',
-        'password', */
+     */
     ];
 
 

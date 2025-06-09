@@ -16,19 +16,6 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        // هون عدلت
-        /* $validator = Validator::make($request->all(), [
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
-            /* 'phone_number' => 'nullabe|string|min:8',
-            'address' => 'nullable|string',
-            'gender' => 'nullable',
-            'date_of_birth' => 'nullable|date',
-            'blood_type' => 'nullable|string',
-            'emergency_contact' => 'nullable|string' */
-        //  ]); */
 
         $validator  = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -47,13 +34,14 @@ class AuthController extends Controller
             $user = User::create([
                 'first_name' => $request->first_name,
                 'last_name' => $request->last_name,
+                'name' => $request->first_name . ' ' . $request->last_name,
                 //   'name' => $request->first_name . ' ' . $request->last_name,
                 'email' => $request->email,
-                /* 'date_of_birth' => $request->date_of_birth,
+                'date_of_birth' => $request->date_of_birth,
                 'blood_type' => $request->blood_type,
-                'gender' => $request->gender, */
+                'gender' => $request->gender,
                 'password' => Hash::make($request->password),
-                //'phone_number' => $request->phone_number,
+                'phone_number' => $request->phone_number,
                 'role_id' => $patientRole->id,
             ]);
             /// me me me m e
@@ -76,7 +64,7 @@ class AuthController extends Controller
                 'message' => 'Patient registered successfully',
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-                'user' => $user->load('patient')
+                'patient' => $user->load('patient')
             ], 201);
         });
     }
@@ -120,7 +108,9 @@ class AuthController extends Controller
             'user' => $user->load('role'),
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'role_name' => $user->role->name
+'role_name'=> $user->role->name,
         ]);
     }
 }
+
+// comment
