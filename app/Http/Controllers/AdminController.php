@@ -109,26 +109,24 @@ class AdminController extends Controller
 
 
 
+public function uploadIcon(Request $request, $id)
+{
+    $request->validate([
+        'image' => 'required|image|mimes:jpg,jpeg,png|max:2048'
+    ]);
 
-      // Upload clinic image
-    public function uploadImage(Request $request, $id)
-    {
-        $request->validate([
-            'image' => 'required|image|mimes:jpg,jpeg,png|max:2048'
-        ]);
+    $clinic = Clinic::findOrFail($id);
 
-        $clinic = Clinic::findOrFail($id);
-
-        if ($clinic->uploadImage($request->file('image'))) {
-            return response()->json([
-                'success' => true,
-                'image_url' => $clinic->getClinicImageUrl(),
-                'message' => 'Clinic image updated successfully'
-            ]);
-        }
-
+    if ($clinic->uploadImage($request->file('image'))) {
         return response()->json([
-            'error' => 'Invalid image file. Only JPG/JPEG/PNG files under 2MB are allowed'
-        ], 400);
+            'success' => true,
+            'image_url' => $clinic->getIconUrl(),/////////
+            'message' => 'Clinic image updated successfully'
+        ]);
     }
+
+    return response()->json([
+        'error' => 'Invalid image file. Only JPG/JPEG/PNG files under 2MB are allowed'
+    ], 400);
+}
 }
