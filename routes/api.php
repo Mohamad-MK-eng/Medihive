@@ -70,9 +70,9 @@ Route::post('/appointments', [AppointmentController::class, 'bookAppointment']);
 
 
             // Specialty routes
-Route::get('/specialties', [SpecialtyController::class, 'index']);
-Route::post('/specialties/{id}/upload-icon', [SpecialtyController::class, 'uploadIcon']);
-Route::get('/specialties/{id}/icon', [SpecialtyController::class, 'getIcon']);
+Route::get('/specialties', [ClinicController::class, 'index']);
+Route::post('/specialties/{id}/upload-icon', [ClinicController::class, 'uploadIcon']);
+Route::get('/specialties/{id}/icon', [ClinicController::class, 'getIcon']);
 
 
 

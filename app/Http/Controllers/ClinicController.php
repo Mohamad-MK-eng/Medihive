@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Clinic;
+use App\Models\Specialty;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -18,37 +19,20 @@ class ClinicController extends Controller
                 'location' => $clinic->location,
                 'opening_time' => $clinic->opening_time,
                 'closing_time' => $clinic->closing_time,
-                'image_url' => $clinic->getClinicImageUrl()
+                'icon_url' => $clinic->getIconUrl()
             ];
         });
 
         return response()->json($clinics);
     }
 
-    // Upload clinic image
-    public function uploadImage(Request $request, $id)
-    {
-        $request->validate([
-            'image' => 'required|image|mimes:jpg,jpeg,png|max:2048'
-        ]);
 
-        $clinic = Clinic::findOrFail($id);
 
-        if ($clinic->uploadClinicImage($request->file('image'))) {
-            return response()->json([
-                'success' => true,
-                'image_url' => $clinic->getClinicImageUrl(),
-                'message' => 'Clinic image updated successfully'
-            ]);
-        }
 
-        return response()->json([
-            'error' => 'Invalid image file. Only JPG/JPEG/PNG files under 2MB are allowed'
-        ], 400);
-    }
 
-    // Get clinic image
-    public function getImage($id)
+
+    // modify for a single clinic
+    public function getIconUrl($id)
     {
         $clinic = Clinic::findOrFail($id);
 
@@ -74,3 +58,29 @@ class ClinicController extends Controller
         }
     }
 }
+
+
+
+
+
+
+// try
+/*
+// Get all specialties for a clinic
+$clinic = Clinic::find(1);
+$specialties = $clinic->specialties;
+
+// Get all clinics offering a specialty
+$specialty = Specialty::find(1);
+$clinics = $specialty->clinics;
+
+// Get doctors for a specialty
+$doctors = $specialty->doctors;
+
+// Get specialty for a doctor
+$doctor = Doctor::find(1);
+$specialty = $doctor->specialty;
+
+
+*/
+

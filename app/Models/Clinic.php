@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Storage;
 
 class Clinic extends Model
 {
@@ -11,8 +12,10 @@ class Clinic extends Model
     protected $fillable =[
 'name',
 'location',
+'decritption',
 'opening_time',
-'closing_time'
+'closing_time',
+'image_path'
     ];
 
 
@@ -35,22 +38,31 @@ class Clinic extends Model
 
 
 
-
-
-
-  public function getClinicImageUrl()
+ public function getIconUrl()
     {
-        return $this->getFileUrl('description_picture', 'images/default-clinic.jpg');
+        if (!$this->image_path) {
+            return asset('images/default-specialty.png');
+        }
+
+        // Manually construct the URL to ensure consistency
+        return url('storage/specialty_icons/' . basename($this->image_path));
     }
 
-    // Upload clinic image
-    public function uploadClinicImage($file)
+    public function uploadIcon($iconFile)
     {
-        return $this->uploadFile($file, 'description_picture', 'clinic_images');
+        if ($iconFile) {
+            // Delete old icon if exists
+            if ($this->image_path) {
+                Storage::disk('public')->delete($this->image_path);
+            }
+
+            // Store in specialty_icons directory
+            $path = $iconFile->store('specialty_icons', 'public');
+            $this->image_path = $path;
+            return $this->save();
+        }
+        return false;
     }
-
-
-
 
 
 

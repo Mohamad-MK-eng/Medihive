@@ -28,18 +28,16 @@ class WalletController extends Controller
             'notes' => 'sometimes|string|max:255'
         ]);
 
-        if (!Auth::user()->hasRole('secretary') && !Auth::user()->hasRole('admin')) {
+        if (!Auth::user()->hasRole('secretary')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         return DB::transaction(function () use ($validated) {
             $patient = Patient::find($validated['patient_id']);
-            $admin = Auth::user();
 
             $transaction = $patient->deposit(
                 $validated['amount'],
                 $validated['notes'] ?? 'Added by staff',
-                $admin->id
             );
 
             return response()->json([
@@ -111,6 +109,9 @@ class WalletController extends Controller
         ]);
     }
 
+
+
+    //
     public function transferToClinic(Request $request)
     {
         $validated = $request->validate([
