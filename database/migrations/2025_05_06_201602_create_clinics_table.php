@@ -12,11 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('clinics', function (Blueprint $table) {
-            $table->id();
+    $table->id();
     $table->string('name');
-    $table->string('location');
-    $table->time('opening_time');
-    $table->time('closing_time');
+  // تم حذق اوقات الفتح واوقات الاغلاق \لأنها مالها داعي الدكتور هو يلي بحدد اذا كان في دوام او لا
     $table->string('specialty')->default('General');
      $table->text('description')->nullable();
     $table->string('image_path')->nullable();

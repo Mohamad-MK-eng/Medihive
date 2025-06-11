@@ -13,17 +13,16 @@ return new class extends Migration
     {
         Schema::create('doctors', function (Blueprint $table) {
             $table->id();
-
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-$table->foreignId('clinic_id')->constrained('clinics')->onDelete('cascade');
+            $table->foreignId('clinic_id')->constrained('clinics')->onDelete('cascade');
+            $table->foreignId('salary_id')->constrained('salaries')->onDelete('cascade');
             $table->string('specialty')->nullable(false);
             $table->text('bio')->nullable();
-                        $table->json('workdays')->nullable();
-$table->string('profile_picture')->nullable();
+            $table->json('workdays')->nullable();
+            $table->string('profile_picture')->nullable();
             $table->float('rating')->default(0);
             $table->decimal('consultation_fee',8,2)->default(100);
             $table->integer('experience_years')->default(2);
-            $table->foreignId('salary_id')->constrained('salaries')->onDelete('cascade');
 
 
             $table->timestamps();

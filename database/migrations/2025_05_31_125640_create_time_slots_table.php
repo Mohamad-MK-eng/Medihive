@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('time_slots', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('doctor_id')->unique()->constrained('doctors')->onDelete('cascade');
-            $table->date('date')->unique();
+            $table->foreignId('doctor_id')->constrained('doctors')->onDelete('cascade');
+            $table->date('date');
     $table->time('start_time');
     $table->time('end_time');
     $table->boolean('is_booked')->default(false);

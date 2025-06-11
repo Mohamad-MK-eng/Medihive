@@ -40,57 +40,12 @@ class AdminController extends Controller
         return response()->json($report);
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     // optional and not tested yet :
 
 
+    // في كل شي بخص الصور عملتو image_path
+    
 
-
-
-
-
-     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string',
-            'description' => 'nullable|string',
-            'icon' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
-        ]);
-
-        $specialty = Clinic::create($validated);
-
-        if ($request->hasFile('icon')) {
-            $specialty->uploadIcon($request->file('icon'));
-        }
-
-        return response()->json($specialty, 201);
-    }
 
         public function getWalletTransactions(Request $request)
     {
@@ -107,17 +62,37 @@ class AdminController extends Controller
 
 
 
+ public function createClinic(Request $request)
+    {
+        // هون ما بعرف اذا بدك تحط انو يتأكد انه ادمن
+    
+
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'description' => 'nullable|string',
+            'image_path' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
+        ]);
+
+        $clinic = Clinic::create($validated);
+
+        if ($request->hasFile('image_path')) {
+            $clinic->uploadIcon($request->file('image_path'));
+        }
+
+        return response()->json($clinic, 201);
+    }
 
 
-public function uploadIcon(Request $request, $id)
-{
+// في كل شي بخص الصور عملتو image_path
+   public function uploadClinicIcon(Request $request, $id)
+    {
     $request->validate([
-        'image' => 'required|image|mimes:jpg,jpeg,png|max:2048'
+        'image_path' => 'required|image|mimes:jpg,jpeg,png|max:2048'
     ]);
 
     $clinic = Clinic::findOrFail($id);
 
-    if ($clinic->uploadImage($request->file('image'))) {
+    if ($clinic->uploadIcon($request->file('image_path'))) {
         return response()->json([
             'success' => true,
             'image_url' => $clinic->getIconUrl(),/////////
@@ -128,5 +103,5 @@ public function uploadIcon(Request $request, $id)
     return response()->json([
         'error' => 'Invalid image file. Only JPG/JPEG/PNG files under 2MB are allowed'
     ], 400);
-}
+   }
 }

@@ -17,9 +17,8 @@ class ClinicController extends Controller
                 'id' => $clinic->id,
                 'name' => $clinic->name,
                 'location' => $clinic->location,
-                'opening_time' => $clinic->opening_time,
-                'closing_time' => $clinic->closing_time,
                 'icon_url' => $clinic->getIconUrl()
+                // في هون كان  open time close time شلتن  ما في داعي الهن 
             ];
         });
 
@@ -36,7 +35,7 @@ class ClinicController extends Controller
     {
         $clinic = Clinic::findOrFail($id);
 
-        if (!$clinic->description_picture) {
+        if (!$clinic->image_path) {
             return response()->json(['message' => 'No image set for this clinic'], 404);
         }
 
@@ -57,6 +56,8 @@ class ClinicController extends Controller
             ], 500);
         }
     }
+
+
 }
 
 

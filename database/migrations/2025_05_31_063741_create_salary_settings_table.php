@@ -12,11 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('salary_settings', function (Blueprint $table) {
-            $table->id();
-            $table->decimal('per_patient_bonus', 10, 2);
-$table->foreignId('specialty_id')->constrained('clinics')->onDelete('cascade');
 
+            $table->id();
+            // هون سويتها nullable لان مابعرف شو قصدك فيها
+            $table->decimal('per_patient_bonus', 10, 2)->nullable();
             $table->timestamps();
+            // حذفت speciality_id
           });
     }
 

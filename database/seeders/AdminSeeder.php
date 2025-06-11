@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, Patient, Role, Secretary, Specialty, TimeSlot};
+use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, Patient, Role, Salary, SalarySetting, Secretary, Specialty, TimeSlot};
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
@@ -20,24 +20,48 @@ class AdminSeeder extends Seeder
         ];
 
         // Create clinic
-        $clinic = Clinic::create([
-            'name' => 'Central Clinic',
-            'location' => '123 Health St',
-            'opening_time' => '09:00',
-            'closing_time' => '19:00'
+        $clinic1 = Clinic::create([
+            'name' => 'Oncology',
+        ]);
+          Clinic::create([
+            'name' => 'Neurology',
+        ]);
+        Clinic::create([
+            'name' => 'Opthalmology',
         ]);
 
 
+               // Create secretary
+        $secretaryUser = User::create([
+            'first_name' => 'Sara',
+            'last_name' => 'Secretary',
+            'email' => 'secretary@example.com',
+            'password' => Hash::make('password'),
+            'role_id' => $roles['secretary']->id,
+        ]);
+          $secretary = Secretary::create([
+            'user_id' => $secretaryUser->id,
+            'salary' => 4000,
+            'workdays' => json_encode(['Sunday', 'Monday', 'Tuesday']),
+        ]);
+        
+        // انشاء اعدادات الراتب
+        $salarySettings = SalarySetting::create([
 
-            \App\Models\Service::create([
-        'name' => 'General Consultation',
-        'price' => 50.00,
-    ]);
+        ]);
+        // انشاء الراتب
+        $doctorSalary = Salary::create([
+            'secretary_id' => $secretary->id,
+            'base_amount' => 100,
+            'bonus_amount' => 0.50,
+            'total_amount' => 100.5,
+            'salary_setting_id' => $salarySettings->id,
+            'status' => 'pending',
+        ]);
 
-    \App\Models\Service::create([
-        'name' => 'Specialist Consultation',
-        'price' => 100.00,
-    ]);
+      
+
+  
 
         // Create patient
         $patientUser = User::create([
@@ -47,7 +71,7 @@ class AdminSeeder extends Seeder
             'password' => Hash::make('password'),
             'role_id' => $roles['patient']->id,
         ]);
-
+        // create Patient
         $patient = Patient::create([
             'user_id' => $patientUser->id,
             'phone_number' => '1234567890',
@@ -74,14 +98,17 @@ class AdminSeeder extends Seeder
             'email' => 'doctor@example.com',
             'password' => Hash::make('password'),
             'role_id' => $roles['doctor']->id,
+            
         ]);
-
+             // Create doctor
         $doctor = Doctor::create([
             'user_id' => $doctorUser->id,
-            'clinic_id' => $clinic->id,
+            'salary_id' => $doctorSalary->id,
+            'clinic_id' => $clinic1->id,
             'specialty' => 'Cardiology',
             'workdays' => json_encode(['Monday', 'Wednesday', 'Friday']),
         ]);
+    
 
         // Create doctor schedules
         $scheduleData = [
@@ -94,20 +121,9 @@ class AdminSeeder extends Seeder
             DoctorSchedule::create(array_merge($schedule, ['doctor_id' => $doctor->id]));
         }
 
-        // Create secretary
-        $secretaryUser = User::create([
-            'first_name' => 'Sara',
-            'last_name' => 'Secretary',
-            'email' => 'secretary@example.com',
-            'password' => Hash::make('password'),
-            'role_id' => $roles['secretary']->id,
-        ]);
+     
 
-        Secretary::create([
-            'user_id' => $secretaryUser->id,
-            'salary' => 4000,
-            'workdays' => json_encode(['Sunday', 'Monday', 'Tuesday']),
-        ]);
+       
 
         // Create time slots for the next 7 days
         $timeSlots = [];
@@ -172,7 +188,7 @@ class AdminSeeder extends Seeder
         Appointment::create([
             'patient_id' => $patient->id,
             'doctor_id' => $doctor->id,
-            'clinic_id' => $clinic->id,
+            'clinic_id' => $clinic1->id,
             'time_slot_id' => $appointmentSlot->id ?? null,
             'appointment_date' => $appointmentDate . ' 09:00:00',
             'reason' => 'Initial consultation',
@@ -181,9 +197,7 @@ class AdminSeeder extends Seeder
             'fee' => 80.00 // Don't forget the fee field
         ]);
 
-
-            Specialty::create(['name' => 'Ophthalmology', 'description' => 'Eye care specialists']);
-    Specialty::create(['name' => 'Dermatology', 'description' => 'Skin care specialists']);
-    Specialty::create(['name' => 'Oncology', 'description' => 'Cancer treatment specialists']);
+            // هون لازم نتابع سلسلة FK  منشان ما عت يضرب ايرورات
+      
     }
 }

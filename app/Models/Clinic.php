@@ -41,11 +41,11 @@ class Clinic extends Model
  public function getIconUrl()
     {
         if (!$this->image_path) {
-            return asset('images/default-specialty.png');
+            return asset('storage/Clinic_Icons/default.jpg');
         }
 
         // Manually construct the URL to ensure consistency
-        return url('storage/specialty_icons/' . basename($this->image_path));
+        return url('storage/Clinic_Icons/' . basename($this->image_path));
     }
 
     public function uploadIcon($iconFile)
@@ -57,7 +57,7 @@ class Clinic extends Model
             }
 
             // Store in specialty_icons directory
-            $path = $iconFile->store('specialty_icons', 'public');
+            $path = $iconFile->store('Clinic_Icons', 'public');
             $this->image_path = $path;
             return $this->save();
         }
