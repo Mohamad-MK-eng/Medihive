@@ -18,7 +18,7 @@ class ClinicController extends Controller
                 'name' => $clinic->name,
                 'location' => $clinic->location,
                 'icon_url' => $clinic->getIconUrl()
-                // في هون كان  open time close time شلتن  ما في داعي الهن 
+                // في هون كان  open time close time شلتن  ما في داعي الهن
             ];
         });
 
@@ -27,6 +27,23 @@ class ClinicController extends Controller
 
 
 
+
+
+
+
+ public function show($id)
+    {
+        $clinic = Clinic::findOrFail($id);
+
+        return response()->json([
+            'id' => $clinic->id,
+            'name' => $clinic->name,
+            'location' => $clinic->location,
+            'description' => $clinic->description,
+            'icon_url' => $clinic->getIconUrl(),
+            'doctors_count' => $clinic->doctors->count()
+        ]);
+    }
 
 
 

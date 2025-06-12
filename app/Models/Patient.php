@@ -80,12 +80,21 @@ class Patient extends Model
         'phone_number',
         'wallet_balance'  => 'double',
 
-        'emergency_contact',
-        'chronic_conditions' => 'array',
-        'insurance_provider' => 'array',
-        'wallet_activated_at' => 'datetime'
+    'chronic_conditions' => 'array',
+    'insurance_provider' => 'array',
+    'wallet_activated_at' => 'datetime'
+];
 
-    ];
+protected $fileHandlingConfig = [
+    'profile_picture' => [
+        'directory' => 'patient_profile_pictures', // Make sure this matches your storage path
+        'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
+        'max_size' => 3072, // 3MB
+        'default' => 'default-patient.jpg' // Ensure this file exists in your storage
+    ]
+];
+
+
 
     public function user()
     {
@@ -177,6 +186,12 @@ class Patient extends Model
 
 
 
+public function getProfilePictureUrlAttribute()
+{
+    return $this->getFileUrl('profile_picture');
+}
+
+
 
     public function walletTransactions()
     {
@@ -239,78 +254,6 @@ class Patient extends Model
             return $transaction;
         });
     }
-
-
-
-
-
-public function uploadProfilePicture($file)
-{
-    if (!$file) {
-        return null;
-    }
-
-    // Delete old picture if exists
-    if ($this->profile_picture) {
-        $this->deleteProfilePicture();
-    }
-
-    // Store new picture - use hashName() for secure filenames
-    $path = $file->store('profile_pictures', 'public');
-
-    // Update profile picture path (store only relative path)
-    $this->profile_picture = $path;
-    $this->save();
-
-    return $path;
-}
-
-
-
-
-
-
-public function deleteProfilePicture()
-{
-    if ($this->profile_picture) {
-        // Remove storage/app/public/ prefix if present
-        $path = str_replace('storage/', '', $this->profile_picture);
-        Storage::disk('public')->delete($path);
-    }
-}
-
-
-
-
-
-
-
-
-public function getProfilePictureAttribute($value)
-{
-    if (!$value) return null;
-
-    // If it's already a full URL, return it
-    if (filter_var($value, FILTER_VALIDATE_URL)) {
-        return $value;
-    }
-
-    // If it's a relative path, convert to full URL
-    return Storage::disk('public')->url($value);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

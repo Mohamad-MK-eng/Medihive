@@ -12,10 +12,20 @@ class Clinic extends Model
     protected $fillable =[
 'name',
 'location',
-'decritption',
+'description',
 'opening_time',
 'closing_time',
 'image_path'
+    ];
+
+
+ protected $fileHandlingConfig = [
+        'image_path' => [
+            'directory' => 'clinic_images',
+            'allowed_types' => ['jpg', 'jpeg', 'png', 'svg'],
+            'max_size' => 5120, // 5MB
+            'default' => 'default-clinic.jpg'
+        ]
     ];
 
 

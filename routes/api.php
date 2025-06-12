@@ -37,13 +37,16 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-    // Patient-Specific Routes
-Route::middleware(['role:patient'])->group(function () {
+    Route::middleware(['role:patient'])->group(function () {
     // Profile Management
     Route::prefix('patient')->group(function () {
-        Route::get('/profile-picture', [PatientController::class, 'getProfilePicture']);
+         Route::get('/profile', [PatientController::class, 'getProfile']);
         Route::put('/profile', [PatientController::class, 'updateProfile']);
-        Route::post('/profile-picture', [PatientController::class, 'updateProfilePicture']); // Fixed this line
+        Route::post('/profile-picture', [PatientController::class, 'uploadProfilePicture']);
+        Route::get('/fetch-profile-picture', [PatientController::class, 'getProfilePicture']);
+    });
+
+
 
         // Clinic/Doctor Info
         Route::get('/clinics', [PatientController::class, 'getClinics']);
@@ -73,7 +76,6 @@ Route::post('/appointments', [AppointmentController::class, 'bookAppointment']);
 Route::get('/specialties', [ClinicController::class, 'index']);
 Route::post('/specialties/{id}/upload-icon', [ClinicController::class, 'uploadIcon']);
 Route::get('/specialties/{id}/icon', [ClinicController::class, 'getIcon']);
-
 
 
 
@@ -158,4 +160,3 @@ Route::get('/clinics/{id}/image', [ClinicController::class, 'getImage']);
 
         // Other existing admin routes...
     });
-});

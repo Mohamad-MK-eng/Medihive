@@ -6,6 +6,7 @@ use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
+use Validator;
 
 class AdminController extends Controller
 {
@@ -44,7 +45,7 @@ class AdminController extends Controller
 
 
     // في كل شي بخص الصور عملتو image_path
-    
+
 
 
         public function getWalletTransactions(Request $request)
@@ -65,7 +66,7 @@ class AdminController extends Controller
  public function createClinic(Request $request)
     {
         // هون ما بعرف اذا بدك تحط انو يتأكد انه ادمن
-    
+
 
         $validated = $request->validate([
             'name' => 'required|string',
@@ -81,6 +82,64 @@ class AdminController extends Controller
 
         return response()->json($clinic, 201);
     }
+
+
+
+
+
+
+
+
+
+
+ public function update(Request $request, $id)
+    {
+        $clinic = Clinic::findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
+            'location' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string|nullable',
+            'opening_time' => 'sometimes|date_format:H:i',
+            'closing_time' => 'sometimes|date_format:H:i|after:opening_time',
+            'icon' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Handle icon update if present
+        if ($request->hasFile('icon')) {
+            try {
+                $clinic->uploadIcon($request->file('icon'));
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => 'Failed to upload clinic icon',
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+        }
+
+        $clinic->update($validator->validated());
+
+        return response()->json([
+            'clinic' => $clinic,
+            'icon_url' => $clinic->getIconUrl(),
+            'message' => 'Clinic updated successfully'
+        ]);
+    }
+
+
+
+
+
+
+
+
+
+
+
 
 
 // في كل شي بخص الصور عملتو image_path

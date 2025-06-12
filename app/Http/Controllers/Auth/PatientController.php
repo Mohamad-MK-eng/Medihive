@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use DB;
 use Storage;
-
+use App\Traits\HandlesFiles;
 class PatientController extends Controller
 {
 
@@ -31,33 +31,54 @@ public function getProfile()
         return response()->json(['message' => 'Patient profile not found'], 404);
     }
 
-    $profile = $patient->load([
-        'user',
-        'appointments.doctor.user',
-        'prescriptions.medications',
-        'payments',
-        'notifications',
-        'walletTransactions'
-    ])->toArray();
+    $profile = $patient->only([
+        'first_name',
+        'last_name',
+        'phone_number',
+        'address',
+        'date_of_birth',
+        'gender',
+        'blood_type',
+        'chronic_conditions',
+        'emergency_contact',
+    ]);
 
-    // Add profile picture data
-    $profile['profile_picture'] = [
-        'url' => $patient->getProfilePictureUrl(),
-        'exists' => !empty($patient->profile_picture)
-    ];
+    // Add profile picture URL
+    $profile['profile_picture_url'] = $patient->getProfilePictureUrl();
 
-    // Add other profile data
-    $profile['wallet_balance'] = $patient->wallet_balance;
-    $profile['wallet_activated'] = !is_null($patient->wallet_activated_at);
-    $profile['medical_history'] = $patient->getMedicalHistory();
+    // Add user fields
+    $profile['first_name'] = $patient->user->first_name;
+    $profile['last_name'] = $patient->user->last_name;
 
     return response()->json($profile);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 public function updateProfile(Request $request)
 {
     $user = Auth::user();
     $patient = $user->patient;
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
 
     $validator = Validator::make($request->all(), [
         'first_name' => 'sometimes|string|max:255',
@@ -79,7 +100,7 @@ public function updateProfile(Request $request)
     // Handle profile picture update if present
     if ($request->hasFile('profile_picture')) {
         try {
-            $patient->uploadProfilePicture($request->file('profile_picture'));
+            $patient->uploadFile($request->file('profile_picture'),'profile_picture');
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to upload picture',
@@ -88,15 +109,32 @@ public function updateProfile(Request $request)
         }
     }
 
-    // Update user data
-    $user->update($request->only(['first_name', 'last_name']));
+
+
+        $validated = $validator->validated();
+
+
+
+
+       if (isset($validated['first_name']) || isset($validated['last_name'])) {
+        $user->update([
+            'first_name' => $validated['first_name'] ?? $user->first_name,
+            'last_name' => $validated['last_name'] ?? $user->last_name
+        ]);
+    }
+
+    // Remove user-related fields from patient data
+    $patientData = collect($validated)->except(['first_name', 'last_name', 'profile_picture'])->all();
 
     // Update patient data
-    $patient->update($validator->validated());
+    $patient->update($patientData);
 
-    return response()->json([
+     return response()->json([
         'patient' => $patient->fresh()->load('user'),
-        'profile_picture_url' => $patient->getProfilePictureUrl(),
+        'profile_picture' => [
+            'url' => $patient->profile_picture_url,
+            'exists' => !empty($patient->profile_picture)
+        ],
         'message' => 'Profile updated successfully'
     ]);
 }
@@ -108,34 +146,83 @@ public function updateProfile(Request $request)
 
 
 
-
-
-
-
-
-
-
-
-// 1. Get clinics with images
-public function getClinics()
+public function getProfilePicture()
 {
-    $clinics = Clinic::select('id', 'name', 'location', 'opening_time', 'closing_time')
-        ->withCount('doctors')
-        ->get()
-        ->map(function($clinic) {
-            return [
-                'id' => $clinic->id,
-                'name' => $clinic->name,
-                'location' => $clinic->location,
-                'opening_time' => $clinic->opening_time,
-                'closing_time' => $clinic->closing_time,
-                'doctors_count' => $clinic->doctors_count,
-                'image_url' => $clinic->getClinicImageUrl()
-              ];
-        });
+    $patient = Auth::user()->patient;
 
-    return response()->json($clinics);
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    if (!$patient->profile_picture) {
+        return response()->json(['message' => 'No profile picture set'], 404);
+    }
+
+    try {
+        // Get the stored path
+        $path = $patient->profile_picture;
+
+        // Remove any 'storage/' prefix if present
+        $path = str_replace('storage/', '', $path);
+
+        // Check if file exists
+        if (!Storage::disk('public')->exists($path)) {
+            return response()->json(['message' => 'Profile picture file not found'], 404);
+        }
+
+        // Get the full filesystem path
+        $fullPath = Storage::disk('public')->path($path);
+
+        return response()->file($fullPath);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error retrieving profile picture',
+            'error' => $e->getMessage()
+        ], 500);
+    }
 }
+
+
+
+
+
+public function uploadProfilePicture(Request $request)
+{
+    $request->validate([
+        'profile_picture' => 'required|image|mimes:jpg,jpeg,png|max:3072' // 3MB max
+    ]);
+
+    $patient = Auth::user()->patient;
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    try {
+        // Upload the file using the HandlesFiles trait
+        $uploaded = $patient->uploadFile($request->file('profile_picture'), 'profile_picture');
+
+        if (!$uploaded) {
+            throw new \Exception('Failed to upload profile picture');
+        }
+
+        return response()->json([
+            'success' => true,
+            'profile_picture_url' => $patient->getProfilePictureUrl(),
+            'message' => 'Profile picture updated successfully'
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to upload profile picture',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
 
 // 2. Get doctors for a clinic with profile pictures
 public function getClinicDoctors($clinicId)
