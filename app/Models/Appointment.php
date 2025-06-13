@@ -38,22 +38,22 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Appointment extends Model
 {
-    protected $fillable =[
-'patient_id',
-'doctor_id',
-'clinic_id',
-'appointment_date',
-'reason',
-'status',
-'service_id',
-'price',
-'notes',
-'cancelled_at',
-'previous_date',
-'rescheduled_by',
-'reschedule_reason'
+  protected $fillable = [
+    'patient_id',
+    'doctor_id',
+    'clinic_id',
+    'time_slot_id',
+    'appointment_date',
+    'end_time',
+    'reason',
+    'status',
+    'service_id',
+    'price',
+    'notes',
+    'cancelled_at',
+    'previous_date'
 
-    ];
+];
 
 
     protected $casts =[
@@ -61,12 +61,13 @@ class Appointment extends Model
 'doctor_id',
 'clinic_id',
 'appointment_date',
+'end_time' => 'datetime',
         'appointment_date' =>'datetime',
         'cancelled_at' =>'datetime',
         'previous_date'=> 'datetime',
         'status'=> 'string',
         'service_id',
-'price',
+'price' => 'float',
 'cancelled_at',
 'previous_date',
 'rescheduled_by'

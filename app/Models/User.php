@@ -127,10 +127,11 @@ public function secretary(){
 
 
 
-public function patient(){
-
-    return $this->hasOne(Patient::class);
+public function patient()
+{
+    return $this->hasOne(Patient::class, 'user_id');
 }
+
 
 
 //public function hasRole(string $role):bool {

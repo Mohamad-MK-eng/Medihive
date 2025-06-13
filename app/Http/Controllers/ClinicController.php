@@ -18,7 +18,6 @@ class ClinicController extends Controller
                 'name' => $clinic->name,
                 'location' => $clinic->location,
                 'icon_url' => $clinic->getIconUrl()
-                // في هون كان  open time close time شلتن  ما في داعي الهن
             ];
         });
 
@@ -29,7 +28,7 @@ class ClinicController extends Controller
 
 
 
-
+// for a single clinic
 
  public function show($id)
     {

@@ -117,7 +117,6 @@ class WalletController extends Controller
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
             'appointment_id' => 'required|exists:appointments,id',
-              'service_id' => 'required|exists:services,id',
             'pin' => 'required|digits:4'
         ]);
 

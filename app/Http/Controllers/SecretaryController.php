@@ -23,7 +23,6 @@ class SecretaryController extends Controller
 
     // the cash payment
 
-
 public function makePayment(Request $request)
 {
     $user = Auth::user();
@@ -40,7 +39,6 @@ public function makePayment(Request $request)
         'appointment_id' => 'required|exists:appointments,id',
         'amount' => 'required|numeric|min:0',
         'method' => 'required|in:cash,card,insurance,transfer',
-        'service_id' => 'required|exists:services,id',
         'transaction_reference' => 'sometimes|string|max:255'
     ]);
 
@@ -48,7 +46,7 @@ public function makePayment(Request $request)
         $appointment = $user->patient->appointments()
             ->findOrFail($validated['appointment_id']);
 
-        $secretary = Secretary::first(); // the first secretary at the moment
+        $secretary = Secretary::first();
 
         $paymentData = [
             'appointment_id' => $appointment->id,
@@ -56,21 +54,19 @@ public function makePayment(Request $request)
             'method' => $validated['method'],
             'status' => 'paid',
             'patient_id' => $user->patient->id,
-            'service_id' => $validated['service_id'],
             'secretary_id' => $secretary->id ?? null,
             'transaction_reference' => $validated['transaction_reference'] ?? null
         ];
 
         $payment = Payment::create($paymentData);
 
-        // Update appointment payment status
         $totalPaid = $appointment->payments()->sum('amount');
         if ($appointment->price && $totalPaid >= $appointment->price) {
             $appointment->update(['payment_status' => 'paid']);
         }
 
         return response()->json([
-            'payment' => $payment->load(['appointment', 'service']),
+            'payment' => $payment->load(['appointment']),
             'message' => 'Payment processed successfully'
         ], 201);
 
@@ -84,99 +80,6 @@ public function makePayment(Request $request)
 
 
 
-    public function rescheduleAppointment(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'new_date' => 'required|date|after:now',
-            'reason' => 'sometimes|string|nullable'
-        ]);
-
-        if (!Auth::user()->secretary) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $appointment = Appointment::findOrFail($id);
-
-        if ($appointment->status === 'cancelled') {
-            return response()->json(['message' => 'Cannot reschedule cancelled appointments'], 400);
-        }
-
-        $conflict = Appointment::where('doctor_id', $appointment->doctor_id)
-            ->where('appointment_date', $validated['new_date'])
-            ->exists();
-
-        if ($conflict) {
-            return response()->json(['message' => 'Doctor not available at this time'], 409);
-        }
-
-        $originalDate = $appointment->appointment_date;
-
-        $appointment->update([
-            'appointment_date' => $validated['new_date'],
-            'previous_date' => $originalDate,
-            'rescheduled_by' => Auth::id(),
-            'reschedule_reason' => $validated['reason'] ?? null
-        ]);
-
-        return response()->json([
-            'message' => 'Appointment rescheduled successfully',
-            'appointment' => $appointment->load(['patient.user', 'doctor.user'])
-        ]);
-    }
-
-    public function processRefund(Request $request, $appointmentId)
-    {
-        $validated = $request->validate([
-            'refund_amount' => 'required|numeric|min:0.01',
-            'cancellation_fee' => 'sometimes|numeric|min:0',
-            'notes' => 'sometimes|string|max:255'
-        ]);
-
-        if (!Auth::user()->secretary) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $appointment = Appointment::findOrFail($appointmentId);
-        $patient = $appointment->patient;
-
-        return DB::transaction(function () use ($appointment, $patient, $validated) {
-            $transaction = WalletTransaction::create([
-                'patient_id' => $patient->id,
-                'admin_id' => Auth::id(),
-                'amount' => $validated['refund_amount'],
-                'type' => 'refund',
-                'reference' => 'REF-'.$appointment->id,
-                'balance_before' => $patient->wallet_balance,
-                'balance_after' => $patient->wallet_balance + $validated['refund_amount'],
-                'notes' => $validated['notes'] ?? 'Refund for appointment #'.$appointment->id
-            ]);
-
-            $patient->increment('wallet_balance', $validated['refund_amount']);
-
-            if (isset($validated['cancellation_fee'])){
-
-                WalletTransaction::create([
-                    'patient_id' => $patient->id,
-                    'admin_id' => Auth::id(),
-                    'amount' => $validated['cancellation_fee'],
-                    'type' => 'fee',
-                    'reference' => 'FEE-'.$appointment->id,
-                    'balance_before' => $patient->wallet_balance + $validated['refund_amount'],
-                    'balance_after' => $patient->wallet_balance + $validated['refund_amount'] - $validated['cancellation_fee'],
-                    'notes' => 'Cancellation fee for appointment #'.$appointment->id
-                ]);
-
-                $patient->decrement('wallet_balance', $validated['cancellation_fee']);
-            }
-
-            return response()->json([
-                'message' => 'Refund processed successfully',
-                'new_balance' => $patient->fresh()->wallet_balance,
-                'refund_amount' => $validated['refund_amount'],
-                'cancellation_fee' => $validated['cancellation_fee'] ?? 0
-            ]);
-        });
-    }
 
     public function addToPatientWallet(Request $request)
     {

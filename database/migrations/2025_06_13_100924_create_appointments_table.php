@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('doctor_id')->constrained('doctors')->onDelete('cascade');
             $table->foreignId('clinic_id')->constrained('clinics')->onDelete('cascade');
 $table->foreignId('time_slot_id')->references('id')->on('time_slots')->onDelete('cascade');
-            $table->foreignId('document_id')->constrained('documents')->onDelete('cascade');
+            $table->foreignId('document_id')->nullable()->constrained('documents')->onDelete('cascade');
 
             $table->datetime('appointment_date')->nullable(false);
             $table->enum('status', ['pending', 'confirmed', 'cancelled','completed']);

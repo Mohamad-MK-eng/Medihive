@@ -1,68 +1,46 @@
 <?php
 
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\AppointmentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\PatientController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\ClinicController;
 use App\Http\Controllers\DoctorController;
-use App\Http\Middleware\ApiAuthMiddleware;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SecretaryController;
-use App\Http\Controllers\SpecialtyController;
+use App\Http\Middleware\ApiAuthMiddleware;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "api" middleware group. Make something great!
+|
+*/
 
 // Public Routes (No Authentication Required)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-
 Route::post('/forgot-password', [AuthController::class, 'sendPasswordResetLink']);
 
-Route::middleware('auth:api')->group(function () {
-    Route::post('/change-password', [AuthController::class, 'changePassword']);
-});
+
+
+
+
+
+
+
 
 
 // Authenticated Routes (All logged-in users)
 Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
-    // Common Appointment Routes
-    Route::get('/clinics-with-specialties', [PatientController::class, 'getClinicsWithSpecialties']);
-    Route::get('/clinics/{clinicId}/doctors-with-slots', [PatientController::class, 'getClinicDoctorsWithSlots']);
-
-
-
-
-
-
-
-    Route::middleware(['role:patient'])->group(function () {
-    // Profile Management
-    Route::prefix('patient')->group(function () {
-         Route::get('/profile', [PatientController::class, 'getProfile']);
-        Route::put('/profile', [PatientController::class, 'updateProfile']);
-        Route::post('/profile-picture', [PatientController::class, 'uploadProfilePicture']);
-        Route::get('/fetch-profile-picture', [PatientController::class, 'getProfilePicture']);
-    });
-
-
-
-        // Clinic/Doctor Info
-        Route::get('/clinics', [PatientController::class, 'getClinics']);
-        Route::get('/clinics/{id}/doctors', [PatientController::class, 'getClinicDoctors']);
-        Route::get('/doctor/{id}/schedule', [PatientController::class, 'getDoctorSchedules']);
-
-            // Appointments
-            Route::prefix('appointments')->group(function () {
-                Route::get('/', [PatientController::class, 'getAppointments']);
-              // flexible implementation required   Route::post('/', [PatientController::class, 'createAppointment']);
-
-Route::post('/appointments', [AppointmentController::class, 'bookAppointment']);
-
-              Route::put('/{id}', [PatientController::class, 'updateAppointment']);
-                Route::delete('/{id}', [PatientController::class, 'cancelAppointment']);
-            });
+    Route::post('/change_password', [AuthController::class, 'changePassword']);
 
 
 
@@ -72,46 +50,45 @@ Route::post('/appointments', [AppointmentController::class, 'bookAppointment']);
 
 
 
-            // Specialty routes
-Route::get('/specialties', [ClinicController::class, 'index']);
-Route::post('/specialties/{id}/upload-icon', [ClinicController::class, 'uploadIcon']);
-Route::get('/specialties/{id}/icon', [ClinicController::class, 'getIcon']);
 
 
 
-//for clinic branches viewing
-// Clinic image routes
-Route::post('/clinics/{id}/upload-image', [ClinicController::class, 'uploadImage']);
-Route::get('/clinics/{id}/image', [ClinicController::class, 'getImage']);
+//try this multiple role access
 
-
-
-
-
-
-
-
-            // Medical Records
-            Route::get('/medical-history', [PatientController::class, 'getMedicalHistory']);
-            Route::get('/prescriptions', [PatientController::class, 'getPrescriptions']);
-            Route::post('/documents', [PatientController::class, 'uploadDocument']);
-
-            // Payments
-            Route::get('/payments', [PatientController::class, 'getPaymentHistory']);
-            Route::post('/payments', [PatientController::class, 'makePayment']);
-
-
-            Route::prefix('wallet')->group(function () {
-    Route::post('/setup', [WalletController::class, 'setupWallet']); // Activate wallet with PIN
-    Route::get('/balance', [WalletController::class, 'getBalance']); // Check balance
-    Route::get('/transactions', [WalletController::class, 'getTransactions']); // View transactions
-    Route::post('/transfer', [WalletController::class, 'transferToClinic']); // Make payment from wallet
-});
-            // Notifications
-            Route::get('/notifications', [PatientController::class, 'getNotifications']);
-            Route::put('/notifications/{id}', [PatientController::class, 'markNotificationAsRead']);
-            Route::put('/notifications/mark-all-read', [PatientController::class, 'markAllNotificationsAsRead']);
+    // Role-based route groups
+    Route::middleware(['role:patient,secretary'])->group(function () {
+        // Patient profile management
+        Route::prefix('patient')->group(function () {
+            Route::get('/profile', [PatientController::class, 'getProfile']);
+            Route::put('/profile', [PatientController::class, 'updateProfile']);
+            Route::post('/profile_picture', [PatientController::class, 'uploadProfilePicture']);
+            Route::get('/profile_picture', [PatientController::class, 'getProfilePicture']);
         });
+
+
+
+
+
+
+
+        // Appointments
+        Route::prefix('appointments')->group(function () {
+            Route::get('/', [AppointmentController::class, 'getAppointments']);
+            Route::post('/', [AppointmentController::class, 'bookAppointment']);
+            Route::put('/{appointment}', [AppointmentController::class, 'updateAppointment']);
+            Route::delete('/{appointment}', [AppointmentController::class, 'cancelAppointment']);
+            Route::get('/available-slots/{doctor}/{date}', [AppointmentController::class, 'getAvailableSlots']);
+        });
+
+
+
+
+    Route::get('/clinics/{clinic}', [ClinicController::class, 'show']);
+    Route::get('/clinics', [ClinicController::class, 'index']);
+
+    Route::get('/clinics/{clinic}/doctors', [AppointmentController::class, 'getClinicDoctors']);
+    Route::get('/clinics/{clinic}/doctors-with-slots', [AppointmentController::class, 'getClinicDoctorsWithSlots']);
+    Route::get('/doctors/{doctor}', [AppointmentController::class, 'getDoctorDetails']);
     });
 
 
@@ -119,7 +96,80 @@ Route::get('/clinics/{id}/image', [ClinicController::class, 'getImage']);
 
 
 
-    // Doctor-Specific Routes
+
+
+ // Appointments
+     Route::middleware(['role:secretary'])->group(function () {
+
+        Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'rescheduleAppointment']);
+        Route::post('/appointments/{appointment}/refund', [AppointmentController::class, 'processRefund']);
+
+
+
+          // Wallet Management
+        Route::prefix('wallet')->group(function () {
+            Route::post('/add_funds', [WalletController::class, 'addFunds']);
+            Route::get('/patient-transactions/{patient}', [WalletController::class, 'getTransactions']);
+        });
+
+
+        // Payments
+        Route::post('/payments', [SecretaryController::class, 'makePayment']);
+
+    });
+
+
+
+
+
+
+
+
+
+
+     Route::middleware(['role:secretary,patient,doctor'])->group(function () {
+
+        // Medical records
+        Route::get('/medical-history', [PatientController::class, 'getMedicalHistory']);
+        Route::get('/prescriptions', [PatientController::class, 'getPrescriptions']); // did not work
+        Route::post('/documents', [PatientController::class, 'uploadDocument']); // Fix
+     });
+
+
+
+
+
+
+
+
+
+
+
+     Route::middleware(['role:secretary,patient'])->group(function () {
+
+        // Wallet
+        Route::prefix('wallet')->group(function () {
+            Route::post('/setup', [WalletController::class, 'setupWallet']);
+            Route::get('/balance', [WalletController::class, 'getBalance']);
+            Route::get('/transactions', [WalletController::class, 'getTransactions']);
+            Route::post('/transfer', [WalletController::class, 'transferToClinic']);
+        });
+
+        // Payments
+        Route::get('/payments', [PatientController::class, 'getPaymentHistory']);
+        Route::post('/payments', [PaymentController::class, 'recordPayment']);
+    });
+
+
+
+
+
+
+
+
+
+
+
     Route::middleware(['role:doctor'])->group(function () {
         Route::prefix('doctor')->group(function () {
             Route::get('/availability', [DoctorController::class, 'getAvailability']);
@@ -129,34 +179,47 @@ Route::get('/clinics/{id}/image', [ClinicController::class, 'getImage']);
 
 
 
-               // Secretary-Specific Routes
-    Route::middleware(['role:secretary'])->group(function () {
-        // Wallet Management
-        Route::prefix('wallet')->group(function () {
-            Route::post('/add-funds', [WalletController::class, 'addFunds']);
-            Route::get('/patient-transactions/{patientId}', [WalletController::class, 'getTransactions']);
-        });
 
-        // Refunds
-        Route::post('/appointments/{appointmentId}/refund', [SecretaryController::class, 'processRefund']);
 
-        // Other existing secretary routes...
-    });
 
-    // Admin-Specific Routes
+
+
+
+
+
+
+
+
+
+
     Route::middleware(['role:admin'])->group(function () {
+        // Clinics
+        Route::post('/clinics', [AdminController::class, 'createClinic']);
+        Route::put('/clinics/{clinic}', [AdminController::class, 'update']);
+        Route::post('/clinics/{clinic}/upload_icon', [AdminController::class, 'uploadClinicIcon']);
+
+
+
+
+
+
         // Wallet Reports
-           Route::prefix('admin')->group(function () {
-            Route::post('/create-doctor', [AdminController::class, 'createDoctor']);
-           });
-
-
-
         Route::prefix('admin/wallet')->group(function () {
             Route::get('/transactions', [AdminController::class, 'getWalletTransactions']);
-            Route::get('/income-report', [AdminController::class, 'getClinicIncomeReport']);
-            Route::get('/patient/{patientId}', [AdminController::class, 'getPatientWalletInfo']);
+            Route::get('/income_report', [AdminController::class, 'getClinicIncomeReport']);
         });
 
-        // Other existing admin routes...
+
+
+
+
+
+
+        // Doctors
+        Route::post('/admin/create-doctor', [AdminController::class, 'createDoctor']);
     });
+
+
+
+});
+

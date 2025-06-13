@@ -225,248 +225,6 @@ public function uploadProfilePicture(Request $request)
 
 
 // 2. Get doctors for a clinic with profile pictures
-public function getClinicDoctors($clinicId)
-{
-    $doctors = Doctor::where('clinic_id', $clinicId)
-        ->with(['user:id,first_name,last_name,profile_picture', 'specialties'])
-        ->get()
-        ->map(function($doctor) {
-            return [
-                'id' => $doctor->id,
-                'first_name' => $doctor->user->first_name,
-                'last_name' => $doctor->user->last_name,
-                'specialty' => $doctor->specialty,
-                'profile_picture_url' => $doctor->user->getProfilePictureUrl(), // Ensure this method exists
-            ];
-        });
-
-    return response()->json($doctors);
-}
-
-// 3. Get full doctor details
-public function getDoctorDetails($doctorId)
-{
-    $doctor = Doctor::with([
-            'user:id,first_name,last_name,email,phone_number,profile_picture',
-            'specialties',
-            'qualifications',
-            'clinic:id,name,location'
-        ])
-        ->findOrFail($doctorId);
-
-    return response()->json([
-        'id' => $doctor->id,
-        'first_name' => $doctor->user->first_name,
-        'last_name' => $doctor->user->last_name,
-        'email' => $doctor->user->email,
-        'phone' => $doctor->user->phone_number,
-        'specialty' => $doctor->specialty,
-        'profile_picture_url' => $doctor->user->getProfilePictureUrl(),
-        'bio' => $doctor->bio,
-        'experience_years' => $doctor->experience_years,
-        'qualifications' => $doctor->qualifications,
-        'clinic' => $doctor->clinic,
-        'available_slots' => $doctor->timeSlots()->where('is_booked', false)->count(),
-    ]);
-}
-
-
-
-
-
-
-
-public function getClinicDoctorsWithSlots($clinicId, Request $request)
-{
-    $request->validate([
-        'date' => 'sometimes|date'
-    ]);
-
-    // Default to 7 days from now to match your seeder
-    $date = $request->input('date')
-        ? Carbon::parse($request->date)->format('Y-m-d')
-        : now()->addDays(7)->format('Y-m-d');
-
-    $doctors = Doctor::with(['user:id,first_name,last_name', 'timeSlots' => function($query) use ($date) {
-            $query->where('date', $date)
-                  ->where('is_booked', false)
-                  ->orderBy('start_time');
-        }])
-        ->where('clinic_id', $clinicId)
-        ->get()
-        ->map(function($doctor) use ($date) {
-            return [
-                'id' => $doctor->id,
-                'name' => $doctor->user->first_name . ' ' . $doctor->user->last_name,
-                'specialty' => $doctor->specialty,
-                'available_slots' => $doctor->timeSlots->map(function($slot) {
-                    return [
-                        'id' => $slot->id,
-                        'start_time' => $slot->formatted_start_time,
-                        'end_time' => $slot->formatted_end_time,
-                        'date' => $slot->date->format('Y-m-d')
-                    ];
-                }),
-                '_debug' => [
-                    'doctor_id' => $doctor->id,
-                    'date_queried' => $date,
-                    'slots_count' => $doctor->timeSlots->count()
-                ]
-            ];
-        });
-
-    return response()->json($doctors);
-}
-
-
-
-
-
-
-
-
-
-    public function getAppointments(Request $request)
-    {
-        $patient = Auth::user()->patient;
-
-        $appointments = $patient->appointments()
-            ->with(['doctor.user:id,first_name,last_name', 'clinic:id,name'])
-            ->when($request->has('status'), function($query) use ($request) {
-                return $query->where('status', $request->status);
-            })
-            ->when($request->has('upcoming'), function($query) {
-                return $query->where('appointment_date', '>=', now());
-            })
-            ->orderBy('appointment_date', 'desc')
-            ->paginate(10);
-
-        return response()->json([
-            'data' => $appointments->items(),
-            'meta' => [
-                'current_page' => $appointments->currentPage(),
-                'total' => $appointments->total(),
-                'per_page' => $appointments->perPage(),
-                'last_page' => $appointments->lastPage()
-            ]
-        ]);
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//tested successfully
-public function getAvailableSlots($doctorId, $date) {
-    $slots = TimeSlot::where('doctor_id', $doctorId)
-        ->where('date', $date)
-        ->where('is_booked', false)
-        ->get();
-
-    return response()->json($slots);
-}
-
-
-
-
-
-
-
-
-
-
-
-    public function updateAppointment(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'appointment_date' => 'sometimes|date|after:now',
-            'reason' => 'sometimes|string|max:500|nullable',
-            'status' => 'sometimes|in:pending,confirmed,cancelled,completed',
-            'cancellation_reason' => 'required_if:status,cancelled|string|max:255|nullable'
-        ]);
-
-        $appointment = Auth::user()->patient->appointments()->findOrFail($id);
-
-        if ($appointment->status === 'completed') {
-            return response()->json(['message' => 'Cannot modify completed appointments'], 403);
-        }
-
-        $appointment->update($validated);
-
-        if ($request->has('status') && $request->status === 'cancelled') {
-            $appointment->patient->notifications()->create([
-                'title' => 'Appointment Cancelled',
-                'body' => "Your appointment on {$appointment->appointment_date->format('M j, Y g:i A')} has been cancelled.",
-                'type' => 'appointment_update'
-            ]);
-        }
-
-        return response()->json($appointment->load('doctor.user'));
-    }
-
-
-
-
-
-
-
-    public function cancelAppointment(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'reason' => 'required|string|max:500'
-        ]);
-
-        $appointment = Auth::user()->patient->appointments()
-            ->where('status', '!=', 'completed')
-            ->findOrFail($id);
-
-        $hoursBeforeCancellation = 24;
-        if (now()->diffInHours($appointment->appointment_date) < $hoursBeforeCancellation) {
-            return response()->json([
-                'message' => "Appointments must be cancelled at least {$hoursBeforeCancellation} hours in advance"
-            ], 403);
-        }
-
-        $appointment->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancellation_reason' => $validated['reason']
-        ]); // بدي عالج قصة الخصم
-
-        /*  لا تقيم الكومنت لا تقيم الكومنت لا تقيم الكومنت
-        $appointment->patient->notifications()->create([
-            'title' => 'Appointment Cancelled',
-            'body' => "Your appointment on {$appointment->appointment_date->format('M j, Y g:i A')} has been cancelled. Reason: {$validated['reason']}",
-            'type' => 'appointment_update'
-        ]);
-*/
-        return response()->json(['message' => 'Appointment cancelled successfully']);
-    }
-
-
-
-
-
-
-
-
 
 
 
@@ -600,8 +358,6 @@ public function getWalletTransactions()
 
 
 
-
-// not tested yet
 public function getPrescriptions()
 {
     $patient = Auth::user()->patient;
@@ -609,14 +365,21 @@ public function getPrescriptions()
         return response()->json(['message' => 'Patient profile not found'], 404);
     }
 
-    $prescriptions = $patient->prescriptions()
-        ->with(['medications', 'appointment.doctor.user'])
-        ->orderBy('created_at', 'desc')
-        ->get();
+    // Alternative 1: If prescriptions are linked via appointments
+    $prescriptions = $patient->appointments()
+        ->with(['prescription']) // Ensure 'prescription' is a defined relationship in Appointment model
+        ->whereHas('prescription') // Only appointments with prescriptions
+        ->get()
+        ->pluck('prescription') // Extract prescriptions
+        ->filter(); // Remove null entries (if any)
+
+    // Alternative 2: If prescriptions have a direct patient_id column
+    // $prescriptions = Prescription::where('patient_id', $patient->id)
+    //     ->orderBy('created_at', 'desc')
+    //     ->get();
 
     return response()->json($prescriptions);
 }
-
 
 
 

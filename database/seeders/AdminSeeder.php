@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, Patient, Role, Salary, SalarySetting, Secretary, Specialty, TimeSlot};
+use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, Patient, Prescription, Role, Salary, SalarySetting, Secretary, Specialty, TimeSlot};
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
@@ -35,7 +35,7 @@ class AdminSeeder extends Seeder
         $secretaryUser = User::create([
             'first_name' => 'Sara',
             'last_name' => 'Secretary',
-            'email' => 'secretary@example.com',
+            'email' => 'secretary4@example.com',
             'password' => Hash::make('password'),
             'role_id' => $roles['secretary']->id,
         ]);
@@ -44,7 +44,7 @@ class AdminSeeder extends Seeder
             'salary' => 4000,
             'workdays' => json_encode(['Sunday', 'Monday', 'Tuesday']),
         ]);
-        
+
         // انشاء اعدادات الراتب
         $salarySettings = SalarySetting::create([
 
@@ -59,15 +59,15 @@ class AdminSeeder extends Seeder
             'status' => 'pending',
         ]);
 
-      
 
-  
+
+
 
         // Create patient
         $patientUser = User::create([
             'first_name' => 'Test',
             'last_name' => 'Patient',
-            'email' => 'patient@example.com',
+            'email' => 'patient4@example.com',
             'password' => Hash::make('password'),
             'role_id' => $roles['patient']->id,
         ]);
@@ -82,11 +82,14 @@ class AdminSeeder extends Seeder
             'emergency_contact' => '9876543210'
         ]);
 
+
+
+
         // Create admin
         User::create([
             'first_name' => 'Admin',
             'last_name' => 'User',
-            'email' => 'admin@example.com',
+            'email' => 'admin4@example.com',
             'password' => Hash::make('password'),
             'role_id' => $roles['admin']->id,
         ]);
@@ -95,10 +98,10 @@ class AdminSeeder extends Seeder
         $doctorUser = User::create([
             'first_name' => 'John',
             'last_name' => 'Smith',
-            'email' => 'doctor@example.com',
+            'email' => 'doctor4@example.com',
             'password' => Hash::make('password'),
             'role_id' => $roles['doctor']->id,
-            
+
         ]);
              // Create doctor
         $doctor = Doctor::create([
@@ -108,7 +111,7 @@ class AdminSeeder extends Seeder
             'specialty' => 'Cardiology',
             'workdays' => json_encode(['Monday', 'Wednesday', 'Friday']),
         ]);
-    
+
 
         // Create doctor schedules
         $scheduleData = [
@@ -121,9 +124,9 @@ class AdminSeeder extends Seeder
             DoctorSchedule::create(array_merge($schedule, ['doctor_id' => $doctor->id]));
         }
 
-     
 
-       
+
+
 
         // Create time slots for the next 7 days
         $timeSlots = [];
@@ -170,6 +173,25 @@ class AdminSeeder extends Seeder
             }
         }
 
+$prescription = Prescription::create([
+    'patient_id' => $patient->id,
+    'medication' => 'Sample medication',
+    'dosage' => '500mg',
+    'instructions' => 'Take twice daily',
+    'issue_date' => now(),
+    'expiry_date' => now()->addDays(30)
+]);
+
+// Then create the document
+$document = \App\Models\Document::create([
+    'patient_id' => $patient->id,
+    'prescription_id' => $prescription->id, // Use the actual prescription ID
+    'title' => 'Initial Consultation Report',
+    'type' => 'other',
+    'file_path' => 'documents/initial.pdf',
+    'notes' => 'Initial patient consultation document'
+]);
+
         // Insert all time slots at once for better performance
         TimeSlot::insert($timeSlots);
 
@@ -194,10 +216,11 @@ class AdminSeeder extends Seeder
             'reason' => 'Initial consultation',
             'status' => 'confirmed',
             'price' => 100.00,
-            'fee' => 80.00 // Don't forget the fee field
+            'fee' => 80.00 ,// Don't forget the fee field
+            'document_id' => 1
         ]);
 
             // هون لازم نتابع سلسلة FK  منشان ما عت يضرب ايرورات
-      
+
     }
 }

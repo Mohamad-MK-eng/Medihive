@@ -103,11 +103,26 @@ protected $fileHandlingConfig = [
         return $this->belongsTo(User::class);
     }
 
-    public function appointments()
-    {
 
-        return $this->hasMany(Appointment::class);
-    }
+
+    public function appointments()
+{
+    return $this->hasMany(Appointment::class);
+}
+
+
+    // In App\Models\Patient.php
+public function prescriptions()
+{
+    return $this->hasManyThrough(
+        Prescription::class,
+        Appointment::class,
+        'patient_id', // Foreign key on appointments table
+        'appointment_id', // Foreign key on prescriptions table
+        'id', // Local key on patients table
+        'id' // Local key on appointments table
+    );
+}
 
 
     public function prescription()

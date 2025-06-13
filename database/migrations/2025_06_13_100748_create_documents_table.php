@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::create('documents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('patient_id')->constrained('patients');
-                        $table->foreignId('prescription_id')->constrained('prescriptions')->onDelete('cascade');
+
+            $table->foreignId('prescription_id')->constrained('prescriptions')->onDelete('cascade');
 
             $table->string('title');
             $table->enum('type', ['lab_report', 'scan', 'other']);

@@ -15,7 +15,7 @@ return new class extends Migration
     $table->id();
     $table->foreignId('patient_id')->constrained();
     $table->decimal('amount', 10, 2);
-$table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal']);
+$table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal','fee']);
    $table->string('reference');
             $table->decimal('balance_before', 10, 2);
             $table->decimal('balance_after', 10, 2);

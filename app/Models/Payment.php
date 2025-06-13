@@ -44,7 +44,6 @@ class Payment extends Model
 
 'secretary_id',
 'appointment_id',
-'service_id',
 'amount',
 'status',
 'method',
@@ -55,7 +54,6 @@ class Payment extends Model
 
 'secretary_id',
 'appointment_id',
-'service_id',
 'amount',
 'paid_at'
 
