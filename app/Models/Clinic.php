@@ -9,17 +9,17 @@ class Clinic extends Model
 {
 
 
-    protected $fillable =[
-'name',
-'location',
-'description',
-'opening_time',
-'closing_time',
-'image_path'
+    protected $fillable = [
+        'name',
+        'location',
+        'description',
+        'opening_time',
+        'closing_time',
+        'image_path'
     ];
 
 
- protected $fileHandlingConfig = [
+    protected $fileHandlingConfig = [
         'image_path' => [
             'directory' => 'clinic_images',
             'allowed_types' => ['jpg', 'jpeg', 'png', 'svg'],
@@ -31,7 +31,8 @@ class Clinic extends Model
 
 
 
-    public function doctors() {
+    public function doctors()
+    {
         return $this->hasMany(Doctor::class);
     }
 
@@ -39,7 +40,8 @@ class Clinic extends Model
 
 
 
-    public function appointments(){
+    public function appointments()
+    {
         return $this->hasMany(Appointment::class);
     }
 
@@ -48,7 +50,7 @@ class Clinic extends Model
 
 
 
- public function getIconUrl()
+    public function getIconUrl()
     {
         if (!$this->image_path) {
             return asset('storage/Clinic_Icons/default.jpg');
@@ -60,20 +62,21 @@ class Clinic extends Model
 
     public function uploadIcon($iconFile)
     {
-        if ($iconFile) {
+        try {
             // Delete old icon if exists
             if ($this->image_path) {
                 Storage::disk('public')->delete($this->image_path);
             }
 
-            // Store in specialty_icons directory
-            $path = $iconFile->store('Clinic_Icons', 'public');
+            // Store in clinic_icons directory
+            $path = $iconFile->store('clinic_icons', 'public');
             $this->image_path = $path;
-            return $this->save();
+            $this->save();
+
+            return true;
+        } catch (\Exception $e) {
+            logger()->error('Clinic icon upload failed: ' . $e->getMessage());
+            return false;
         }
-        return false;
     }
-
-
-
 }

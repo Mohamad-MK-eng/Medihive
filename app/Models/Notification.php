@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * 
+ *
  *
  * @property string $type
  * @property string $message
@@ -29,36 +29,28 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Notification extends Model
 {
-    protected $fillable =[
-'user_id',
-'type',
-'message',
-'read_at'
+    protected $fillable = [
+        'user_id',
+        'type',
+        'message',
+        'read_at'
     ];
 
-public function user(){
-    return $this->belongsTo(User::class);
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
 
+    // Helper methods
+    public function isRead()
+    {
+        return !is_null($this->read_at);
+    }
+
+    public function markAsRead()
+    {
+        $this->read_at = now();
+        $this->save();
+    }
 }
-
-
- // Helper methods
- public function isRead()
- {
-     return !is_null($this->read_at);
- }
-
- public function markAsRead()
- {
-     $this->read_at = now();
-     $this->save();
- }
-}
-
-
-
-
-
-
-

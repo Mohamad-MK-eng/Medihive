@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * 
+ *
  *
  * @property int $id
  * @property string $name
@@ -26,45 +26,47 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Role extends Model
 {
-    protected $fillable =[
-'name',
+    protected $fillable = [
+        'name',
 
 
     ];
 
-protected $casts =[
-'permissions'=>'array'
-];
+    protected $casts = [
+        'permissions' => 'array'
+    ];
 
-public function users(){
-    return $this->hasMany(User::class);
-}
-
-
-public function hasPermission(string $permisstion):bool{
-    return in_array($permisstion,$this->permissions ??[]);
-}
-
-
-
-public function addPermission(string $permission):bool {
-    if (!$this->hasPermission($permission)){
-       $this->permissions[] = $permission;
-       return $this->save();
+    public function users()
+    {
+        return $this->hasMany(User::class);
     }
-    return false;
-}
+
+
+    public function hasPermission(string $permisstion): bool
+    {
+        return in_array($permisstion, $this->permissions ?? []);
+    }
 
 
 
-public function removePermission(string $permission): bool{
+    public function addPermission(string $permission): bool
+    {
+        if (!$this->hasPermission($permission)) {
+            $this->permissions[] = $permission;
+            return $this->save();
+        }
+        return false;
+    }
 
-if($this->hasPermission($permission)){
-    $this->permissions =array_filter($this->permissions,fn($p)=>$p !== $permission);
-return $this->save();
-}
-return false;
 
-}
 
+    public function removePermission(string $permission): bool
+    {
+
+        if ($this->hasPermission($permission)) {
+            $this->permissions = array_filter($this->permissions, fn($p) => $p !== $permission);
+            return $this->save();
+        }
+        return false;
+    }
 }

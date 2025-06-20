@@ -22,22 +22,22 @@ class LoginPatientRequest extends FormRequest
     public function rules(): array
     {
         return [
-         'email'=>'required|string|email',
-         'password'=> 'required|string'
+            'email' => 'required|string|email',
+            'password' => 'required|string'
         ];
     }
 
 
 
 
-    public function authenticate(){
+    public function authenticate()
+    {
 
-if (!auth('api')->attempt($this->only(['email','password']))){
+        if (!auth('api')->attempt($this->only(['email', 'password']))) {
 
-return response()->json([
-    'message'=> 'Invalid credentials'
-],401);
-}
-
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
     }
 }

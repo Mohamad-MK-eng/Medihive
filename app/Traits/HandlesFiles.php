@@ -9,51 +9,59 @@ use Illuminate\Support\Facades\Log;
 trait HandlesFiles
 {
 
-public function uploadFile($file, $fieldName = 'profile_picture')
-{
-    try {
-        if (!isset($this->fileHandlingConfig[$fieldName])) {
-            throw new \Exception("File configuration for {$fieldName} not found");
+
+
+
+    public function uploadFile($file, $fieldName = 'profile_picture')
+    {
+        try {
+            // Get config - handle special case for users
+            $config = $this->fileHandlingConfig[$fieldName] ?? [
+                'directory' => 'user_profile_pictures',
+                'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
+                'max_size' => 3072,
+                'default' => 'default-user.jpg'
+            ];
+
+            // Validate the file
+            if (!$file->isValid()) {
+                throw new \Exception("Invalid file upload");
+            }
+
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (!in_array($extension, $config['allowed_types'])) {
+                throw new \Exception("File type not allowed. Allowed types: " . implode(',', $config['allowed_types']));
+            }
+
+            if ($file->getSize() > ($config['max_size'] * 1024)) {
+                throw new \Exception("File size exceeds maximum allowed size of {$config['max_size']}KB");
+            }
+
+            // Generate secure filename
+            $filename = Str::uuid()->toString() . '.' . $extension;
+            $directory = trim($config['directory'], '/');
+
+            // Store the file and get the path
+            $path = $file->storeAs($directory, $filename, 'public');
+
+            // Save the relative path (without 'public/' prefix)
+            $this->{$fieldName} = $path;
+            $this->save();
+
+            return $path;
+        } catch (\Exception $e) {
+            Log::error("File upload failed: " . $e->getMessage(), [
+                'model' => get_class($this),
+                'id' => $this->id,
+                'field' => $fieldName,
+                'error' => $e->getTraceAsString()
+            ]);
+            return false;
         }
-
-        $config = $this->fileHandlingConfig[$fieldName];
-
-        // Validate the file
-        if (!$file->isValid()) {
-            throw new \Exception("Invalid file upload");
-        }
-
-        $extension = strtolower($file->getClientOriginalExtension());
-        if (!in_array($extension, $config['allowed_types'])) {
-            throw new \Exception("File type not allowed. Allowed types: " . implode(',', $config['allowed_types']));
-        }
-
-        if ($file->getSize() > ($config['max_size'] * 1024)) {
-            throw new \Exception("File size exceeds maximum allowed size of {$config['max_size']}KB");
-        }
-
-        // Generate secure filename
-        $filename = Str::uuid()->toString().'.'.$extension;
-        $directory = trim($config['directory'], '/');
-
-        // Store the file and get the path
-        $path = $file->storeAs($directory, $filename, 'public');
-
-        // Save the relative path (without 'public/' prefix)
-        $this->{$fieldName} = $path;
-        $this->save();
-
-        return $path;
-    } catch (\Exception $e) {
-        Log::error("File upload failed: ".$e->getMessage(), [
-            'model' => get_class($this),
-            'id' => $this->id,
-            'field' => $fieldName,
-            'error' => $e->getTraceAsString()
-        ]);
-        return false;
     }
-}
+
+
+
 
 
     /**
@@ -61,33 +69,36 @@ public function uploadFile($file, $fieldName = 'profile_picture')
      */
 
 
-public function getFileUrl($fieldName = 'profile_picture')
-{
-    if (!isset($this->fileHandlingConfig[$fieldName])) {
-        return null;
+    public function getFileUrl($fieldName = 'profile_picture')
+    {
+        if (!isset($this->fileHandlingConfig[$fieldName])) {
+            return null;
+        }
+
+        $config = $this->fileHandlingConfig[$fieldName] ?? [
+            'directory' => 'user_profile_pictures',
+            'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
+            'max_size' => 3072,
+        ];
+        // If no file is set, return default
+        if (empty($this->{$fieldName})) {
+            return asset('storage/' . $config['directory'] . '/' . $config['default']);
+        }
+
+        // Get the stored path
+        $path = $this->{$fieldName};
+
+        // Ensure the path doesn't already contain 'storage/' or 'public/'
+        $path = ltrim(str_replace(['storage/', 'public/'], '', $path), '/');
+
+        // Check if file exists in storage
+        if (Storage::disk('public')->exists($path)) {
+            return asset('storage/' . $path);
+        }
+
+        // Return default if file not found
+        return asset('storage/' . $config['directory'] . '/' . $config['default']);
     }
-
-    $config = $this->fileHandlingConfig[$fieldName];
-
-    // If no file is set, return default
-    if (empty($this->{$fieldName})) {
-        return asset('storage/'.$config['directory'].'/'.$config['default']);
-    }
-
-    // Get the stored path
-    $path = $this->{$fieldName};
-
-    // Ensure the path doesn't already contain 'storage/' or 'public/'
-    $path = ltrim(str_replace(['storage/', 'public/'], '', $path), '/');
-
-    // Check if file exists in storage
-    if (Storage::disk('public')->exists($path)) {
-        return asset('storage/'.$path);
-    }
-
-    // Return default if file not found
-    return asset('storage/'.$config['directory'].'/'.$config['default']);
-}
 
 
 
@@ -110,7 +121,7 @@ public function getFileUrl($fieldName = 'profile_picture')
             }
             return true;
         } catch (\Exception $e) {
-            Log::error("File deletion failed: ".$e->getMessage(), [
+            Log::error("File deletion failed: " . $e->getMessage(), [
                 'model' => get_class($this),
                 'id' => $this->id,
                 'field' => $fieldName

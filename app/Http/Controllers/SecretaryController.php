@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
@@ -23,60 +24,59 @@ class SecretaryController extends Controller
 
     // the cash payment
 
-public function makePayment(Request $request)
-{
-    $user = Auth::user();
+    public function makePayment(Request $request)
+    {
+        $user = Auth::user();
 
-    if (!$user) {
-        return response()->json(['message' => 'Unauthorized'], 401);
-    }
-
-    if (!$user->patient) {
-        return response()->json(['message' => 'Patient profile not found'], 404);
-    }
-
-    $validated = $request->validate([
-        'appointment_id' => 'required|exists:appointments,id',
-        'amount' => 'required|numeric|min:0',
-        'method' => 'required|in:cash,card,insurance,transfer',
-        'transaction_reference' => 'sometimes|string|max:255'
-    ]);
-
-    try {
-        $appointment = $user->patient->appointments()
-            ->findOrFail($validated['appointment_id']);
-
-        $secretary = Secretary::first();
-
-        $paymentData = [
-            'appointment_id' => $appointment->id,
-            'amount' => $validated['amount'],
-            'method' => $validated['method'],
-            'status' => 'paid',
-            'patient_id' => $user->patient->id,
-            'secretary_id' => $secretary->id ?? null,
-            'transaction_reference' => $validated['transaction_reference'] ?? null
-        ];
-
-        $payment = Payment::create($paymentData);
-
-        $totalPaid = $appointment->payments()->sum('amount');
-        if ($appointment->price && $totalPaid >= $appointment->price) {
-            $appointment->update(['payment_status' => 'paid']);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        return response()->json([
-            'payment' => $payment->load(['appointment']),
-            'message' => 'Payment processed successfully'
-        ], 201);
+        if (!$user->patient) {
+            return response()->json(['message' => 'Patient profile not found'], 404);
+        }
 
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Payment failed',
-            'error' => $e->getMessage()
-        ], 500);
+        $validated = $request->validate([
+            'appointment_id' => 'required|exists:appointments,id',
+            'amount' => 'required|numeric|min:0',
+            'method' => 'required|in:cash,card,insurance,transfer',
+            'transaction_reference' => 'sometimes|string|max:255'
+        ]);
+
+        try {
+            $appointment = $user->patient->appointments()
+                ->findOrFail($validated['appointment_id']);
+
+            $secretary = Secretary::first();
+
+            $paymentData = [
+                'appointment_id' => $appointment->id,
+                'amount' => $validated['amount'],
+                'method' => $validated['method'],
+                'status' => 'paid',
+                'patient_id' => $user->patient->id,
+                'secretary_id' => $secretary->id ?? null,
+                'transaction_reference' => $validated['transaction_reference'] ?? null
+            ];
+
+            $payment = Payment::create($paymentData);
+
+            $totalPaid = $appointment->payments()->sum('amount');
+            if ($appointment->price && $totalPaid >= $appointment->price) {
+                $appointment->update(['payment_status' => 'paid']);
+            }
+
+            return response()->json([
+                'payment' => $payment->load(['appointment']),
+                'message' => 'Payment processed successfully'
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Payment failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
 
 
@@ -94,22 +94,22 @@ public function makePayment(Request $request)
         }
 
         return DB
-        ::transaction(function () use ($validated) {
-            $patient = Patient::find($validated['patient_id']);
-            $secretary = Auth::user();
+            ::transaction(function () use ($validated) {
+                $patient = Patient::find($validated['patient_id']);
+                $secretary = Auth::user();
 
-            $transaction = $patient->deposit(
-                $validated['amount'],
-                $validated['notes'] ?? 'Added by secretary',
-                $secretary->id
-            );
+                $transaction = $patient->deposit(
+                    $validated['amount'],
+                    $validated['notes'] ?? 'Added by secretary',
+                    $secretary->id
+                );
 
-            return response()->json([
-                'message' => 'Funds added successfully',
-                'new_balance' => $patient->fresh()->wallet_balance,
-                'transaction' => $transaction
-            ]);
-        });
+                return response()->json([
+                    'message' => 'Funds added successfully',
+                    'new_balance' => $patient->fresh()->wallet_balance,
+                    'transaction' => $transaction
+                ]);
+            });
     }
 
 
@@ -130,9 +130,9 @@ public function makePayment(Request $request)
     public function getPatientWalletInfo($patientId)
     {
         $patient = Patient
-        ::with(['user', 'walletTransactions' => function($q) {
-            $q->orderBy('created_at', 'desc')->limit(10);
-        }])->findOrFail($patientId);
+            ::with(['user', 'walletTransactions' => function ($q) {
+                $q->orderBy('created_at', 'desc')->limit(10);
+            }])->findOrFail($patientId);
 
         return response()->json([
             'patient' => $patient,
@@ -141,19 +141,4 @@ public function makePayment(Request $request)
             'recent_transactions' => $patient->walletTransactions
         ]);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

@@ -38,92 +38,92 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Appointment extends Model
 {
-  protected $fillable = [
-    'patient_id',
-    'doctor_id',
-    'clinic_id',
-    'time_slot_id',
-    'appointment_date',
-    'end_time',
-    'reason',
-    'status',
-    'service_id',
-    'price',
-    'notes',
-    'cancelled_at',
-    'previous_date'
-
-];
-
-
-    protected $casts =[
+    protected $fillable = [
         'patient_id',
-'doctor_id',
-'clinic_id',
-'appointment_date',
-'end_time' => 'datetime',
-        'appointment_date' =>'datetime',
-        'cancelled_at' =>'datetime',
-        'previous_date'=> 'datetime',
-        'status'=> 'string',
+        'doctor_id',
+        'clinic_id',
+        'time_slot_id',
+        'appointment_date',
+        'end_time',
+        'reason',
+        'status',
         'service_id',
-'price' => 'float',
-'cancelled_at',
-'previous_date',
-'rescheduled_by'
+        'price',
+        'notes',
+        'cancelled_at',
+        'previous_date'
+
+    ];
+
+
+    protected $casts = [
+        'patient_id',
+        'doctor_id',
+        'clinic_id',
+        'appointment_date',
+        'end_time' => 'datetime',
+        'appointment_date' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'previous_date' => 'datetime',
+        'status' => 'string',
+        'service_id',
+        'price' => 'float',
+        'cancelled_at',
+        'previous_date',
+        'rescheduled_by'
     ];
 
 
 
-public function patient(){
-    return $this->belongsTo(Patient::class);
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
 
-}
-
-public function doctor(){
-    return $this->belongsTo(Doctor::class);
-
-}
-
-
-public function prescription(){
-    return $this->hasOne(Prescription::class);
-}
+    public function doctor()
+    {
+        return $this->belongsTo(Doctor::class);
+    }
 
 
-public function payments(){
-    return $this->hasOne(Payment::class);
-}
+    public function prescription()
+    {
+        return $this->hasOne(Prescription::class);
+    }
 
 
-
-public function clinic(){
-    return $this->belongsTo(Clinic::class);
-}
+    public function payments()
+    {
+        return $this->hasOne(Payment::class);
+    }
 
 
 
-
- // Helper methods
- public function isUpcoming()
- {
-     return $this->appointment_date >= now();
- }
-
- public function isCompleted()
- {
-     return $this->status === 'completed';
- }
+    public function clinic()
+    {
+        return $this->belongsTo(Clinic::class);
+    }
 
 
 
 
-// Relationship to secretary who rescheduled
-public function rescheduledBy()
-{
-    return $this->belongsTo(User::class, 'rescheduled_by');
-}
+    // Helper methods
+    public function isUpcoming()
+    {
+        return $this->appointment_date >= now();
+    }
+
+    public function isCompleted()
+    {
+        return $this->status === 'completed';
+    }
 
 
 
+
+    // Relationship to secretary who rescheduled
+    public function rescheduledBy()
+    {
+        return $this->belongsTo(User::class, 'rescheduled_by');
+    }
 }

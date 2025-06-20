@@ -48,7 +48,7 @@ class AuthController extends Controller
                 'role_id' => $patientRole->id,
             ]);
             /// me me me m e
-                //  this is fucking insan
+            //  this is fucking insan
             Patient::create([
                 'user_id' => $user->id,
                 //   'phone_number' => $request->phone_number,
@@ -111,7 +111,7 @@ class AuthController extends Controller
             'user' => $user->load('role'),
             'access_token' => $token,
             'token_type' => 'Bearer',
-'role_name'=> $user->role->name,
+            'role_name' => $user->role->name,
         ]);
     }
 
@@ -122,67 +122,66 @@ class AuthController extends Controller
     // to try
 
     public function sendPasswordResetLink(Request $request)
-{
-    $request->validate(['email' => 'required|email']);
+    {
+        $request->validate(['email' => 'required|email']);
 
-    $status = Password::sendResetLink(
-        $request->only('email')
-    );
+        $status = Password::sendResetLink(
+            $request->only('email')
+        );
 
-    return $status === Password::RESET_LINK_SENT
-        ? response()->json(['message' => __($status)])
-        : response()->json(['error' => __($status)], 400);
-}
-
-/**
- * Reset password
- */
-public function resetPassword(Request $request)
-{
-    $request->validate([
-        'token' => 'required',
-        'email' => 'required|email',
-        'password' => 'required|min:8|confirmed',
-    ]);
-
-    $status = Password::reset(
-        $request->only('email', 'password', 'password_confirmation', 'token'),
-        function ($user, $password) {
-            $user->forceFill([
-                'password' => Hash::make($password)
-            ])->setRememberToken(Str::random(60));
-
-            $user->save();
-
-            event(new PasswordReset($user));
-        }
-    );
-
-    return $status === Password::PASSWORD_RESET
-        ? response()->json(['message' => __($status)])
-        : response()->json(['error' => __($status)], 400);
-}
-
-/**
- * Change password (protected route - requires authentication)
- */
-public function changePassword(Request $request)
-{
-    $request->validate([
-        'current_password' => 'required',
-        'new_password' => 'required|min:8|confirmed',
-    ]);
-
-    $user = Auth::user();
-
-    if (!Hash::check($request->current_password, $user->password)) {
-        return response()->json(['error' => 'Current password is incorrect'], 400);
+        return $status === Password::RESET_LINK_SENT
+            ? response()->json(['message' => __($status)])
+            : response()->json(['error' => __($status)], 400);
     }
 
-    $user->password = Hash::make($request->new_password);
-    $user->save();
+    /**
+     * Reset password
+     */
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:8|confirmed',
+        ]);
 
-    return response()->json(['message' => 'Password changed successfully']);
-}
-}
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password)
+                ])->setRememberToken(Str::random(60));
 
+                $user->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        return $status === Password::PASSWORD_RESET
+            ? response()->json(['message' => __($status)])
+            : response()->json(['error' => __($status)], 400);
+    }
+
+    /**
+     * Change password (protected route - requires authentication)
+     */
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|min:8|confirmed',
+        ]);
+
+        $user = Auth::user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['error' => 'Current password is incorrect'], 400);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json(['message' => 'Password changed successfully']);
+    }
+}

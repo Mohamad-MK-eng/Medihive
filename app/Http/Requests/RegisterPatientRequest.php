@@ -22,11 +22,11 @@ class RegisterPatientRequest extends FormRequest
     public function rules(): array
     {
         return [
-'first_name' => 'required|string|max:255',
-        'last_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'phone' =>'nullable|string|min:10',
+            'phone' => 'nullable|string|min:10',
             'date_of_birth' => 'required|date',
             'address' => 'required|string',
             'gender' => 'required|string|in:male,female,other',

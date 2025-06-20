@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 
 class LocalController extends Controller  // for handling errors
 {
-    public function sendResponse($result , $data_name = "data")
+    public function sendResponse($result, $data_name = "data")
     {
         $response = [
             'status' => 'success',
@@ -18,13 +18,15 @@ class LocalController extends Controller  // for handling errors
 
     public function sendError($errorMessage = [], $code = 400)
     {
-       return  response()->json([
-'success'=> false,
-'message' => $errorMessage],$code
+        return  response()->json(
+            [
+                'success' => false,
+                'message' => $errorMessage
+            ],
+            $code
         );
 
-        if(!empty($errorMessage))
-        {
+        if (!empty($errorMessage)) {
             $response['error_message'] = $errorMessage;
         }
 

@@ -1,10 +1,22 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Clinic;
+use App\Models\Doctor;
+use App\Models\DoctorSchedule;
 use App\Models\Patient;
 use App\Models\Payment;
+use App\Models\Role;
+use App\Models\Salary;
+use App\Models\SalarySetting;
+use App\Models\Secretary;
+use App\Models\TimeSlot;
+use App\Models\User;
 use App\Models\WalletTransaction;
+use Carbon\Carbon;
+use DB;
+use Hash;
 use Illuminate\Http\Request;
 use Validator;
 
@@ -35,8 +47,8 @@ class AdminController extends Controller
             SUM(amount) as total_amount,
             COUNT(*) as transaction_count
         ')
-        ->groupBy('method')
-        ->get();
+            ->groupBy('method')
+            ->get();
 
         return response()->json($report);
     }
@@ -48,10 +60,10 @@ class AdminController extends Controller
 
 
 
-        public function getWalletTransactions(Request $request)
+    public function getWalletTransactions(Request $request)
     {
         $transactions = WalletTransaction::with(['patient.user', 'admin'])
-            ->when($request->has('type'), function($q) use ($request) {
+            ->when($request->has('type'), function ($q) use ($request) {
                 return $q->where('type', $request->type);
             })
             ->orderBy('created_at', 'desc')
@@ -63,7 +75,7 @@ class AdminController extends Controller
 
 
 
- public function createClinic(Request $request)
+    public function createClinic(Request $request)
     {
         // هون ما بعرف اذا بدك تحط انو يتأكد انه ادمن
 
@@ -92,7 +104,7 @@ class AdminController extends Controller
 
 
 
- public function update(Request $request, $id)
+    public function update(Request $request, $id)
     {
         $clinic = Clinic::findOrFail($id);
 
@@ -142,25 +154,298 @@ class AdminController extends Controller
 
 
 
-// في كل شي بخص الصور عملتو image_path
-   public function uploadClinicIcon(Request $request, $id)
+
+    public function uploadClinicIcon(Request $request, $id)
     {
-    $request->validate([
-        'image_path' => 'required|image|mimes:jpg,jpeg,png|max:2048'
-    ]);
-
-    $clinic = Clinic::findOrFail($id);
-
-    if ($clinic->uploadIcon($request->file('image_path'))) {
-        return response()->json([
-            'success' => true,
-            'image_url' => $clinic->getIconUrl(),/////////
-            'message' => 'Clinic image updated successfully'
+        $validator = Validator::make($request->all(), [
+            'icon' => 'required|image|mimes:jpg,jpeg,png|max:2048' // Changed from image_path to icon
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ]);
+        }
+
+        $clinic = Clinic::findOrFail($id);
+
+        try {
+            if ($clinic->uploadIcon($request->file('icon'))) {
+                return response()->json([
+                    'success' => true,
+                    'image_url' => $clinic->getIconUrl(),
+                    'message' => 'Clinic image updated successfully'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save clinic image'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image upload failed: ' . $e->getMessage()
+            ]);
+        }
     }
 
-    return response()->json([
-        'error' => 'Invalid image file. Only JPG/JPEG/PNG files under 2MB are allowed'
-    ], 400);
-   }
+
+
+
+
+
+    public function createDoctor(Request $request)
+    {
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            // User data
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'phone_number' => 'required|string|max:20',
+
+            // Doctor data
+            'specialty' => 'required|string|max:255',
+            'bio' => 'nullable|string',
+            'consultation_fee' => 'required|numeric|min:0',
+            'experience_years' => 'required|integer|min:0',
+            'clinic_id' => 'required|exists:clinics,id',
+
+            // Schedule data
+            'schedules' => 'required|array|min:1',
+            'schedules.*.day' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'schedules.*.start_time' => 'required|date_format:H:i',
+            'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
+
+            // Time slot configuration
+            'slot_duration' => 'required|integer|min:15|max:120',
+            'generate_slots_for_days' => 'required|integer|min:1|max:365',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            // Start transaction
+            return DB::transaction(function () use ($request) {
+                // Get the doctor role
+                $doctorRole = Role::where('name', 'doctor')->first();
+                if (!$doctorRole) {
+                    throw new \Exception('Doctor role not found in database');
+                }
+
+                // Get a secretary for salary assignment
+                $secretary = Secretary::first();
+                if (!$secretary) {
+                    throw new \Exception('No secretary found in database');
+                }
+
+                // Verify clinic exists
+                $clinic = Clinic::find($request->clinic_id);
+                if (!$clinic) {
+                    throw new \Exception('Specified clinic not found');
+                }
+
+                // Create salary settings and salary record
+                $salarySettings = SalarySetting::firstOrCreate([]);
+                $salary = Salary::create([
+                    'secretary_id' => $secretary->id,
+                    'base_amount' => 100,
+                    'bonus_amount' => 0.5,
+                    'total_amount' => 100.5,
+                    'salary_setting_id' => $salarySettings->id,
+                    'status' => 'pending'
+                ]);
+
+                // Create user account
+                $user = User::create([
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'email' => $request->email,
+                    'password' => Hash::make('temporary_password'),
+                    'role_id' => $doctorRole->id,
+                ]);
+
+                // Create doctor profile
+                $doctor = Doctor::create([
+                    'user_id' => $user->id,
+                    'clinic_id' => $request->clinic_id,
+                    'specialty' => $request->specialty,
+                    'bio' => $request->bio ?? "Lorem ipsum is simply dummy text of the printing and typesetting industry...",
+                    'consultation_fee' => $request->consultation_fee,
+                    'experience_years' => $request->experience_years,
+                    'salary_id' => $salary->id,
+                    'workdays' => collect($request->schedules)->pluck('day')->toArray()
+                ]);
+
+                // Create schedules
+                foreach ($request->schedules as $scheduleData) {
+                    DoctorSchedule::create([
+                        'doctor_id' => $doctor->id,
+                        'day' => $scheduleData['day'],
+                        'start_time' => $scheduleData['start_time'],
+                        'end_time' => $scheduleData['end_time']
+                    ]);
+                }
+
+                // Generate time slots
+                $timeSlots = [];
+                $slotDuration = $request->slot_duration;
+
+                for ($i = 1; $i <= $request->generate_slots_for_days; $i++) {
+                    $date = now()->addDays($i)->format('Y-m-d');
+                    $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
+
+                    $schedule = $doctor->schedules()->where('day', $dayOfWeek)->first();
+                    if (!$schedule) continue;
+
+                    $start = Carbon::parse($schedule->start_time);
+                    $end = Carbon::parse($schedule->end_time);
+
+                    $current = $start->copy();
+                    while ($current->addMinutes($slotDuration)->lte($end)) {
+                        $slotStart = $current->copy()->subMinutes($slotDuration);
+                        $slotEnd = $current->copy();
+
+                        $timeSlots[] = [
+                            'doctor_id' => $doctor->id,
+                            'date' => $date,
+                            'start_time' => $slotStart->format('H:i:s'),
+                            'end_time' => $slotEnd->format('H:i:s'),
+                            'is_booked' => false,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ];
+                    }
+                }
+
+                // Insert time slots if any were generated
+                if (!empty($timeSlots)) {
+                    TimeSlot::insert($timeSlots);
+                }
+
+                // Refresh the doctor model with relationships
+                $doctor = $doctor->fresh(['user', 'clinic', 'schedules']);
+
+                return response()->json([
+                    'message' => 'Doctor created successfully',
+                    'doctor' => $doctor,
+                    'login_credentials' => [
+                        'email' => $user->email,
+                    ]
+                ], 201);
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create doctor',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+
+    public function updateDoctor(Request $request, Doctor $doctor)
+    {
+        $validator = Validator::make($request->all(), [
+            // User data
+            'first_name' => 'sometimes|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'email' => [
+                'sometimes',
+                'email',
+                'unique:users,email,' . $doctor->user_id
+            ],
+            'phone_number' => 'sometimes|string|max:20',
+
+            // Doctor data
+            'specialty' => 'sometimes|string|max:255',
+            'bio' => 'nullable|string',
+            'consultation_fee' => 'sometimes|numeric|min:0',
+            'experience_years' => 'sometimes|integer|min:0',
+            'clinic_id' => 'sometimes|exists:clinics,id',
+            'workdays' => 'sometimes|array',
+            'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+
+            // Status control
+            'is_active' => 'sometimes|boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+
+        return DB::transaction(function () use ($request, $doctor, $validated) {
+            // Update user data if present
+            if (
+                isset($validated['first_name']) || isset($validated['last_name']) ||
+                isset($validated['email']) || isset($validated['phone_number'])
+            ) {
+
+                $userData = [
+                    'first_name' => $validated['first_name'] ?? $doctor->user->first_name,
+                    'last_name' => $validated['last_name'] ?? $doctor->user->last_name,
+                    'email' => $validated['email'] ?? $doctor->user->email,
+                    'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
+                ];
+
+                $doctor->user->update($userData);
+            }
+
+            // Update doctor data
+            $doctorData = collect($validated)
+                ->except(['first_name', 'last_name', 'email', 'phone_number'])
+                ->toArray();
+
+            $doctor->update($doctorData);
+
+            return response()->json([
+                'message' => 'Doctor updated successfully',
+                'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+            ]);
+        });
+    }
+    /**
+     * Delete a doctor (admin only)
+     */
+    public function deleteDoctor(Doctor $doctor)
+    {
+        // Check for upcoming appointments
+        $hasUpcomingAppointments = $doctor->appointments()
+            ->where('appointment_date', '>=', now())
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->exists();
+
+        if ($hasUpcomingAppointments) {
+            return response()->json([
+                'message' => 'Cannot delete doctor with upcoming appointments',
+                'upcoming_appointments' => $doctor->appointments()
+                    ->where('appointment_date', '>=', now())
+                    ->count()
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($doctor) {
+            // Archive or soft delete if implemented
+            if (method_exists($doctor, 'trashed')) {
+                $doctor->delete();
+                $doctor->user()->delete();
+            } else {
+                // Permanent deletion
+                $doctor->user()->delete();
+                $doctor->delete();
+            }
+
+            return response()->json([
+                'message' => 'Doctor deleted successfully',
+                'deleted_at' => now()->toDateTimeString()
+            ]);
+        });
+    }
 }

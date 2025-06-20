@@ -59,40 +59,31 @@ class Patient extends Model
         'first_name',
         'last_name',
 
-         'date_of_birth',
-'address',
- 'profile_picture',
-'phone_number',
-'gender',
-'blood_type',
-'chronic_conditions',
-'insurance_provider',
-'emergency_contact',
-'wallet_balance',
-    'wallet_pin',
-    'wallet_activated_at'
+        'date_of_birth',
+        'address',
+        'profile_picture',
+        'phone_number',
+        'gender',
+        'blood_type',
+        'chronic_conditions',
+        'insurance_provider',
+        'emergency_contact',
+        'wallet_balance',
+        'wallet_pin',
+        'wallet_activated_at'
     ];
 
     protected $casts = [
-        'user_id',
         'date_of_birth' => 'date',
 
         'phone_number',
         'wallet_balance'  => 'double',
 
-    'chronic_conditions' => 'array',
-    'insurance_provider' => 'array',
-    'wallet_activated_at' => 'datetime'
-];
+        'chronic_conditions' => 'array',
+        'insurance_provider' => 'array',
+        'wallet_activated_at' => 'datetime'
+    ];
 
-protected $fileHandlingConfig = [
-    'profile_picture' => [
-        'directory' => 'patient_profile_pictures', // Make sure this matches your storage path
-        'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
-        'max_size' => 3072, // 3MB
-        'default' => 'default-patient.jpg' // Ensure this file exists in your storage
-    ]
-];
 
 
 
@@ -106,23 +97,23 @@ protected $fileHandlingConfig = [
 
 
     public function appointments()
-{
-    return $this->hasMany(Appointment::class);
-}
+    {
+        return $this->hasMany(Appointment::class);
+    }
 
 
     // In App\Models\Patient.php
-public function prescriptions()
-{
-    return $this->hasManyThrough(
-        Prescription::class,
-        Appointment::class,
-        'patient_id', // Foreign key on appointments table
-        'appointment_id', // Foreign key on prescriptions table
-        'id', // Local key on patients table
-        'id' // Local key on appointments table
-    );
-}
+    public function prescriptions()
+    {
+        return $this->hasManyThrough(
+            Prescription::class,
+            Appointment::class,
+            'patient_id', // Foreign key on appointments table
+            'appointment_id', // Foreign key on prescriptions table
+            'id', // Local key on patients table
+            'id' // Local key on appointments table
+        );
+    }
 
 
     public function prescription()
@@ -176,24 +167,24 @@ public function prescriptions()
             ->orderBy('appointment_date')->get();
     }
 
-   public function getMedicalHistory()
-{
-    return $this->appointments()
-        ->with(['doctor.user', 'clinic', 'prescriptions'])
-        ->where('appointment_date', '<=', now())
-        ->orderBy('appointment_date', 'desc')
-        ->get()
-        ->map(function ($appointment) {
-            return [
-                'id' => $appointment->id,
-                'date' => $appointment->appointment_date,
-                'clinic' => $appointment->clinic->name,
-                'doctor' => $appointment->doctor->user->full_name,
-                'prescription' => $appointment->prescription,
-                'notes' => $appointment->notes
-            ];
-        });
-}
+    public function getMedicalHistory()
+    {
+        return $this->appointments()
+            ->with(['doctor.user', 'clinic', 'prescriptions'])
+            ->where('appointment_date', '<=', now())
+            ->orderBy('appointment_date', 'desc')
+            ->get()
+            ->map(function ($appointment) {
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date,
+                    'clinic' => $appointment->clinic->name,
+                    'doctor' => $appointment->doctor->user->full_name,
+                    'prescription' => $appointment->prescription,
+                    'notes' => $appointment->notes
+                ];
+            });
+    }
 
 
 
@@ -201,10 +192,10 @@ public function prescriptions()
 
 
 
-public function getProfilePictureUrlAttribute()
-{
-    return $this->getFileUrl('profile_picture');
-}
+    public function getProfilePictureUrlAttribute()
+    {
+        return $this->user->getFileUrl('profile_picture');
+    }
 
 
 
@@ -269,14 +260,4 @@ public function getProfilePictureUrlAttribute()
             return $transaction;
         });
     }
-
-
-
-
-
-
-
 }
-
-
-

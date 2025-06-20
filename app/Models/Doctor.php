@@ -35,117 +35,150 @@ use Illuminate\Database\Eloquent\Model;
 class Doctor extends Model
 {
     use HandlesFiles;
-    protected $fillable =[
- 'user_id',
- 'clinic_id',
-         'profile_picture',
-
- 'specialty',
- 'workdays'
-    ];
-
-
-
-
-    protected $casts =[
+    protected $fillable = [
         'user_id',
         'clinic_id',
-'workdays'=> 'array'
+        'specialty',
+        'workdays',
+        'salary_id'
     ];
 
 
 
-public function user(){
-    return $this->belongsTo(User::class);
-}
+
+    protected $casts = [
+        'clinic_id',
+        'workdays' => 'array',
+        'experience_start_date' => 'date:Y-m-d',
+    ];
 
 
-public function appointments(){
-    return $this->hasMany(Appointment::class);
-}
-
-
-
-public function prescriptions(){
-    return $this->hasManyThrough(Prescription::class,Appointment::class);
-}
-
-
-
-
-public function clinic(){
-    return $this->belongsTo(Clinic::class);
-}
-
-public function timeSlots()
-{
-    return $this->hasMany(TimeSlot::class);
-}
-
-
-  // Helper methods
-  public function isAvailable($date, $time)
-  {
-      return $this->workdays[$date] ?? false;
-  }
-
-  public function getAvailableServices()
-  {
-      return $this->services()->get();
-  }
-
-
-
-// In App\Models\Doctor.php
-
-public function getAvailableSlots($date)
-{
-    $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
-
-    // Check if doctor works this day
-    $schedule = $this->schedules()->where('day', $dayOfWeek)->first();
-    if (!$schedule) {
-        return collect();
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
-    // Generate fixed slots (e.g., 5 per day)
-    $slots = [];
-    $start = Carbon::parse($schedule->start_time);
-    $end = Carbon::parse($schedule->end_time);
-    $interval = $start->diffInMinutes($end) / 5; // 5 slots per day
 
-    for ($i = 0; $i < 5; $i++) {
-        $slotStart = $start->copy()->addMinutes($i * $interval);
-        $slotEnd = $slotStart->copy()->addMinutes($interval);
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class);
+    }
 
-        // Check if slot is already booked
-        $isBooked = Appointment::where('doctor_id', $this->id)
-            ->whereDate('appointment_date', $date)
-            ->whereTime('appointment_date', '>=', $slotStart->format('H:i:s'))
-            ->whereTime('appointment_date', '<', $slotEnd->format('H:i:s'))
-            ->exists();
 
-        if (!$isBooked) {
-            $slots[] = [
-                'start_time' => $slotStart->format('g:i A'),
-                'end_time' => $slotEnd->format('g:i A')
-            ];
+
+    public function prescriptions()
+    {
+        return $this->hasManyThrough(Prescription::class, Appointment::class);
+    }
+
+
+
+
+    public function clinic()
+    {
+        return $this->belongsTo(Clinic::class);
+    }
+
+    public function timeSlots()
+    {
+        return $this->hasMany(TimeSlot::class);
+    }
+
+
+    // Helper methods
+    public function isAvailable($date, $time)
+    {
+        return $this->workdays[$date] ?? false;
+    }
+
+    public function getAvailableServices()
+    {
+        return $this->services()->get();
+    }
+
+
+
+    // In App\Models\Doctor.php
+
+    public function getAvailableSlots($date)
+    {
+        $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
+
+        // Check if doctor works this day
+        $schedule = $this->schedules()->where('day', $dayOfWeek)->first();
+        if (!$schedule) {
+            return collect();
         }
+
+        // Generate fixed slots (e.g., 5 per day)
+        $slots = [];
+        $start = Carbon::parse($schedule->start_time);
+        $end = Carbon::parse($schedule->end_time);
+        $interval = $start->diffInMinutes($end) / 5; // 5 slots per day
+
+        for ($i = 0; $i < 5; $i++) {
+            $slotStart = $start->copy()->addMinutes($i * $interval);
+            $slotEnd = $slotStart->copy()->addMinutes($interval);
+
+            // Check if slot is already booked
+            $isBooked = Appointment::where('doctor_id', $this->id)
+                ->whereDate('appointment_date', $date)
+                ->whereTime('appointment_date', '>=', $slotStart->format('H:i:s'))
+                ->whereTime('appointment_date', '<', $slotEnd->format('H:i:s'))
+                ->exists();
+
+            if (!$isBooked) {
+                $slots[] = [
+                    'start_time' => $slotStart->format('g:i A'),
+                    'end_time' => $slotEnd->format('g:i A')
+                ];
+            }
+        }
+
+        return collect($slots);
     }
 
-    return collect($slots);
-}
+
+    public function reviews()
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    public function schedules()
+    {
+        return $this->hasMany(DoctorSchedule::class);
+    }
 
 
-public function reviews()
-{
-    return $this->hasMany(Review::class);
-}
-
-  public function schedules()
-  {
-      return $this->hasMany(DoctorSchedule::class);
-  }
 
 
+
+
+
+
+
+
+
+    public function getExperienceYearsAttribute()
+    {
+        // Get the start date (use experience_start_date if available, otherwise created_at)
+        $startDate = $this->experience_start_date ?? $this->created_at;
+
+        // If no start date exists, return 0
+        if (!$startDate) {
+            return 0;
+        }
+
+        // Convert to Carbon instances
+        $start = Carbon::parse($startDate);
+        $now = Carbon::now();
+
+        // Ensure start date is in the past
+        if ($start->isFuture()) {
+            return 0;
+        }
+
+        // Calculate and return whole years of experience
+        return (int)$start->diffInYears($now);
+    }
 }

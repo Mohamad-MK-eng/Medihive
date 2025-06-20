@@ -108,96 +108,98 @@ class AppointmentController extends Controller
 
 
     public function getClinicDoctors($clinicId)
-{
-    $doctors = Doctor::where('clinic_id', $clinicId)
-        ->with(['user:id,first_name,last_name,profile_picture'])
-        ->get()
-        ->map(function($doctor) {
-            return [
-                'id' => $doctor->id,
-                'first_name' => $doctor->user->first_name,
-                'last_name' => $doctor->user->last_name,
-                'specialty' => $doctor->specialty, // Using the direct field
-                'profile_picture_url' => $doctor->user->profile_picture
-                    ? asset('storage/'.$doctor->user->profile_picture)
-                    : null,
-            ];
-        });
+    {
+        $doctors = Doctor::where('clinic_id', $clinicId)
 
-    return response()->json($doctors);
-}
 
-// 3. Get full doctor details
-public function getDoctorDetails($doctorId)
-{
-    $doctor = Doctor::with([
-            'user:id,first_name,last_name,email,profile_picture',
+            ->with(['user:id,first_name,last_name,profile_picture'])
+            ->get()
+            ->map(function ($doctor) {
+                return [
+                    'id' => $doctor->id,
+                    'first_name' => $doctor->user->first_name,
+                    'last_name' => $doctor->user->last_name,
+                    'specialty' => $doctor->specialty, // Using the direct field
+                    'profile_picture_url' => $doctor->user->getProfilePictureUrl()
+                        ? asset('storage/' . $doctor->user->profile_picture)
+                        : null,
+                ];
+            });
+
+        return response()->json($doctors);
+    }
+
+    // 3. Get full doctor details
+    public function getDoctorDetails($doctorId)
+    {
+        $doctor = Doctor::with([
+            'user:id,first_name,last_name,email',
             'clinic:id,name' // removed location from here
         ])
-        ->findOrFail($doctorId);
+            ->findOrFail($doctorId);
 
-    return response()->json([
-        'id' => $doctor->id,
-        'first_name' => $doctor->user->first_name,
-        'last_name' => $doctor->user->last_name,
-        'email' => $doctor->user->email,
-        'specialty' => $doctor->specialty,
-        //'profile_picture_url' => $doctor->user->getProfilePictureUrl(),
-        'bio' => $doctor->bio,
-        'experience_years' => $doctor->experience_years,
-        'qualifications' => $doctor->qualifications,
-        'clinic' => $doctor->clinic,
-        'available_slots' => $doctor->timeSlots()->where('is_booked', false)->count(),
-    ]);
-}
-
-
+        return response()->json([
+            'id' => $doctor->id,
+            'first_name' => $doctor->user->first_name,
+            'last_name' => $doctor->user->last_name,
+            'email' => $doctor->user->email,
+            'specialty' => $doctor->specialty,
+            'profile_picture_url' => $doctor->user->getProfilePictureUrl(),
+            'bio' => $doctor->bio,
+            'experience_years' => $doctor->experience_years,
+            'qualifications' => $doctor->qualifications,
+            'clinic' => $doctor->clinic,
+            'available_slots' => $doctor->timeSlots()->where('is_booked', false)->count(),
+        ]);
+    }
 
 
 
 
 
-public function getClinicDoctorsWithSlots($clinicId, Request $request)
-{
-    $request->validate([
-        'date' => 'sometimes|date'
-    ]);
 
-    // Default to 7 days from now to match your seeder
-    $date = $request->input('date')
-        ? Carbon::parse($request->date)->format('Y-m-d')
-        : now()->addDays(7)->format('Y-m-d');
 
-    $doctors = Doctor::with(['user:id,first_name,last_name', 'timeSlots' => function($query) use ($date) {
+    public function getClinicDoctorsWithSlots($clinicId, Request $request)
+    {
+        $request->validate([
+            'date' => 'sometimes|date'
+        ]);
+
+        // Default to 7 days from now to match your seeder
+        $date = $request->input('date')
+            ? Carbon::parse($request->date)->format('Y-m-d')
+            : now()->addDays(7)->format('Y-m-d');
+
+        $doctors = Doctor::with(['user:id,first_name,last_name', 'timeSlots' => function ($query) use ($date) {
             $query->where('date', $date)
-                  ->where('is_booked', false)
-                  ->orderBy('start_time');
+                ->where('is_booked', false)
+                ->orderBy('start_time');
         }])
-        ->where('clinic_id', $clinicId)
-        ->get()
-        ->map(function($doctor) use ($date) {
-            return [
-                'id' => $doctor->id,
-                'name' => $doctor->user->first_name . ' ' . $doctor->user->last_name,
-                'specialty' => $doctor->specialty,
-                'available_slots' => $doctor->timeSlots->map(function($slot) {
-                    return [
-                        'id' => $slot->id,
-                        'start_time' => $slot->formatted_start_time,
-                        'end_time' => $slot->formatted_end_time,
-                        'date' => $slot->date->format('Y-m-d')
-                    ];
-                }),
-                '_debug' => [
-                    'doctor_id' => $doctor->id,
-                    'date_queried' => $date,
-                    'slots_count' => $doctor->timeSlots->count()
-                ]
-            ];
-        });
+            ->where('clinic_id', $clinicId)
+            ->get()
+            ->map(function ($doctor) use ($date) {
+                return [
+                    'id' => $doctor->id,
+                    'name' => $doctor->user->first_name . ' ' . $doctor->user->last_name,
+                    'specialty' => $doctor->specialty,
+                    'available_slots' => $doctor->timeSlots->map(function ($slot) {
+                        return [
+                            'id' => $slot->id,
+                            'start_time' => $slot->formatted_start_time,
+                            'end_time' => $slot->formatted_end_time,
+                            'date' => $slot->date->format('Y-m-d')
+                        ];
+                    }),
+                    '_debug' => [
+                        'doctor_id' => $doctor->id,
+                        'date_queried' => $date,
+                        'slots_count' => $doctor->timeSlots->count()
+                    ]
+                ];
+            });
 
-    return response()->json($doctors);
-}
+        return response()->json($doctors);
+    }
 
 
 
@@ -213,10 +215,10 @@ public function getClinicDoctorsWithSlots($clinicId, Request $request)
 
         $appointments = $patient->appointments()
             ->with(['doctor.user:id,first_name,last_name', 'clinic:id,name'])
-            ->when($request->has('status'), function($query) use ($request) {
+            ->when($request->has('status'), function ($query) use ($request) {
                 return $query->where('status', $request->status);
             })
-            ->when($request->has('upcoming'), function($query) {
+            ->when($request->has('upcoming'), function ($query) {
                 return $query->where('appointment_date', '>=', now());
             })
             ->orderBy('appointment_date', 'desc')
@@ -254,70 +256,70 @@ public function getClinicDoctorsWithSlots($clinicId, Request $request)
 
 
 
-//tested successfully
-public function getAvailableSlots($doctorId, $date) {
-    $slots = TimeSlot::where('doctor_id', $doctorId)
-        ->where('date', $date)
-        ->where('is_booked', false)
-        ->get();
+    //tested successfully
+    public function getAvailableSlots($doctorId, $date)
+    {
+        $slots = TimeSlot::where('doctor_id', $doctorId)
+            ->where('date', $date)
+            ->where('is_booked', false)
+            ->get();
 
-    return response()->json($slots);
-}
-
-
-
-
-
-
-
-
-
-public function updateAppointment(Request $request, $id)
-{
-    try {
-        $patient = Auth::user()->patient;
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
-
-        $appointment = $patient->appointments()->findOrFail($id);
-
-        // Updated validation to match request field names
-        $validated = $request->validate([
-            'doctor_id' => 'sometimes|exists:doctors,id',
-            'time_slot_id' => 'sometimes|exists:time_slots,id', // Changed from slot_id
-            'reason' => 'sometimes|string|max:500|nullable',
-        ], [
-            'doctor_id.exists' => 'The selected doctor does not exist',
-            'time_slot_id.exists' => 'The selected time slot does not exist' // Updated
-        ]);
-
-        // Manual field updates - simplified since names now match
-        if (isset($validated['doctor_id'])) {
-            $appointment->doctor_id = $validated['doctor_id'];
-        }
-
-        if (isset($validated['time_slot_id'])) {
-            $appointment->time_slot_id = $validated['time_slot_id'];
-        }
-
-        if (array_key_exists('reason', $validated)) {
-            $appointment->reason = $validated['reason'];
-        }
-
-        if (!$appointment->save()) {
-            return response()->json(['message' => 'Failed to save changes'], 500);
-        }
-
-        return response()->json($appointment->fresh()->load('doctor.user'));
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Update failed',
-            'error' => $e->getMessage()
-        ], 500);
+        return response()->json($slots);
     }
-}
+
+
+
+
+
+
+
+
+
+    public function updateAppointment(Request $request, $id)
+    {
+        try {
+            $patient = Auth::user()->patient;
+            if (!$patient) {
+                return response()->json(['message' => 'Patient profile not found'], 404);
+            }
+
+            $appointment = $patient->appointments()->findOrFail($id);
+
+            // Updated validation to match request field names
+            $validated = $request->validate([
+                'doctor_id' => 'sometimes|exists:doctors,id',
+                'time_slot_id' => 'sometimes|exists:time_slots,id', // Changed from slot_id
+                'reason' => 'sometimes|string|max:500|nullable',
+            ], [
+                'doctor_id.exists' => 'The selected doctor does not exist',
+                'time_slot_id.exists' => 'The selected time slot does not exist' // Updated
+            ]);
+
+            // Manual field updates - simplified since names now match
+            if (isset($validated['doctor_id'])) {
+                $appointment->doctor_id = $validated['doctor_id'];
+            }
+
+            if (isset($validated['time_slot_id'])) {
+                $appointment->time_slot_id = $validated['time_slot_id'];
+            }
+
+            if (array_key_exists('reason', $validated)) {
+                $appointment->reason = $validated['reason'];
+            }
+
+            if (!$appointment->save()) {
+                return response()->json(['message' => 'Failed to save changes'], 500);
+            }
+
+            return response()->json($appointment->fresh()->load('doctor.user'));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Update failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
 
 
@@ -440,25 +442,25 @@ public function updateAppointment(Request $request, $id)
                 'admin_id' => Auth::id(),
                 'amount' => $validated['refund_amount'],
                 'type' => 'refund',
-                'reference' => 'REF-'.$appointment->id,
+                'reference' => 'REF-' . $appointment->id,
                 'balance_before' => $patient->wallet_balance,
                 'balance_after' => $patient->wallet_balance + $validated['refund_amount'],
-                'notes' => $validated['notes'] ?? 'Refund for appointment #'.$appointment->id
+                'notes' => $validated['notes'] ?? 'Refund for appointment #' . $appointment->id
             ]);
 
             $patient->increment('wallet_balance', $validated['refund_amount']);
 
-            if (isset($validated['cancellation_fee'])){
+            if (isset($validated['cancellation_fee'])) {
 
                 WalletTransaction::create([
                     'patient_id' => $patient->id,
                     'admin_id' => Auth::id(),
                     'amount' => $validated['cancellation_fee'],
                     'type' => 'payment',
-                    'reference' => 'FEE-'.$appointment->id,
+                    'reference' => 'FEE-' . $appointment->id,
                     'balance_before' => $patient->wallet_balance + $validated['refund_amount'],
                     'balance_after' => $patient->wallet_balance + $validated['refund_amount'] - $validated['cancellation_fee'],
-                    'notes' => 'Cancellation fee for appointment #'.$appointment->id
+                    'notes' => 'Cancellation fee for appointment #' . $appointment->id
                 ]);
 
                 $patient->decrement('wallet_balance', $validated['cancellation_fee']);
@@ -472,6 +474,4 @@ public function updateAppointment(Request $request, $id)
             ]);
         });
     }
-
-
 }

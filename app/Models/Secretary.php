@@ -38,10 +38,14 @@ use App\Traits\HandlesFiles;
  */
 class Secretary extends Model
 {
-        use HandlesFiles;
+    use HandlesFiles;
 
-    protected $fillable =[
-'user_id','workdays','emergency_absences','performance_metrics'   ,     'profile_picture'
+    protected $fillable = [
+        'user_id',
+        'workdays',
+        'emergency_absences',
+        'performance_metrics',
+        'profile_picture'
 
 
     ];
@@ -49,47 +53,51 @@ class Secretary extends Model
 
     protected  $casts = [
 
-'user_id'
+        'user_id'
     ];
 
-public function user(){
-return $this->belongsTo(User::class);
-}
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
-public function appointments(){
+    public function appointments()
+    {
 
-    return $this->hasMany(Appointment::class);
-}
-
-
-public function payments(){
-    return $this->hasMany(Payment::class);
-}
+        return $this->hasMany(Appointment::class);
+    }
 
 
-
-public function salaries(){
-
-    return $this->hasMany(Salary::class);
-
-}
-
-
-public function salarytsetting(){
-    return $this->belongsTo(SalarySetting::class);
-}
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
 
 
 
+    public function salaries()
+    {
 
-  // Helper methods
-  public function getPerformanceMetrics()
-  {
-      return $this->performance_metrics;
-  }
+        return $this->hasMany(Salary::class);
+    }
 
-  public function getEmergencyAbsences()
-  {
-      return $this->emergency_absences;
-  }
+
+    public function salarytsetting()
+    {
+        return $this->belongsTo(SalarySetting::class);
+    }
+
+
+
+
+    // Helper methods
+    public function getPerformanceMetrics()
+    {
+        return $this->performance_metrics;
+    }
+
+    public function getEmergencyAbsences()
+    {
+        return $this->emergency_absences;
+    }
 }

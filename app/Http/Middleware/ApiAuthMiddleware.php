@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
+
 class ApiAuthMiddleware
 {
     /**
@@ -17,11 +18,11 @@ class ApiAuthMiddleware
     {
         $token = $request->bearerToken();
 
-        if(!$token){
+        if (!$token) {
             return response()->json([
-'error' => 'Unauthorized',
-'message' => 'Token not provided'
-            ],401);
+                'error' => 'Unauthorized',
+                'message' => 'Token not provided'
+            ], 401);
         }
         if (!Auth::guard('api')->check()) {
             return response()->json(['error' => 'Unauthorized', 'message' => 'Invalid Token'], 401);
@@ -29,9 +30,9 @@ class ApiAuthMiddleware
 
         $user = Auth::guard('api')->user();
 
-// connect the authenticated user to the request
-$request->merge(['auth' =>$user]);
+        // connect the authenticated user to the request
+        $request->merge(['auth' => $user]);
 
-         return $next($request);
+        return $next($request);
     }
 }

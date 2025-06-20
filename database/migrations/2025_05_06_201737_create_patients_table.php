@@ -20,11 +20,10 @@ return new class extends Migration
             $table->date('date_of_birth')->nullable();
             $table->string('address')->nullable();
             $table->string('phone_number')->nullable();
-            $table->string('profile_picture')->nullable();
-               $table->decimal('wallet_balance', 10, 2)->default(0);
-    $table->string('wallet_pin', 60)->nullable(); // Hashed PIN
-    $table->timestamp('wallet_activated_at')->nullable();
-            $table->enum('gender',['male','female'])->nullable();
+            $table->decimal('wallet_balance', 10, 2)->default(0);
+            $table->string('wallet_pin', 60)->nullable(); // Hashed PIN
+            $table->timestamp('wallet_activated_at')->nullable();
+            $table->enum('gender', ['male', 'female'])->nullable();
             $table->string('blood_type')->nullable();
             $table->text('chronic_conditions')->nullable(); // JSON array of conditions
             $table->string('insurance_provider')->nullable();
@@ -40,8 +39,8 @@ return new class extends Migration
     {
         Schema::dropIfExists('patients');
 
-            Schema::table('patients', function (Blueprint $table) {
+        Schema::table('patients', function (Blueprint $table) {
             $table->dropColumn(['wallet_balance', 'wallet_pin', 'wallet_activated_at']);
-            });
-}
+        });
+    }
 };

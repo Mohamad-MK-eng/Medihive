@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
+use App\Traits\HandlesFiles;
+
 /**
  *
  *
@@ -53,7 +55,8 @@ use Laravel\Passport\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory,HasApiTokens, Notifiable;
+    use HasFactory, HasApiTokens, Notifiable;
+    use HandlesFiles;
 
     /**
      * The attributes that are mass assignable.
@@ -66,14 +69,26 @@ class User extends Authenticatable
         'last_name',
         'email',
         'password',
-        'role_id'
-       /*  'phone',
+        'role_id',
         'profile_picture',
+
+        /*  'phone',
         'role_id',
         'history',
      */
     ];
 
+
+
+
+    protected $fileHandlingConfig = [
+        'profile_picture' => [
+            'directory' => 'user_profile_pictures',
+            'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
+            'max_size' => 3072, // 3MB
+            'default' => 'default-user.jpg'
+        ]
+    ];
 
 
     protected $casts = [
@@ -105,61 +120,60 @@ class User extends Authenticatable
         ];
     }
 
-public function hasRole(string $role): bool
-{
-    return optional($this->role)->name === $role;
-}
+    public function hasRole(string $role): bool
+    {
+        return optional($this->role)->name === $role;
+    }
 
-public function role(){
-return $this->belongsTo(Role::class);
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
 
-}
-
-public function doctor(){
-    return $this->hasOne(Doctor::class);
-}
-
-
-
-public function secretary(){
-    return $this->hasOne(Secretary::class);
-}
+    public function doctor()
+    {
+        return $this->hasOne(Doctor::class);
+    }
 
 
 
-public function patient()
-{
-    return $this->hasOne(Patient::class, 'user_id');
-}
+    public function secretary()
+    {
+        return $this->hasOne(Secretary::class);
+    }
 
 
 
-//public function hasRole(string $role):bool {
-  //  return $this->role()->where('first_name',$role)->exists();
-//}
+    public function patient()
+    {
+        return $this->hasOne(Patient::class, 'user_id');
+    }
 
 
 
-
-public function hasPermission(string $permission):bool{
-
-    return $this->role()->whereHas('permissions',fn($q) =>$q->where('permissions',$permission))->exists();
-}
-
-
-
-public function getFullNameAttribute():string {
-    return $this->first_name . ' ' . $this->last_name;
-}
-
-
-public function  getProfileUrlAttribute():string {
-    return route('profile.show',$this->id);
-}
+    //public function hasRole(string $role):bool {
+    //  return $this->role()->where('first_name',$role)->exists();
+    //}
 
 
 
 
+    public function hasPermission(string $permission): bool
+    {
+
+        return $this->role()->whereHas('permissions', fn($q) => $q->where('permissions', $permission))->exists();
+    }
 
 
+
+    public function getFullNameAttribute(): string
+    {
+        return $this->first_name . ' ' . $this->last_name;
+    }
+
+
+    public function  getProfileUrlAttribute(): string
+    {
+        return route('profile.show', $this->id);
+    }
 }

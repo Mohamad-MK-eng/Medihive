@@ -28,33 +28,28 @@ class PatientController extends Controller
 
     public function getProfile()
     {
-        $patient = Auth::user()->patient;
+        $user = Auth::user();
+        $patient = $user->patient;
+
         if (!$patient) {
             return response()->json(['message' => 'Patient profile not found'], 404);
         }
 
-        $profile = $patient->only([
-            'first_name',
-            'last_name',
-            'phone_number',
-            'address',
-            'date_of_birth',
-            'gender',
-            'blood_type',
-            'chronic_conditions',
-            'emergency_contact',
-        ]);
-
-        $patient = Auth::user();
-        $patient->getProfilePictureUrl();
-
-        // Add user fields
-        $profile['first_name'] = $patient->user->first_name;
-        $profile['last_name'] = $patient->user->last_name;
+        $profile = [
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'phone_number' => $patient->phone_number,
+            'address' => $patient->address,
+            'date_of_birth' => $patient->date_of_birth,
+            'gender' => $patient->gender,
+            'blood_type' => $patient->blood_type,
+            'chronic_conditions' => $patient->chronic_conditions,
+            'emergency_contact' => $patient->emergency_contact,
+            'profile_picture_url' => $user->getProfilePictureUrl()
+        ];
 
         return response()->json($profile);
     }
-
 
 
 
@@ -102,7 +97,7 @@ class PatientController extends Controller
         // Handle profile picture update if present
         if ($request->hasFile('profile_picture')) {
             try {
-                $patient->uploadFile($request->file('profile_picture'), 'profile_picture');
+                $patient->user->uploadFile($request->file('profile_picture'), 'profile_picture');
             } catch (\Exception $e) {
                 return response()->json([
                     'error' => 'Failed to upload picture',
@@ -135,7 +130,7 @@ class PatientController extends Controller
             'patient' => $patient->fresh()->load('user'),
             'profile_picture' => [
                 'url' => $patient->user->getProfilePictureUrl(),
-                'exists' => !empty($patient->user->profile_picture)
+                'exists' => !empty($patient->profile_picture)
             ],
             'message' => 'Profile updated successfully'
         ]);
@@ -162,7 +157,7 @@ class PatientController extends Controller
 
         try {
             // Get the stored path
-            $path = $patient->getFileUrl('profile_picture');
+            $path = $patient->user->profile_picture;
 
             // Remove any 'storage/' prefix if present
             $path = str_replace('storage/', '', $path);

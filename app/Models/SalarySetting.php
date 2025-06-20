@@ -34,34 +34,31 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SalarySetting extends Model
 {
-    protected $fillable =[
-'payment_type',
-'base_salary',
-'per_patient_bonus',
-'per_appointment_bonus',
-'performance_thresholds'
+    protected $fillable = [
+        'payment_type',
+        'base_salary',
+        'per_patient_bonus',
+        'per_appointment_bonus',
+        'performance_thresholds'
 
     ];
 
 
     protected $casts = [
 
-'per_patient_bonus'
+        'per_patient_bonus'
 
     ];
-public function salaries(){
+    public function salaries()
+    {
 
-return $this->hasMany(Salary::class);
-
-}
-
-
-
-public function secretaries(){
-    return $this->hasMany(Secretary::class);
-}
+        return $this->hasMany(Salary::class);
+    }
 
 
 
-
+    public function secretaries()
+    {
+        return $this->hasMany(Secretary::class);
+    }
 }

@@ -27,30 +27,32 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Prescription extends Model
 {
-    protected $fillable =[
-'appointment_id',
-'medication',
-'dosage',
-'instructions',
-'created_at'
+    protected $fillable = [
+        'appointment_id',
+        'medication',
+        'dosage',
+        'instructions',
+        'created_at'
     ];
 
-    protected $casts =[
+    protected $casts = [
 
-'appointment_id'
+        'appointment_id'
     ];
 
-public function appointment(){
-    return $this->belongsTo(Appointment::class);
-}
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class);
+    }
 
 
-public function getMedicationDetails(){
+    public function getMedicationDetails()
+    {
 
-    return [
-        'medication'=>$this->medication,
-        'dosage'=>$this->dosage,
-        'instructions ' =>$this->instructions
-    ];
-}
+        return [
+            'medication' => $this->medication,
+            'dosage' => $this->dosage,
+            'instructions ' => $this->instructions
+        ];
+    }
 }

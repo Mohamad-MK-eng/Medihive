@@ -37,11 +37,10 @@ class WalletTransaction extends Model
 
 
 
-public static $validTypes = ['deposit', 'payment', 'refund', 'withdrawal', 'fee'];
+    public static $validTypes = ['deposit', 'payment', 'refund', 'withdrawal', 'fee'];
 
-public static function isValidType($type)
-{
-    return in_array($type, self::$validTypes);
-}
-
+    public static function isValidType($type)
+    {
+        return in_array($type, self::$validTypes);
+    }
 }

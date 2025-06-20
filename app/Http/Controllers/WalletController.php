@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
@@ -53,8 +54,10 @@ class WalletController extends Controller
     {
         // If patientId is provided, verify the requester has permission
         if ($patientId) {
-            if (!Auth::user()->hasRole('admin') &&
-                (!Auth::user()->patient || Auth::user()->patient->id != $patientId)) {
+            if (
+                !Auth::user()->hasRole('admin') &&
+                (!Auth::user()->patient || Auth::user()->patient->id != $patientId)
+            ) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
@@ -138,10 +141,10 @@ class WalletController extends Controller
                 'patient_id' => $patient->id,
                 'amount' => $validated['amount'],
                 'type' => 'payment',
-                'reference' => 'APT-'.$validated['appointment_id'],
+                'reference' => 'APT-' . $validated['appointment_id'],
                 'balance_before' => $patient->wallet_balance,
                 'balance_after' => $patient->wallet_balance - $validated['amount'],
-                'notes' => 'Payment for appointment #'.$validated['appointment_id']
+                'notes' => 'Payment for appointment #' . $validated['appointment_id']
             ]);
 
             $patient->decrement('wallet_balance', $validated['amount']);
@@ -153,7 +156,7 @@ class WalletController extends Controller
                 'amount' => $validated['amount'],
                 'method' => 'wallet',
                 'status' => 'completed',
-                'transaction_id' => 'WALLET-'.$transaction->id
+                'transaction_id' => 'WALLET-' . $transaction->id
             ]);
 
             return response()->json([

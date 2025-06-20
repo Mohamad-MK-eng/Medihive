@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
@@ -15,15 +16,15 @@ use Stripe\Exception\ApiErrorException;
 
 class PaymentController extends Controller
 {
-   public function recordPayment(Request $request)
-{
-    $validated = $this->validatePaymentRequest($request);
+    public function recordPayment(Request $request)
+    {
+        $validated = $this->validatePaymentRequest($request);
 
-    return DB::transaction(function () use ($validated) {
-        /** @var \App\Models\Appointment $appointment */
-        $appointment = Appointment::with('patient')->findOrFail($validated['appointment_id']);
+        return DB::transaction(function () use ($validated) {
+            /** @var \App\Models\Appointment $appointment */
+            $appointment = Appointment::with('patient')->findOrFail($validated['appointment_id']);
 
-       switch ($validated['method']) {
+            switch ($validated['method']) {
                 case 'cash':
                     return $this->handleCashPayment($appointment, $validated);
                 case 'wallet':
@@ -63,7 +64,7 @@ class PaymentController extends Controller
             'amount' => $data['amount'],
             'method' => 'cash',
             'status' => 'pending',
-            'transaction_id' => 'CASH-'.now()->format('YmdHis')
+            'transaction_id' => 'CASH-' . now()->format('YmdHis')
         ]);
 
         return response()->json([
@@ -103,10 +104,10 @@ class PaymentController extends Controller
                 'patient_id' => $patient->id,
                 'amount' => $data['amount'],
                 'type' => 'payment',
-                'reference' => 'APT-'.$appointment->id,
+                'reference' => 'APT-' . $appointment->id,
                 'balance_before' => $patient->wallet_balance,
                 'balance_after' => $patient->wallet_balance - $data['amount'],
-                'notes' => 'Payment for appointment #'.$appointment->id
+                'notes' => 'Payment for appointment #' . $appointment->id
             ]);
 
             $patient->decrement('wallet_balance', $data['amount']);
@@ -117,7 +118,7 @@ class PaymentController extends Controller
                 'amount' => $data['amount'],
                 'method' => 'wallet',
                 'status' => 'completed',
-                'transaction_id' => 'WALLET-'.$transaction->id
+                'transaction_id' => 'WALLET-' . $transaction->id
             ]);
 
             $appointment->update(['payment_status' => 'paid']);
@@ -141,7 +142,7 @@ class PaymentController extends Controller
                 'amount' => $data['amount'] * 100,
                 'currency' => 'usd',
                 'payment_method_types' => ['card'],
-                'description' => 'Appointment #'.$appointment->id,
+                'description' => 'Appointment #' . $appointment->id,
             ]);
 
             $payment = Payment::create([
@@ -163,11 +164,10 @@ class PaymentController extends Controller
                 'client_secret' => $paymentIntent->client_secret,
                 'requires_action' => true
             ]);
-
         } catch (ApiErrorException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Payment processing failed: '.$e->getMessage()
+                'message' => 'Payment processing failed: ' . $e->getMessage()
             ], 400);
         }
     }
@@ -187,7 +187,7 @@ class PaymentController extends Controller
             'amount' => $data['amount'],
             'method' => 'insurance',
             'status' => 'pending',
-            'transaction_id' => 'INS-'.now()->format('YmdHis')
+            'transaction_id' => 'INS-' . now()->format('YmdHis')
         ]);
 
         return response()->json([

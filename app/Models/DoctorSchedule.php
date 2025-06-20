@@ -8,13 +8,13 @@ class DoctorSchedule extends Model
 {
 
 
-    protected $fillable =['doctor_id','day', 'start_time','end_time'];
+    protected $fillable = ['doctor_id', 'day', 'start_time', 'end_time'];
 
     protected $casts = [
         'doctor_id',
-        'day'=>'string',
-'start_time'=> 'string',
-'end_time'=> 'string',
+        'day' => 'string',
+        'start_time' => 'string',
+        'end_time' => 'string',
 
     ];
 
@@ -23,11 +23,9 @@ class DoctorSchedule extends Model
 
 
 
-    public function doctor() {
+    public function doctor()
+    {
 
         return $this->belongsTo(Doctor::class);
     }
-
-
-
 }

@@ -36,59 +36,45 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Salary extends Model
 {
-    protected $fillable =[
-'secretary_id',
-'salary_setting_id',
-'base_amount',
-'bonus_amount',
-'total_amount',
-'status',
-'paid_at'
+    protected $fillable = [
+        'secretary_id',
+        'salary_setting_id',
+        'base_amount',
+        'bonus_amount',
+        'total_amount',
+        'status',
+        'paid_at'
 
 
     ];
 
 
-    protected $casts =[
+    protected $casts = [
 
 
-'secretary_id',
-'salary_setting_id',
-'base_amount',
-'bonus_amount',
-'total_amount',
-'status',
-'paid_at'
+        'secretary_id',
+        'salary_setting_id',
+        'base_amount',
+        'bonus_amount',
+        'total_amount',
+        'status',
+        'paid_at'
 
 
     ];
 
 
-public function secretary(){
+    public function secretary()
+    {
 
-    return $this->belongsTo(Secretary::class);
-}
-
-
-
-
-public function salarysetting(){
-    return $this->belongsTo(SalarySetting::class);
-}
+        return $this->belongsTo(Secretary::class);
+    }
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+    public function salarysetting()
+    {
+        return $this->belongsTo(SalarySetting::class);
+    }
 }

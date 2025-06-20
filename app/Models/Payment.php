@@ -39,40 +39,43 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Payment extends Model
 {
-    protected $fillable =[
-'patient_id',
+    protected $fillable = [
+        'patient_id',
 
-'secretary_id',
-'appointment_id',
-'amount',
-'status',
-'method',
-'paid_at'
+        'secretary_id',
+        'appointment_id',
+        'amount',
+        'status',
+        'method',
+        'paid_at'
     ];
 
-    protected $casts =[
+    protected $casts = [
 
-'secretary_id',
-'appointment_id',
-'amount',
-'paid_at'
+        'secretary_id',
+        'appointment_id',
+        'amount',
+        'paid_at'
 
     ];
 
-public function patient(){
-    return $this->belongsTo(Patient::class);
-}
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
 
 
-public function secretary(){
+    public function secretary()
+    {
 
-    return $this->belongsTo(Secretary::class);
-}
+        return $this->belongsTo(Secretary::class);
+    }
 
 
-public function appointment(){
-    return $this->belongsTo(Appointment::class);
-}
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class);
+    }
 
 
 
@@ -93,4 +96,3 @@ public function appointment(){
         return $this->method;
     }
 }
-
