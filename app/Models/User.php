@@ -71,11 +71,6 @@ class User extends Authenticatable
         'password',
         'role_id',
         'profile_picture',
-
-        /*  'phone',
-        'role_id',
-        'history',
-     */
     ];
 
 
@@ -92,10 +87,8 @@ class User extends Authenticatable
 
 
     protected $casts = [
-
         'phone',
         'role_id'
-
     ];
     /**
      * The attributes that should be hidden for serialization.

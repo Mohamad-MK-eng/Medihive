@@ -86,27 +86,6 @@ class AppointmentController extends Controller
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     public function getClinicDoctors($clinicId)
     {
         $doctors = Doctor::where('clinic_id', $clinicId)
@@ -130,7 +109,7 @@ class AppointmentController extends Controller
     }
 
     // 3. Get full doctor details
-    public function getDoctorDetails($doctorId)
+    /*  public function getDoctorDetails($doctorId)
     {
         $doctor = Doctor::with([
             'user:id,first_name,last_name,email',
@@ -150,6 +129,26 @@ class AppointmentController extends Controller
             'qualifications' => $doctor->qualifications,
             'clinic' => $doctor->clinic,
             'available_slots' => $doctor->timeSlots()->where('is_booked', false)->count(),
+        ]);
+    }
+ */
+    public function getDoctorDetails(Doctor $doctor)
+    {
+        $doctor->load(['reviews', 'schedules']);
+
+        $schedule = $doctor->schedules->map(function ($schedule) {
+            return [
+                'day' => ucfirst($schedule->day),
+                /* 'start_time' => Carbon::parse($schedule->start_time)->format('g:i A'),
+                'end_time' => Carbon::parse($schedule->end_time)->format('g:i A') */
+            ];
+        });
+
+        return response()->json([
+            'consultation_fee' => $doctor->consultation_fee,
+            'bio' => $doctor->bio,
+            'schedule' => $schedule,
+            'review_count' => $doctor->reviews->count(),
         ]);
     }
 
@@ -235,27 +234,6 @@ class AppointmentController extends Controller
         ]);
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     //tested successfully
     public function getAvailableSlots($doctorId, $date)
     {
@@ -266,14 +244,6 @@ class AppointmentController extends Controller
 
         return response()->json($slots);
     }
-
-
-
-
-
-
-
-
 
     public function updateAppointment(Request $request, $id)
     {
@@ -321,9 +291,6 @@ class AppointmentController extends Controller
         }
     }
 
-
-
-
     public function cancelAppointment(Request $request, $id)
     {
         $validated = $request->validate([
@@ -356,26 +323,6 @@ class AppointmentController extends Controller
 */
         return response()->json(['message' => 'Appointment cancelled successfully']);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     public function rescheduleAppointment(Request $request, $id)
     {
