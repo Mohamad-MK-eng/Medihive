@@ -17,6 +17,7 @@ return new class extends Migration
   // تم حذق اوقات الفتح واوقات الاغلاق \لأنها مالها داعي الدكتور هو يلي بحدد اذا كان في دوام او لا
     $table->string('specialty')->default('General');
      $table->text('description')->nullable();
+     $table->string('location')->nullable();
     $table->string('image_path')->nullable();
 
     $table->timestamps();

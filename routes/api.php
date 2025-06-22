@@ -10,6 +10,7 @@ use App\Http\Controllers\ClinicController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SecretaryController;
 use App\Http\Middleware\ApiAuthMiddleware;
 
@@ -44,6 +45,9 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+
 
 
     Route::get('/doctors/{doctor}', [DoctorController::class, 'show']);
@@ -76,11 +80,18 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     // Role-based route groups
     Route::middleware(['role:patient,secretary,admin'])->group(function () {
         // Patient profile management
+
+
+              Route::get('/search/clinics', [SearchController::class, 'searchClinics']);
+    Route::get('/search/doctors', [SearchController::class, 'searchDoctors']);
+
         Route::prefix('patient')->group(function () {
             Route::get('/profile', [PatientController::class, 'getProfile']);
             Route::put('/profile', [PatientController::class, 'updateProfile']);
             Route::post('/profile_picture', [PatientController::class, 'uploadProfilePicture']);
             Route::get('/profile_picture', [PatientController::class, 'getProfilePicture']);
+
+
         });
 
 
@@ -159,6 +170,12 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+   Route::middleware('role:doctor,secretary')->group(function () {
+        Route::get('/search/patients', [SearchController::class, 'searchPatients']);
+    });
+
+
+
 
 
 
@@ -215,6 +232,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::put('/clinics/{clinic}', [AdminController::class, 'update']);
         Route::post('/clinics/{clinic}/upload_icon', [AdminController::class, 'uploadClinicIcon']);
 
+        Route::get('/search/secretaries', [SearchController::class, 'searchSecretaries']);
 
 
 
