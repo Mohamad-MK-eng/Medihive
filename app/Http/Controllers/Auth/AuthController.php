@@ -56,7 +56,7 @@ class AuthController extends Controller
                 'message' => 'Patient registered successfully',
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-                'patient' => $user
+                'user' => $user
             ], 201);
         });
     }

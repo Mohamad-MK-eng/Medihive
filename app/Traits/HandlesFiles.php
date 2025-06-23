@@ -69,7 +69,7 @@ trait HandlesFiles
      */
 
 
-    public function getFileUrl($fieldName = 'profile_picture')
+   /*  public function getFileUrl($fieldName = 'profile_picture')
     {
         if (!isset($this->fileHandlingConfig[$fieldName])) {
             return null;
@@ -98,7 +98,42 @@ trait HandlesFiles
 
         // Return default if file not found
         return asset('storage/' . $config['directory'] . '/' . $config['default']);
+    } */
+
+
+
+
+    
+   // هاد منشان يرجعلي صورة المريض ب null بدل الdefault  في حال ما كانت موجودة
+   public function getFileUrl($fieldName = 'profile_picture')
+{
+    if (!isset($this->fileHandlingConfig[$fieldName])) {
+        return null;
     }
+
+    $config = $this->fileHandlingConfig[$fieldName] ?? [
+        'directory' => 'user_profile_pictures',
+        'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
+        'max_size' => 3072,
+    ];
+
+    // إذا لا توجد قيمة للصورة → null مباشرة
+    if (empty($this->{$fieldName})) {
+        return null;
+    }
+
+    // نظف المسار
+    $path = ltrim(str_replace(['storage/', 'public/'], '', $this->{$fieldName}), '/');
+
+    // تحقق من وجود الملف فعلياً
+    if (Storage::disk('public')->exists($path)) {
+        return asset('storage/' . $path);
+    }
+
+    // الملف غير موجود فعلياً → null
+    return null;
+}
+
 
 
 

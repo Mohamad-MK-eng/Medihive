@@ -38,30 +38,22 @@ class PatientController extends Controller
         $profile = [
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
+             'email' => $user->email,
             'phone_number' => $patient->phone_number,
             'address' => $patient->address,
             'date_of_birth' => $patient->date_of_birth,
             'gender' => $patient->gender,
             'blood_type' => $patient->blood_type,
             'chronic_conditions' => $patient->chronic_conditions,
-            'emergency_contact' => $patient->emergency_contact,
-            'profile_picture_url' => $user->getProfilePictureUrl()
+            'profile_picture_url' => $user->getProfilePictureUrl(),
+            'wallet_balance' => $patient->wallet_balance,
+            'wallet_pin' => $patient->wallet_pin
         ];
 
-        return response()->json($profile);
+        return response()->json([
+            'message' => ' Patient Profile Fetched successfully',
+            'patient' =>$profile]);
     }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -86,7 +78,6 @@ class PatientController extends Controller
             'gender' => 'sometimes|string|in:male,female,other',
             'blood_type' => 'sometimes|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
             'chronic_conditions' => 'nullable|array',
-            'emergency_contact' => 'sometimes|string|max:255',
             'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
         ]);
 
@@ -127,20 +118,23 @@ class PatientController extends Controller
         $patient->update($patientData);
 
         return response()->json([
-            'patient' => $patient->fresh()->load('user'),
-            'profile_picture' => [
-                'url' => $patient->user->getProfilePictureUrl(),
-                'exists' => !empty($patient->profile_picture)
+            'patient' => [
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+             'email' => $user->email,
+            'phone_number' => $patient->phone_number,
+            'address' => $patient->address,
+            'date_of_birth' => $patient->date_of_birth,
+            'gender' => $patient->gender,
+            'blood_type' => $patient->blood_type,
+            'chronic_conditions' => $patient->chronic_conditions,
+            'profile_picture_url' => $user->getProfilePictureUrl(),
+            'wallet_balance' => $patient->wallet_balance,
+            'wallet_pin' => $patient->wallet_pin
             ],
             'message' => 'Profile updated successfully'
         ]);
     }
-
-
-
-
-
-
 
 
     public function getProfilePicture()
