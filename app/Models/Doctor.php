@@ -181,4 +181,27 @@ class Doctor extends Model
         // Calculate and return whole years of experience
         return (int)$start->diffInYears($now);
     }
+
+
+
+
+
+
+    /*
+
+    // In Doctor model
+public function getExperienceAttribute()
+{
+    if (!$this->experience_start_date) {
+        return '0 years';
+    }
+
+    $start = Carbon::parse($this->experience_start_date);
+    $now = Carbon::now();
+
+    return $start->diffForHumans($now, true);
+}
+
+
+*/
 }
