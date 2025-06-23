@@ -10,15 +10,5 @@ class ServicesSeeder extends Seeder
     /**
      * Run the database seeds.
      */
-    public function run()
-    {
-        \App\Models\Service::create([
-            'id' => 1,
-            'name' => 'General Consultation',
-            'price' => 100.00,
-            'description' => 'Standard doctor consultation'
-        ]);
-
-        // Add more services as needed
-    }
+ 
 }

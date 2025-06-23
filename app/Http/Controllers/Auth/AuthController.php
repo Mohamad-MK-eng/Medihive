@@ -20,7 +20,7 @@ class AuthController extends Controller
     public function register(Request $request)
     {
 
-        $validator  = $request->validate([
+          $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -37,26 +37,15 @@ class AuthController extends Controller
             $user = User::create([
                 'first_name' => $request->first_name,
                 'last_name' => $request->last_name,
-                'name' => $request->first_name . ' ' . $request->last_name,
-                //   'name' => $request->first_name . ' ' . $request->last_name,
                 'email' => $request->email,
-                'date_of_birth' => $request->date_of_birth,
-                'blood_type' => $request->blood_type,
-                'gender' => $request->gender,
                 'password' => Hash::make($request->password),
-                'phone_number' => $request->phone_number,
                 'role_id' => $patientRole->id,
             ]);
             /// me me me m e
             //  this is fucking insan
             Patient::create([
                 'user_id' => $user->id,
-                //   'phone_number' => $request->phone_number,
-                //  'date_of_birth' => $request->date_of_birth,
-                //  'address' => $request->address,
-                //  'gender' => $request->gender,
-                //   'blood_type' => $request->blood_type,
-                //  'emergency_contact' => $request->emergency_contact,
+
             ]);
 
 
@@ -67,7 +56,7 @@ class AuthController extends Controller
                 'message' => 'Patient registered successfully',
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-                'patient' => $user->load('patient')
+                'patient' => $user
             ], 201);
         });
     }
@@ -100,13 +89,20 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => 'Patient logged in successfully',
-                'user' => $user->load('patient'),
+                'user' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'role_id' => $user->role_id,
+                    'profile_picture' => $user->getProfilePictureUrl(),
+                ],
+
                 'access_token' => $token,
                 'token_type' => 'Bearer',
-
             ]);
         }
-
+        // بالنسبة للأي فاعل أخر نفس السيناربو بهمني role Id منشان التوجيه عندي بافلاتر
         return response()->json([
             'user' => $user->load('role'),
             'access_token' => $token,
@@ -114,13 +110,7 @@ class AuthController extends Controller
             'role_name' => $user->role->name,
         ]);
     }
-
-
-
-
-
     // to try
-
     public function sendPasswordResetLink(Request $request)
     {
         $request->validate(['email' => 'required|email']);

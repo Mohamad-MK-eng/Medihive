@@ -99,6 +99,9 @@ class ClinicController extends Controller
             ->get();
 
         // Format the response
+
+        // مبدئيا هيك تمام بس انت حاطط شرط حلو تبع is active هاد في حال بدو يستقيل ويصفي معايناته القديمة وما بده حدا جديد
+        // بتعمل فلترة على اللي is active ? true
         $formattedDoctors = $doctors->map(function ($doctor) {
             $user = $doctor->user;
 
@@ -106,33 +109,21 @@ class ClinicController extends Controller
                 'id' => $doctor->id,
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
-                'email' => $user->email,
-                'phone' => $user->phone,
                 'specialty' => $doctor->specialty,
-                'bio' => $doctor->bio,
-                'consultation_fee' => $doctor->consultation_fee,
                 'experience_years' => $doctor->experience_years,
-                'experience_details' => $doctor->experience_details,
                 'profile_picture_url' => $user->getProfilePictureUrl(),
-                'rating_details' => $doctor->rating_details ?? null,
-                'review_count' => $doctor->reviews->count(),
-                'is_active' => $user->is_active,
-                'schedules' => $doctor->schedules->map(function ($schedule) {
+                'rate' => $doctor->rating,
+                // حلوة الفكرة
+                'is_active' => $user->is_active  ,
+                /* 'schedules' => $doctor->schedules->map(function ($schedule) {
                     return [
                         'day' => $schedule->day,
-                        'start_time' => $schedule->start_time,
-                        'end_time' => $schedule->end_time
                     ];
-                })
+                }) */
             ];
         });
 
         return response()->json([
-            'clinic' => [
-                'id' => $clinic->id,
-                'name' => $clinic->name,
-                'location' => $clinic->location
-            ],
             'doctors' => $formattedDoctors
         ]);
     }
@@ -172,40 +163,9 @@ class ClinicController extends Controller
 
         return response()->json($doctors);
     }
-
-    public function getDoctorDetails(Doctor $doctor)
-    {
-        $doctor->load(['user', 'clinic', 'reviews', 'schedules']);
-
-        $schedule = $doctor->schedules->map(function ($schedule) {
-            return [
-                'day' => ucfirst($schedule->day),
-                'start_time' => Carbon::parse($schedule->start_time)->format('g:i A'),
-                'end_time' => Carbon::parse($schedule->end_time)->format('g:i A')
-            ];
-        });
-
-        return response()->json([
-            'id' => $doctor->id,
-            'first_name' => $doctor->user->first_name,
-            'last_name' => $doctor->user->last_name,
-            'specialty' => $doctor->specialty,
-            'profile_picture_url' => $doctor->user->getProfilePictureUrl(),
-            'experience_years' => $doctor->experience_years,
-            'rating' => $doctor->calculateRating(),
-            'consultation_fee' => $doctor->consultation_fee,
-            'bio' => $doctor->bio,
-            'clinic' => [
-                'id' => $doctor->clinic->id,
-                'name' => $doctor->clinic->name,
-                'icon_url' => $doctor->clinic->getIconUrl()
-            ],
-            'schedule' => $schedule,
-            'review_count' => $doctor->reviews->count(),
-            'experience_details' => $doctor->experience_details
-        ]);
-    }
 }
+
+   
 
 
 
