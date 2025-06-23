@@ -157,6 +157,14 @@ class AdminController extends Controller
 
     public function uploadClinicIcon(Request $request, $id)
     {
+
+
+        $clinic = Clinic::find($id);
+    if (!$clinic) {
+        return response()->json(['error' => 'Clinic not found'], 404);
+    }
+
+
         $validator = Validator::make($request->all(), [
             'icon' => 'required|image|mimes:jpg,jpeg,png|max:2048' // Changed from image_path to icon
         ]);
