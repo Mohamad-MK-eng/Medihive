@@ -359,4 +359,40 @@ class DoctorController extends Controller
                 ->count()
         ];
     }
+
+
+
+
+
+
+
+
+
+public function getTopDoctors()
+{
+    $topDoctors = Doctor::topRated()->get()->map(function ($doctor) {
+        return [
+            'id' => $doctor->id,
+            'name' => $doctor->user->name, // Assuming name is in User model
+            'specialty' => $doctor->specialty,
+            'experience_years' => $doctor->experience_years,
+            'rating' => number_format($doctor->rating, 1),
+            'profile_picture' => $doctor->user->getProfilePictureUrl(), // Assuming user has profile picture
+            'consultation_fee' => $doctor->consultation_fee,
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'data' => $topDoctors
+    ]);
+}
+
+
+
+
+
+
+
+
 }

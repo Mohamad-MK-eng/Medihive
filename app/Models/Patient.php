@@ -6,6 +6,7 @@ use App\Traits\HandlesFiles;
 use DB;
 use Dom\Document;
 use Illuminate\Database\Eloquent\Model;
+use Notification;
 use Storage;
 
 /**
@@ -25,7 +26,6 @@ use Storage;
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Appointment> $appointment
  * @property-read int|null $appointment_count
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Notification> $notifications
  * @property-read int|null $notifications_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Payment> $payments
  * @property-read int|null $payments_count
@@ -70,18 +70,21 @@ class Patient extends Model
         'emergency_contact',
         'wallet_balance',
         'wallet_pin',
-        'wallet_activated_at'
+        'wallet_activated_at',
+        'pin_attempts',
+    'wallet_locked_until'
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
 
         'phone_number',
-        'wallet_balance'  => 'double',
 
         'chronic_conditions' => 'array',
         'insurance_provider' => 'array',
-        'wallet_activated_at' => 'datetime'
+        'wallet_activated_at' => 'datetime',
+         'wallet_balance' => 'decimal:2',
+    'wallet_locked_until' => 'datetime'
     ];
 
 
@@ -89,8 +92,6 @@ class Patient extends Model
 
     public function user()
     {
-
-
         return $this->belongsTo(User::class);
     }
 
@@ -128,7 +129,7 @@ class Patient extends Model
     public function payments()
     {
 
-        return $this->hasMany(Payment::class);
+        return $this->belongsTo(Payment::class);
     }
 
     public function documents()

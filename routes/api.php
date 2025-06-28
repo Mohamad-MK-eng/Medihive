@@ -10,6 +10,7 @@ use App\Http\Controllers\ClinicController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\RatingController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SecretaryController;
 use App\Http\Middleware\ApiAuthMiddleware;
@@ -49,7 +50,9 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+// In your routes/api.php
 
+Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
     Route::get('/doctors/{doctor}', [DoctorController::class, 'show']);
 
     // Admin-only routes
@@ -90,6 +93,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::put('/profile', [PatientController::class, 'updateProfile']);
             Route::post('/profile_picture', [PatientController::class, 'uploadProfilePicture']);
             Route::get('/profile_picture', [PatientController::class, 'getProfilePicture']);
+   // new
+    Route::post('/ratings', [RatingController::class, 'store']);
 
 
         });
@@ -253,4 +258,15 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         // Doctors
         Route::post('/admin/create_doctor', [AdminController::class, 'createDoctor']);
     });
+
+
+// routes/web.php
+
+
+   Route::get('/notifications', 'NotificationController@index');
+
+    Route::post('/notifications/{id}/read', 'NotificationController@markAsRead');
+
+    Route::post('/notifications/read-all', 'NotificationController@markAllAsRead');
+
 });

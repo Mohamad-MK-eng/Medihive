@@ -20,6 +20,13 @@ class WalletTransaction extends Model
         'admin_id'
     ];
 
+
+    protected $casts = [
+    'amount' => 'decimal:2',
+    'balance_before' => 'decimal:2',
+    'balance_after' => 'decimal:2'
+];
+
     public function patient()
     {
         return $this->belongsTo(Patient::class);

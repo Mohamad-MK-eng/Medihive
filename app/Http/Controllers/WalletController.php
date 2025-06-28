@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\WalletTransaction;
+use App\Notifications\PaymentConfirmationNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -152,12 +153,17 @@ class WalletController extends Controller
             $payment = Payment::create([
                 'appointment_id' => $validated['appointment_id'],
                 'patient_id' => $patient->id,
-                'service_id' => $validated['service_id'],
                 'amount' => $validated['amount'],
                 'method' => 'wallet',
                 'status' => 'completed',
                 'transaction_id' => 'WALLET-' . $transaction->id
             ]);
+
+
+
+        $patient->user->notifyNow(new PaymentConfirmationNotification($payment));
+
+
 
             return response()->json([
                 'message' => 'Payment successful',

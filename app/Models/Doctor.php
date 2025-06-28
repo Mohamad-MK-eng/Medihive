@@ -144,6 +144,21 @@ class Doctor extends Model
         return $this->hasMany(Review::class);
     }
 
+
+public function averageRating()
+{
+    return $this->reviews()->avg('rating') ?? 0;
+}
+
+public function updateRating()
+{
+    $this->rating = $this->averageRating();
+    $this->save();
+}
+
+
+
+
     public function schedules()
     {
         return $this->hasMany(DoctorSchedule::class);
@@ -184,24 +199,21 @@ class Doctor extends Model
 
 
 
-
-
-
-    /*
-
-    // In Doctor model
-public function getExperienceAttribute()
+public function scopeTopRated($query, $limit = 5)
 {
-    if (!$this->experience_start_date) {
-        return '0 years';
-    }
-
-    $start = Carbon::parse($this->experience_start_date);
-    $now = Carbon::now();
-
-    return $start->diffForHumans($now, true);
+    return $query->with('user') // Eager load the user relationship
+        ->whereHas('reviews') // Only include doctors with reviews
+        ->orderBy('rating', 'DESC')
+        ->orderBy('experience_years', 'DESC') // Secondary sort by experience
+        ->limit($limit);
 }
 
+/**
+ * Calculate and update the doctor's average rating
+ */
 
-*/
+
+
+
+
 }

@@ -216,7 +216,7 @@ $document = \App\Models\Document::create([
             'reason' => 'Initial consultation',
             'status' => 'confirmed',
             'price' => 100.00,
-            'fee' => 80.00 ,// Don't forget the fee field
+            'fee' => 80.00 ,
             'document_id' => 1
         ]);
 

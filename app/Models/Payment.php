@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $patient_id
  * @property int $secretary_id
  * @property int $appointment_id
- * @property int $service_id
  * @property string $amount
  * @property string $status
  * @property string $method
@@ -32,7 +31,6 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Payment wherePaidAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Payment wherePatientId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Payment whereSecretaryId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Payment whereServiceId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Payment whereStatus($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Payment whereUpdatedAt($value)
  * @mixin \Eloquent
@@ -41,21 +39,19 @@ class Payment extends Model
 {
     protected $fillable = [
         'patient_id',
-
         'secretary_id',
         'appointment_id',
         'amount',
         'status',
         'method',
+        'transaction_id',
         'paid_at'
     ];
 
     protected $casts = [
 
-        'secretary_id',
-        'appointment_id',
-        'amount',
-        'paid_at'
+        'amount' =>'decimal:2',
+        'paid_at' =>'datetime'
 
     ];
 
