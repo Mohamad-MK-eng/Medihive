@@ -249,6 +249,18 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+ Route::prefix('admin/profile')->group(function () {
+        Route::put('/', [AdminController::class, 'updateAdminInfo']);  // done
+
+        //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
+        Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
+        Route::delete('/picture', [AdminController::class, 'deleteProfilePicture']);
+        Route::post('/change-password', [AdminController::class, 'changePassword']);
+    });
+
+
+    Route::get('/picture', [AdminController::class, 'getProfilePictureFile']);
+
 
 
 
@@ -258,7 +270,13 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     });
 
 
-    // routes/web.php
+
+
+
+
+
+
+
 
 
     Route::get('/notifications', 'NotificationController@index');
@@ -270,16 +288,4 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-
-    Route::prefix('admin/profile')->group(function () {
-        Route::put('/', [AdminController::class, 'updateAdminInfo']);  // done
-
-        //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
-        Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
-        Route::delete('/picture', [AdminController::class, 'deleteProfilePicture']);
-        Route::post('/change-password', [AdminController::class, 'changePassword']);
-    });
-
-
-    Route::get('/picture', [AdminController::class, 'getProfilePictureFile']);
 });

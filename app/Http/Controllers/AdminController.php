@@ -594,7 +594,7 @@ public function updateAdminInfo(Request $request)
         try {
             // Delete old file if exists
             if ($user->profile_picture) {
-                $this->deleteProfilePictureFile($user);
+                $this->deleteProfilePicture();
             }
 
             // Generate unique filename
