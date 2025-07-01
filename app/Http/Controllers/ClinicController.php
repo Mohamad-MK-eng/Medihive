@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
+
 class ClinicController extends Controller
 {
     // Get all clinics with their images
@@ -112,7 +113,7 @@ class ClinicController extends Controller
                 'specialty' => $doctor->specialty,
                 'experience_years' => $doctor->experience_years,
                 'profile_picture_url' => $user->getProfilePictureUrl(),
-                'rate' => $doctor->rating,
+                'rate' => (float)$doctor->rating,
                 // حلوة الفكرة
                 'is_active' => $user->is_active  ,
                 /* 'schedules' => $doctor->schedules->map(function ($schedule) {

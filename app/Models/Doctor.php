@@ -50,6 +50,8 @@ class Doctor extends Model
         'clinic_id',
         'workdays' => 'array',
         'experience_start_date' => 'date:Y-m-d',
+        'rating' => 'double',
+        'consultation_fee' => 'double'
     ];
 
 

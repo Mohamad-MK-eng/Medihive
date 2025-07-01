@@ -75,14 +75,15 @@ class PatientController extends Controller
             'phone_number' => 'sometimes|string|max:20',
             'address' => 'sometimes|string|nullable',
             'date_of_birth' => 'sometimes|date',
-            'gender' => 'sometimes|string|in:male,female,other',
-            'blood_type' => 'sometimes|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
-            'chronic_conditions' => 'nullable|array',
+            'gender' => 'sometimes|string|in:Male,Female,other',
+            'blood_type' => 'sometimes|in:A +,A -,B +,B -,AB +,AB -,O +,O -',
+            'chronic_conditions' => 'nullable|String',
             'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'invalid information'
+                ,'errors' => $validator->errors()], 422);
         }
 
         // Handle profile picture update if present
