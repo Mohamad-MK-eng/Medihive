@@ -161,7 +161,7 @@ class WalletController extends Controller
 
 
 
-        $patient->user->notifyNow(new PaymentConfirmationNotification($payment));
+            $patient->user->notifyNow(new PaymentConfirmationNotification($payment));
 
 
 

@@ -24,185 +24,111 @@ class DoctorController extends Controller
 
 
 
+public function getProfilePicture()
+{
+    $user = Auth::user();
 
-    public function getProfile()
-    {
-        $user = Auth::user();
-        $doctor = $user->doctor;
+    try {
+        $path = $user->getFileUrl('profile_picture');
+        $path = str_replace(asset('storage/'), '', $path);
 
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
+        if (!Storage::disk('public')->exists($path)) {
+            return response()->json(['message' => 'Profile picture file not found'], 404);
         }
 
-        $profile = [
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-            'email' => $user->email,
-            'phone' => $user->phone,
-            'specialty' => $doctor->specialty,
-            'bio' => $doctor->bio,
-            'consultation_fee' => $doctor->consultation_fee,
-            'experience_years' => (int)$doctor->experience_years,
-            'experience_details' => $doctor->experience_details,
-            'clinic_id' => $doctor->clinic_id,
-            'profile_picture_url' => $user->getProfilePictureUrl(),
-            'rating_details' => $doctor->rating_details ?? null,
-            'review_count' => $doctor->reviews()->count(),
-            'is_active' => $user->is_active
-        ];
-
-        return response()->json($profile);
+        $fullPath = Storage::disk('public')->path($path);
+        return response()->file($fullPath);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error retrieving profile picture',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
-    public function updateProfile(Request $request)
-    {
-        $user = Auth::user();
-        $doctor = $user->doctor;
+public function uploadProfilePicture(Request $request)
+{
+    $request->validate([
+        'profile_picture' => 'required|image|mimes:jpg,jpeg,png|max:3072'
+    ]);
 
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
-        }
+    $user = Auth::user();
 
-        $validator = Validator::make($request->all(), [
-            'first_name' => 'sometimes|string|max:255',
-            'last_name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:users,email,' . $user->id,
-            'phone' => 'sometimes|string|max:20',
-            'specialty' => 'sometimes|string|max:255',
-            'bio' => 'nullable|string',
-            'experience_years' => 'sometimes|integer|min:0',
-            'experience_details' => 'nullable|string',
-            'experience_start_date' => 'nullable|date|before_or_equal:today',
-            'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
-        ]);
+    try {
+        $uploaded = $user->uploadFile($request->file('profile_picture'), 'profile_picture');
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Handle profile picture update if present
-        if ($request->hasFile('profile_picture')) {
-            try {
-                $user->uploadFile($request->file('profile_picture'), 'profile_picture');
-            } catch (\Exception $e) {
-                return response()->json([
-                    'error' => 'Failed to upload picture',
-                    'message' => $e->getMessage()
-                ], 500);
-            }
-        }
-
-        $validated = $validator->validated();
-
-        // Update user fields
-        if (isset($validated['first_name']) || isset($validated['last_name'])) {
-            $user->update([
-                'first_name' => $validated['first_name'] ?? $user->first_name,
-                'last_name' => $validated['last_name'] ?? $user->last_name
-            ]);
-        }
-
-
-        if ($request->has('experience_start_date')) {
-            $doctor->experience_start_date = $validated['experience_start_date'];
-        }
-        // Update email and phone if provided
-        if (isset($validated['email'])) {
-            $user->email = $validated['email'];
-        }
-        if (isset($validated['phone'])) {
-            $user->phone = $validated['phone'];
-        }
-        $user->save();
-
-        // Update doctor fields
-        $doctorData = collect($validated)->except([
-            'first_name',
-            'last_name',
-            'email',
-            'phone',
-            'profile_picture'
-        ])->all();
-
-        if (!empty($doctorData)) {
-            $doctor->update($doctorData);
+        if (!$uploaded) {
+            throw new \Exception('Failed to upload profile picture');
         }
 
         return response()->json([
-            'doctor' => $doctor->fresh()->load('user'),
-            'profile_picture' => [
-                'url' => $user->getProfilePictureUrl(),
-                'exists' => !empty($user->profile_picture)
-            ],
-            'message' => 'Profile updated successfully'
+            'success' => true,
+            'profile_picture_url' => $user->getProfilePictureUrl(),
+            'message' => 'Profile picture updated successfully'
         ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to upload profile picture',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function updateProfile(Request $request)
+{
+    $user = Auth::user();
+
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'sometimes|string|max:255',
+        'last_name' => 'sometimes|string|max:255',
+        'email' => [
+            'sometimes',
+            'email',
+            'unique:users,email,' . $user->id
+        ],
+        'phone_number' => 'sometimes|string|max:20',
+        'address' => 'sometimes|string',
+        'date_of_birth' => 'sometimes|date',
+        'gender' => 'sometimes|string|in:male,female,other',
+        'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    public function getProfilePicture()
-    {
-        $user = Auth::user();
-        $doctor = $user->doctor;
-
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
-        }
-
-        if (!$user->profile_picture) {
-            return response()->json(['message' => 'No profile picture set'], 404);
-        }
-
-        try {
-            $path = $user->getFileUrl('profile_picture');
-            $path = str_replace(asset('storage/'), '', $path);
-
-            if (!Storage::disk('public')->exists($path)) {
-                return response()->json(['message' => 'Profile picture file not found'], 404);
-            }
-
-            $fullPath = Storage::disk('public')->path($path);
-            return response()->file($fullPath);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving profile picture',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function uploadProfilePicture(Request $request)
-    {
-        $request->validate([
-            'profile_picture' => 'required|image|mimes:jpg,jpeg,png|max:3072'
-        ]);
-
-        $user = Auth::user();
-        $doctor = $user->doctor;
-
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
-        }
-
+    if ($request->hasFile('profile_picture')) {
         try {
             $uploaded = $user->uploadFile($request->file('profile_picture'), 'profile_picture');
 
             if (!$uploaded) {
                 throw new \Exception('Failed to upload profile picture');
             }
-
-            return response()->json([
-                'success' => true,
-                'profile_picture_url' => $user->getProfilePictureUrl(),
-                'message' => 'Profile picture updated successfully'
-            ]);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'Failed to upload profile picture',
-                'error' => $e->getMessage()
+                'error' => 'Failed to upload picture',
+                'message' => $e->getMessage()
             ], 500);
         }
     }
 
+    $user->update($validator->except(['profile_picture']));
+
+    return response()->json([
+        'message' => 'Profile updated successfully',
+        'user' => [
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'phone_number' => $user->phone_number,
+            'address' => $user->address,
+            'date_of_birth' => $user->date_of_birth,
+            'gender' => $user->gender,
+            'profile_picture_url' => $user->getProfilePictureUrl()
+        ]
+    ]);
+}
 
 
 
@@ -368,31 +294,23 @@ class DoctorController extends Controller
 
 
 
-public function getTopDoctors()
-{
-    $topDoctors = Doctor::topRated()->get()->map(function ($doctor) {
-        return [
-            'id' => $doctor->id,
-            'name' => $doctor->user->name, // Assuming name is in User model
-            'specialty' => $doctor->specialty,
-            'experience_years' => $doctor->experience_years,
-            'rating' => number_format($doctor->rating, 1),
-            'profile_picture' => $doctor->user->getProfilePictureUrl(), // Assuming user has profile picture
-            'consultation_fee' => $doctor->consultation_fee,
-        ];
-    });
+    public function getTopDoctors()
+    {
+        $topDoctors = Doctor::topRated()->get()->map(function ($doctor) {
+            return [
+                'id' => $doctor->id,
+                'name' => $doctor->user->name, // Assuming name is in User model
+                'specialty' => $doctor->specialty,
+                'experience_years' => $doctor->experience_years,
+                'rating' => number_format($doctor->rating, 1),
+                'profile_picture' => $doctor->user->getProfilePictureUrl(), // Assuming user has profile picture
+                'consultation_fee' => $doctor->consultation_fee,
+            ];
+        });
 
-    return response()->json([
-        'success' => true,
-        'data' => $topDoctors
-    ]);
-}
-
-
-
-
-
-
-
-
+        return response()->json([
+            'success' => true,
+            'data' => $topDoctors
+        ]);
+    }
 }

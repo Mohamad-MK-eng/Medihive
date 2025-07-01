@@ -50,9 +50,9 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-// In your routes/api.php
+    // In your routes/api.php
 
-Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
+    Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
     Route::get('/doctors/{doctor}', [DoctorController::class, 'show']);
 
     // Admin-only routes
@@ -85,18 +85,16 @@ Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
         // Patient profile management
 
 
-              Route::get('/search/clinics', [SearchController::class, 'searchClinics']);
-    Route::get('/search/doctors', [SearchController::class, 'searchDoctors']);
+        Route::get('/search/clinics', [SearchController::class, 'searchClinics']);
+        Route::get('/search/doctors', [SearchController::class, 'searchDoctors']);
 
         Route::prefix('patient')->group(function () {
             Route::get('/profile', [PatientController::class, 'getProfile']);
             Route::put('/profile', [PatientController::class, 'updateProfile']);
             Route::post('/profile_picture', [PatientController::class, 'uploadProfilePicture']);
             Route::get('/profile_picture', [PatientController::class, 'getProfilePicture']);
-   // new
-    Route::post('/ratings', [RatingController::class, 'store']);
-
-
+            // new
+            Route::post('/ratings', [RatingController::class, 'store']);
         });
 
 
@@ -175,7 +173,7 @@ Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
 
 
 
-   Route::middleware('role:doctor,secretary')->group(function () {
+    Route::middleware('role:doctor,secretary')->group(function () {
         Route::get('/search/patients', [SearchController::class, 'searchPatients']);
     });
 
@@ -260,13 +258,28 @@ Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
     });
 
 
-// routes/web.php
+    // routes/web.php
 
 
-   Route::get('/notifications', 'NotificationController@index');
+    Route::get('/notifications', 'NotificationController@index');
 
     Route::post('/notifications/{id}/read', 'NotificationController@markAsRead');
 
     Route::post('/notifications/read-all', 'NotificationController@markAllAsRead');
 
+
+
+
+
+    Route::prefix('admin/profile')->group(function () {
+        Route::put('/', [AdminController::class, 'updateAdminInfo']);  // done
+
+        //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
+        Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
+        Route::delete('/picture', [AdminController::class, 'deleteProfilePicture']);
+        Route::post('/change-password', [AdminController::class, 'changePassword']);
+    });
+
+
+    Route::get('/picture', [AdminController::class, 'getProfilePictureFile']);
 });

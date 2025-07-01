@@ -14,15 +14,22 @@ use App\Models\Secretary;
 use App\Models\TimeSlot;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use Auth;
 use Carbon\Carbon;
 use DB;
 use Hash;
 use Illuminate\Http\Request;
+use Storage;
+use Str;
 use Validator;
 
 class AdminController extends Controller
 {
-
+ protected $profilePictureConfig = [
+        'directory' => 'admin_profile_pictures',
+        'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
+        'max_size' => 3072, // 3MB
+    ];
 
     // not tested yet until another time
     public function getClinicIncomeReport(Request $request)
@@ -160,9 +167,9 @@ class AdminController extends Controller
 
 
         $clinic = Clinic::find($id);
-    if (!$clinic) {
-        return response()->json(['error' => 'Clinic not found'], 404);
-    }
+        if (!$clinic) {
+            return response()->json(['error' => 'Clinic not found'], 404);
+        }
 
 
         $validator = Validator::make($request->all(), [
@@ -456,4 +463,281 @@ class AdminController extends Controller
             ]);
         });
     }
+
+
+
+
+
+
+
+/**
+ * Change admin password
+ */
+public function changePassword(Request $request)
+{
+    $request->validate([
+        'current_password' => 'required|string',
+        'new_password' => 'required|string|min:8|confirmed'
+    ]);
+
+    $admin = Auth::user();
+
+    if (!Hash::check($request->current_password, $admin->password)) {
+        return response()->json(['error' => 'Current password is incorrect'], 401);
+    }
+
+    $admin->password = Hash::make($request->new_password);
+    $admin->save();
+
+    return response()->json(['message' => 'Password changed successfully']);
+}
+
+
+
+
+
+
+
+
+/**
+ * Update admin information (excluding profile picture)
+ */
+public function updateAdminInfo(Request $request)
+{
+    $user = Auth::user();
+
+    // Check if user is authenticated
+    if (!$user) {
+        return response()->json([
+            'message' => 'Unauthenticated'
+        ], 401);
+    }
+
+    // Check if user has admin role
+    if (!$user->hasRole('admin')) {
+        return response()->json([
+            'message' => 'User is not an admin'
+        ], 403);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'sometimes|string|max:255',
+        'last_name' => 'sometimes|string|max:255',
+        'email' => [
+            'sometimes',
+            'email',
+            'unique:users,email,' . $user->id
+        ],
+        'phone_number' => 'sometimes|string|max:20',
+        'date_of_birth' => 'sometimes|date',
+        'address' => 'sometimes|string|max:500',
+        'gender' => 'sometimes|in:male,female,other',
+        'additional_notes' => 'nullable|string'
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    $validated = $validator->validated();
+
+    try {
+        $user->update([
+            'first_name' => $validated['first_name'] ?? $user->first_name,
+            'last_name' => $validated['last_name'] ?? $user->last_name,
+            'email' => $validated['email'] ?? $user->email,
+            'phone_number' => $validated['phone_number'] ?? $user->phone_number,
+            'date_of_birth' => $validated['date_of_birth'] ?? $user->date_of_birth,
+            'address' => $validated['address'] ?? $user->address,
+            'gender' => $validated['gender'] ?? $user->gender,
+            'additional_notes' => $validated['additional_notes'] ?? $user->additional_notes,
+        ]);
+
+        return response()->json([
+            'message' => 'Admin information updated successfully',
+            'admin' => $user->fresh()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to update admin information',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+ public function uploadProfilePicture(Request $request)
+    {
+        $config = $this->profilePictureConfig;
+
+        $validator = Validator::make($request->all(), [
+            'profile_picture' => 'required|image|mimes:' . implode(',', $config['allowed_types']) .
+                                 '|max:' . $config['max_size']
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = Auth::user();
+        $file = $request->file('profile_picture');
+
+        try {
+            // Delete old file if exists
+            if ($user->profile_picture) {
+                $this->deleteProfilePictureFile($user);
+            }
+
+            // Generate unique filename
+            $extension = $file->getClientOriginalExtension();
+            $filename = Str::uuid() . '.' . $extension;
+            $directory = trim($config['directory'], '/');
+
+            // Store file
+            $path = $file->storeAs($directory, $filename, 'public');
+
+            // Update user record
+            $user->profile_picture = $path;
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'profile_picture_url' => $this->getProfilePictureUrl($user),
+                'message' => 'Profile picture updated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload profile picture',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get admin profile picture URL
+     */
+    public function getProfilePicture()
+    {
+        $user = Auth::user();
+
+        if (!$user->profile_picture) {
+            return response()->json(['message' => 'No profile picture set'], 404);
+        }
+
+        try {
+            $url = $this->getProfilePictureUrl($user);
+
+            if (!$url) {
+                return response()->json(['message' => 'Profile picture file not found'], 404);
+            }
+
+            return response()->json([
+                'profile_picture_url' => $url,
+                'message' => 'Profile picture retrieved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error retrieving profile picture',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+        public function deleteProfilePicture()
+    {
+        $user = Auth::user();
+
+        try {
+            if ($this->deleteProfilePictureFile($user)) {  // Changed to helper method
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Profile picture deleted successfully'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No profile picture to delete'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete profile picture',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function getProfilePictureFile()
+{
+    $user = Auth::user();
+
+    if (!$user->profile_picture) {
+        return response()->json(['message' => 'No profile picture set'], 404);
+    }
+
+    $path = storage_path('app/public/' . $user->profile_picture);
+
+    if (!file_exists($path)) {
+        return response()->json(['message' => 'File not found'], 404);
+    }
+
+    return response()->file($path);
+}
+
+
+
+  private function getProfilePictureUrl(User $user)
+{
+    if (!$user->profile_picture) {
+        return null;
+    }
+
+    // Get the stored path directly
+    $path = $user->profile_picture;
+
+    // Verify file exists in storage
+    if (Storage::disk('public')->exists($path)) {
+        return asset('storage/' . $path);
+    }
+
+    return null;
+}
+
+private function deleteProfilePictureFile(User $user)
+{
+    if (!$user->profile_picture) {
+        return false;
+    }
+
+    $path = $user->profile_picture;
+
+    if (Storage::disk('public')->exists($path)) {
+        Storage::disk('public')->delete($path);
+    }
+
+    $user->profile_picture = null;
+    $user->save();
+
+    return true;
+}
+
+
+
 }

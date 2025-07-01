@@ -118,6 +118,15 @@ class User extends Authenticatable
         return optional($this->role)->name === $role;
     }
 
+
+    public function admin()
+{
+    return $this->hasOne(Admin::class);
+}
+
+
+
+
     public function role()
     {
         return $this->belongsTo(Role::class);

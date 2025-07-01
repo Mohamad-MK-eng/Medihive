@@ -117,7 +117,7 @@ trait HandlesFiles
     }
 
     $config = $this->fileHandlingConfig[$fieldName] ?? [
-        'directory' => 'user_profile_pictures',
+        'directory' => 'storage/app/public/user_profile_pictures',
         'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
         'max_size' => 3072,
     ];
@@ -178,4 +178,24 @@ trait HandlesFiles
     {
         return $this->getFileUrl('profile_picture');
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
+

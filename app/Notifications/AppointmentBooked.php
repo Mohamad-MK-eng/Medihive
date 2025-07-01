@@ -14,7 +14,7 @@ class AppointmentBooked extends Notification implements ShouldQueue
     use Queueable;
 
     public $appointment;
-public $aftercommit = true;
+    public $aftercommit = true;
 
 
     public function __construct(Appointment $appointment)
@@ -25,7 +25,7 @@ public $aftercommit = true;
     public function via(object $notifiable): array
     {
         // You can add 'database' if you want to store in DB
-        return [ 'database'];
+        return ['database'];
     }
 
     public function toMail(object $notifiable): MailMessage

@@ -21,11 +21,11 @@ use Stripe\Exception\ApiErrorException;
 class PaymentController extends Controller
 {
 
-const MAX_PIN_ATTEMPTS = 3;
+    const MAX_PIN_ATTEMPTS = 3;
 
     const WALLET_NOT_ACTIVATED = 'wallet_not_activated';
-const INVALID_PIN = 'invalid_pin';
-const INSUFFICIENT_BALANCE = 'insufficient_balance';
+    const INVALID_PIN = 'invalid_pin';
+    const INSUFFICIENT_BALANCE = 'insufficient_balance';
 
 
 
@@ -92,51 +92,51 @@ const INSUFFICIENT_BALANCE = 'insufficient_balance';
     {
 
 
-            $patient = Auth::user()->patient;
+        $patient = Auth::user()->patient;
 
-         if (!$patient || !$patient->user) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Patient user account not found'
-        ], 404);
-    }
+        if (!$patient || !$patient->user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient user account not found'
+            ], 404);
+        }
 
 
         if (!$patient->wallet_activated_at) {
             return response()->json([
                 'success' => false,
-                'error_code'=> self::WALLET_NOT_ACTIVATED,
+                'error_code' => self::WALLET_NOT_ACTIVATED,
                 'message' => 'Please activate your wallet before making payments',
             ], 400);
         }
 
-if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
-        $attemptsLeft = self::MAX_PIN_ATTEMPTS - ($patient->pin_attempts + 1);
+        if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
+            $attemptsLeft = self::MAX_PIN_ATTEMPTS - ($patient->pin_attempts + 1);
 
-        $patient->increment('pin_attempts');
-        if ($patient->pin_attempts >= self::MAX_PIN_ATTEMPTS) {
-            $patient->update(['wallet_locked_until' => now()->addHours(2)]);
+            $patient->increment('pin_attempts');
+            if ($patient->pin_attempts >= self::MAX_PIN_ATTEMPTS) {
+                $patient->update(['wallet_locked_until' => now()->addHours(2)]);
+                return response()->json([
+                    'success' => false,
+                    'error_code' => 'too_many_attempts',
+                    'message' => 'Wallet temporarily locked. Try again after 2 hours.',
+                    'unlock_time' => now()->addHours(2)->toIso8601String()
+                ], 429);
+            }
+
+
+
             return response()->json([
                 'success' => false,
-                'error_code' => 'too_many_attempts',
-                'message' => 'Wallet temporarily locked. Try again after 2 hours.',
-                'unlock_time' => now()->addHours(2)->toIso8601String()
-            ], 429);
+                'error_code' => self::INVALID_PIN,
+                'message' => 'Incorrect PIN. ' . $attemptsLeft . ' attempts remaining.',
+                'attempts_remaining' => $attemptsLeft,
+                'security_tip' => 'Never share your PIN with anyone'
+            ], 401);
         }
 
-
-
-        return response()->json([
-            'success' => false,
-            'error_code' => self::INVALID_PIN,
-            'message' => 'Incorrect PIN. '.$attemptsLeft.' attempts remaining.',
-            'attempts_remaining' => $attemptsLeft,
-            'security_tip' => 'Never share your PIN with anyone'
-        ], 401);
-    }
-
-    // Reset PIN attempts
-    $patient->update(['pin_attempts' => 0]);
+        // Reset PIN attempts
+        $patient->update(['pin_attempts' => 0]);
 
 
 
@@ -144,16 +144,16 @@ if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
 
         if ($patient->wallet_balance < $data['amount']) {
 
-       $shortfall = $data['amount']- $patient->wallet_balance;
+            $shortfall = $data['amount'] - $patient->wallet_balance;
 
 
             return response()->json([
                 'success' => false,
- 'error_code' => self::INSUFFICIENT_BALANCE,
-            'message' => 'Your wallet balance is insufficient.',
-            'current_balance' => number_format($patient->wallet_balance, 2),
-            'required_amount' => number_format($data['amount'], 2),
-            'shortfall' => number_format($shortfall, 2),
+                'error_code' => self::INSUFFICIENT_BALANCE,
+                'message' => 'Your wallet balance is insufficient.',
+                'current_balance' => number_format($patient->wallet_balance, 2),
+                'required_amount' => number_format($data['amount'], 2),
+                'shortfall' => number_format($shortfall, 2),
             ], 400);
         }
 
@@ -178,14 +178,14 @@ if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
                 'status' => 'completed',
                 'transaction_id' => 'WALLET-' . $transaction->id
             ]);
-              $patient = $payment->patient;
+            $patient = $payment->patient;
 
             $appointment->update(['payment_status' => 'paid']);
 
-        $patient->user->notify(new PaymentConfirmationNotification($payment));
+            $patient->user->notify(new PaymentConfirmationNotification($payment));
 
 
-return response()->json([
+            return response()->json([
                 'success' => true,
                 'message' => 'Payment completed via wallet',
                 'payment' => $payment,

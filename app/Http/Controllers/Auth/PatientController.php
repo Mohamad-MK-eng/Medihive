@@ -38,7 +38,7 @@ class PatientController extends Controller
         $profile = [
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
-             'email' => $user->email,
+            'email' => $user->email,
             'phone_number' => $patient->phone_number,
             'address' => $patient->address,
             'date_of_birth' => $patient->date_of_birth,
@@ -52,7 +52,8 @@ class PatientController extends Controller
 
         return response()->json([
             'message' => ' Patient Profile Fetched successfully',
-            'patient' =>$profile]);
+            'patient' => $profile
+        ]);
     }
 
 
@@ -119,18 +120,18 @@ class PatientController extends Controller
 
         return response()->json([
             'patient' => [
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-             'email' => $user->email,
-            'phone_number' => $patient->phone_number,
-            'address' => $patient->address,
-            'date_of_birth' => $patient->date_of_birth,
-            'gender' => $patient->gender,
-            'blood_type' => $patient->blood_type,
-            'chronic_conditions' => $patient->chronic_conditions,
-            'profile_picture_url' => $user->getProfilePictureUrl(),
-            'wallet_balance' => $patient->wallet_balance,
-            'wallet_pin' => $patient->wallet_pin
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone_number' => $patient->phone_number,
+                'address' => $patient->address,
+                'date_of_birth' => $patient->date_of_birth,
+                'gender' => $patient->gender,
+                'blood_type' => $patient->blood_type,
+                'chronic_conditions' => $patient->chronic_conditions,
+                'profile_picture_url' => $user->getProfilePictureUrl(),
+                'wallet_balance' => $patient->wallet_balance,
+                'wallet_pin' => $patient->wallet_pin
             ],
             'message' => 'Profile updated successfully'
         ]);

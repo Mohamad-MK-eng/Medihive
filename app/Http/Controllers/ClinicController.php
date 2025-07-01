@@ -114,7 +114,7 @@ class ClinicController extends Controller
                 'profile_picture_url' => $user->getProfilePictureUrl(),
                 'rate' => $doctor->rating,
                 // حلوة الفكرة
-                'is_active' => $user->is_active  ,
+                'is_active' => $user->is_active,
                 /* 'schedules' => $doctor->schedules->map(function ($schedule) {
                     return [
                         'day' => $schedule->day,
@@ -165,7 +165,7 @@ class ClinicController extends Controller
     }
 }
 
-   
+
 
 
 
