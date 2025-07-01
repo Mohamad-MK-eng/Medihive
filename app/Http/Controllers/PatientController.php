@@ -443,11 +443,6 @@ class PatientController extends Controller
 
 
 
-
-
-
-
-
     //too complex the real one is in the appointment controller
     /*
     public function createAppointment(Request $request)
@@ -595,15 +590,6 @@ class PatientController extends Controller
 
 */
 }
-
-
-
-
-
-
-
-
-
 
 /* second try :
 

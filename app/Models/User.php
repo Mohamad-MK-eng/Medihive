@@ -64,14 +64,14 @@ class User extends Authenticatable
      * @var list<string>
      */
     // هون عدلت
-    protected $fillable = [
-        'first_name',
-        'last_name',
-        'email',
-        'password',
-        'role_id',
-        'profile_picture',
-    ];
+   protected $fillable = [
+    'first_name',
+    'last_name',
+    'email',
+    'password',
+    'role_id',
+    'profile_picture',
+];
 
 
 
@@ -117,6 +117,15 @@ class User extends Authenticatable
     {
         return optional($this->role)->name === $role;
     }
+
+
+    public function admin()
+{
+    return $this->hasOne(Admin::class);
+}
+
+
+
 
     public function role()
     {
@@ -169,4 +178,23 @@ class User extends Authenticatable
     {
         return route('profile.show', $this->id);
     }
+
+
+
+
+
+    public function notifications()
+    {
+        return $this->morphMany(\Illuminate\Notifications\DatabaseNotification::class, 'notifiable');
+    }
+
+
+
+
 }
+
+
+
+
+
+

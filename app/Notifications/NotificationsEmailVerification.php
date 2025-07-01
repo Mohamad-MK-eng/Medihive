@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
@@ -38,10 +39,10 @@ class NotificationsemailVerification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-                    ->greeting('Hello!')
-                    ->line('Your verification code is: ' . $this->verificationCode)
-                    ->line('Please use this code to verify your email.')
-                    ->line('Thank you for using our application!');
+            ->greeting('Hello!')
+            ->line('Your verification code is: ' . $this->verificationCode)
+            ->line('Please use this code to verify your email.')
+            ->line('Thank you for using our application!');
     }
 
     /**

@@ -6,12 +6,18 @@ use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
+use App\Notifications\AppointmentBooked;
+use App\Notifications\AppointmentCancelled;
+use App\Notifications\AppointmentConfirmationNotification;
 use App\Services\AppointmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\InvoicePaid;
 
 class AppointmentController extends Controller
 {
@@ -24,66 +30,66 @@ class AppointmentController extends Controller
 
     public function bookAppointment(Request $request)
     {
-        // Get authenticated user's patient record
-        $patient = Auth::user()->patient; // assumes hasOne relationship
+        $patient = Auth::user()->patient;
 
         if (!$patient) {
             return response()->json(['error' => 'Authenticated user is not a patient'], 403);
         }
 
         $validated = $request->validate([
-            'doctor_id'    => 'required|exists:doctors,id',
-            'slot_id'      => 'required|exists:time_slots,id',
-            'reason'       => 'required|string|max:500',
-            'notes'        => 'nullable|string',
-            'document_id'  => 'nullable|exists:documents,id',
+            'doctor_id' => 'required|exists:doctors,id',
+            'slot_id' => 'required|exists:time_slots,id',
+            'reason' => 'required|string|max:500',
+            'notes' => 'nullable|string',
+            'document_id' => 'nullable|exists:documents,id',
         ]);
 
         return DB::transaction(function () use ($validated, $patient) {
-            $slot = TimeSlot::where('id', $validated['slot_id'])
-                ->where('doctor_id', $validated['doctor_id'])
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ($slot->is_booked) {
-                return response()->json(['error' => 'This time slot has already been booked'], 409);
-            }
-
-            $doctor = Doctor::findOrFail($validated['doctor_id']);
-
-            $slot->update(['is_booked' => true]);
-
-            $appointment = Appointment::create([
-                'patient_id'       => $patient->id,
-                'doctor_id'        => $validated['doctor_id'],
-                'clinic_id'        => $doctor->clinic_id,
-                'time_slot_id'     => $slot->id,
-                'appointment_date' => Carbon::parse($slot->date->format('Y-m-d') . ' ' . $slot->start_time),
-                'status'           => 'confirmed',
-                'document_id'      => $validated['document_id'] ?? null,
-                'reason'           => $validated['reason'],
-                'notes'            => $validated['notes'] ?? null,
-            ]);
-
             try {
-                $appointment->patient->notifications()->create([
-                    'title' => 'Appointment Confirmed',
-                    'body'  => "Your appointment with Dr. {$doctor->user->last_name} on {$slot->date->format('M j, Y')} at {$slot->start_time} has been confirmed",
-                    'type'  => 'appointment_confirmation'
+                $slot = TimeSlot::where('id', $validated['slot_id'])
+                    ->where('doctor_id', $validated['doctor_id'])
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($slot->is_booked) {
+                    return response()->json(['error' => 'This time slot has already been booked'], 409);
+                }
+
+                $doctor = Doctor::findOrFail($validated['doctor_id']);
+                $slot->update(['is_booked' => true]);
+
+                $appointment = Appointment::create([
+                    'patient_id' => $patient->id,
+                    'doctor_id' => $validated['doctor_id'],
+                    'clinic_id' => $doctor->clinic_id,
+                    'time_slot_id' => $slot->id,
+                    'appointment_date' => Carbon::createFromFormat(
+                        'Y-m-d H:i:s',
+                        $slot->date->format('Y-m-d') . ' ' . $slot->start_time
+                    ),
+                    'status' => 'confirmed',
+                    'document_id' => $validated['document_id'] ?? null,
+                    'reason' => $validated['reason'],
+                    'notes' => $validated['notes'] ?? null,
+                ]);
+
+                Notification::sendNow($patient->user, new AppointmentBooked($appointment));
+                Notification::sendNow($doctor->user, new \App\Notifications\DoctorAppointmentBooked($appointment));
+
+                return response()->json([
+                    'appointment' => $appointment->load(['doctor.user', 'clinic']),
+                    'message' => 'Appointment booked successfully'
                 ]);
             } catch (\Exception $e) {
-                Log::error('Failed to create notification', [
-                    'error'          => $e->getMessage(),
-                    'appointment_id' => $appointment->id
-                ]);
-            }
 
-            return response()->json([
-                'appointment' => $appointment->load(['doctor.user', 'clinic']),
-                'message'     => 'Appointment booked successfully'
-            ]);
+                return response()->json(['error' => 'Appointment booking failed'], 500);
+            }
         });
     }
+
+
+
+
 
 
     public function getClinicDoctors($clinicId)
@@ -108,30 +114,7 @@ class AppointmentController extends Controller
         return response()->json($doctors);
     }
 
-    // 3. Get full doctor details
-    /*  public function getDoctorDetails($doctorId)
-    {
-        $doctor = Doctor::with([
-            'user:id,first_name,last_name,email',
-            'clinic:id,name' // removed location from here
-        ])
-            ->findOrFail($doctorId);
 
-        return response()->json([
-            'id' => $doctor->id,
-            'first_name' => $doctor->user->first_name,
-            'last_name' => $doctor->user->last_name,
-            'email' => $doctor->user->email,
-            'specialty' => $doctor->specialty,
-            'profile_picture_url' => $doctor->user->getProfilePictureUrl(),
-            'bio' => $doctor->bio,
-            'experience_years' => $doctor->experience_years,
-            'qualifications' => $doctor->qualifications,
-            'clinic' => $doctor->clinic,
-            'available_slots' => $doctor->timeSlots()->where('is_booked', false)->count(),
-        ]);
-    }
- */
     public function getDoctorDetails(Doctor $doctor)
     {
         $doctor->load(['reviews', 'schedules']);
@@ -164,10 +147,9 @@ class AppointmentController extends Controller
             'date' => 'sometimes|date'
         ]);
 
-        // Default to 7 days from now to match your seeder
         $date = $request->input('date')
             ? Carbon::parse($request->date)->format('Y-m-d')
-            : now()->addDays(7)->format('Y-m-d');
+            : now()->addDays(30)->format('Y-m-d');
 
         $doctors = Doctor::with(['user:id,first_name,last_name', 'timeSlots' => function ($query) use ($date) {
             $query->where('date', $date)
@@ -302,11 +284,11 @@ class AppointmentController extends Controller
             ->findOrFail($id);
 
         $hoursBeforeCancellation = 24;
-        if (now()->diffInHours($appointment->appointment_date) < $hoursBeforeCancellation) {
+        /*  if (now()->diffInHours($appointment->appointment_date) < $hoursBeforeCancellation) {
             return response()->json([
                 'message' => "Appointments must be cancelled at least {$hoursBeforeCancellation} hours in advance"
             ], 403);
-        }
+        } */
 
         $appointment->update([
             'status' => 'cancelled',
@@ -321,6 +303,13 @@ class AppointmentController extends Controller
             'type' => 'appointment_update'
         ]);
 */
+
+        $patient = Auth::user()->patient;
+
+
+
+        Notification::sendNow($patient->user, new AppointmentCancelled($appointment));
+
         return response()->json(['message' => 'Appointment cancelled successfully']);
     }
 
@@ -356,6 +345,15 @@ class AppointmentController extends Controller
             'previous_date' => $originalDate,
             'reschedule_reason' => $validated['reason'] ?? null
         ]);
+
+
+        $appointment->patient->user->notify(new \App\Notifications\AppointmentRescheduled($appointment, $originalDate));
+
+        // Notify doctor
+        $appointment->doctor->user->notify(new \App\Notifications\AppointmentRescheduled($appointment, $originalDate));
+
+
+
 
         return response()->json([
             'message' => 'Appointment rescheduled successfully',

@@ -37,6 +37,11 @@ trait HandlesFiles
                 throw new \Exception("File size exceeds maximum allowed size of {$config['max_size']}KB");
             }
 
+
+
+              if (!empty($this->{$fieldName})) {
+            $this->deleteFile($fieldName); // This will delete the old file
+        }
             // Generate secure filename
             $filename = Str::uuid()->toString() . '.' . $extension;
             $directory = trim($config['directory'], '/');
@@ -103,7 +108,7 @@ trait HandlesFiles
 
 
 
-    
+
    // هاد منشان يرجعلي صورة المريض ب null بدل الdefault  في حال ما كانت موجودة
    public function getFileUrl($fieldName = 'profile_picture')
 {
@@ -112,7 +117,7 @@ trait HandlesFiles
     }
 
     $config = $this->fileHandlingConfig[$fieldName] ?? [
-        'directory' => 'user_profile_pictures',
+        'directory' => 'storage/app/public/user_profile_pictures',
         'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
         'max_size' => 3072,
     ];
@@ -173,4 +178,24 @@ trait HandlesFiles
     {
         return $this->getFileUrl('profile_picture');
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
+

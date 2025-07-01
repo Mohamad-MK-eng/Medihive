@@ -16,11 +16,13 @@ return new class extends Migration
             $table->string('first_name');
             $table->string('last_name');
             $table->string('profile_picture')->nullable();
-
+            $table->text('fcm_token')->nullable();
             $table->string('email')->unique();
             $table->string('phone')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('address')->nullable();
+$table->string('gender')->nullable();
             $table->foreignId('role_id')->references('id')->on('roles')->onDelete('cascade');
 
             $table->rememberToken();

@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Payment;
 use App\Models\WalletTransaction;
+use App\Notifications\PaymentConfirmationNotification;
+use App\Notifications\PaymentConfirmed;
+use Auth;
 use Hash;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Notification;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
 use Stripe\Charge;
@@ -16,6 +20,16 @@ use Stripe\Exception\ApiErrorException;
 
 class PaymentController extends Controller
 {
+
+    const MAX_PIN_ATTEMPTS = 3;
+
+    const WALLET_NOT_ACTIVATED = 'wallet_not_activated';
+    const INVALID_PIN = 'invalid_pin';
+    const INSUFFICIENT_BALANCE = 'insufficient_balance';
+
+
+
+
     public function recordPayment(Request $request)
     {
         $validated = $this->validatePaymentRequest($request);
@@ -76,26 +90,70 @@ class PaymentController extends Controller
 
     protected function handleWalletPayment(Appointment $appointment, array $data)
     {
-        $patient = $appointment->patient;
+
+
+        $patient = Auth::user()->patient;
+
+        if (!$patient || !$patient->user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient user account not found'
+            ], 404);
+        }
+
 
         if (!$patient->wallet_activated_at) {
             return response()->json([
                 'success' => false,
-                'message' => 'Wallet not activated'
+                'error_code' => self::WALLET_NOT_ACTIVATED,
+                'message' => 'Please activate your wallet before making payments',
             ], 400);
         }
 
         if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
+            $attemptsLeft = self::MAX_PIN_ATTEMPTS - ($patient->pin_attempts + 1);
+
+            $patient->increment('pin_attempts');
+            if ($patient->pin_attempts >= self::MAX_PIN_ATTEMPTS) {
+                $patient->update(['wallet_locked_until' => now()->addHours(2)]);
+                return response()->json([
+                    'success' => false,
+                    'error_code' => 'too_many_attempts',
+                    'message' => 'Wallet temporarily locked. Try again after 2 hours.',
+                    'unlock_time' => now()->addHours(2)->toIso8601String()
+                ], 429);
+            }
+
+
+
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid wallet PIN'
-            ], 400);
+                'error_code' => self::INVALID_PIN,
+                'message' => 'Incorrect PIN. ' . $attemptsLeft . ' attempts remaining.',
+                'attempts_remaining' => $attemptsLeft,
+                'security_tip' => 'Never share your PIN with anyone'
+            ], 401);
         }
 
+        // Reset PIN attempts
+        $patient->update(['pin_attempts' => 0]);
+
+
+
+
+
         if ($patient->wallet_balance < $data['amount']) {
+
+            $shortfall = $data['amount'] - $patient->wallet_balance;
+
+
             return response()->json([
                 'success' => false,
-                'message' => 'Insufficient wallet balance'
+                'error_code' => self::INSUFFICIENT_BALANCE,
+                'message' => 'Your wallet balance is insufficient.',
+                'current_balance' => number_format($patient->wallet_balance, 2),
+                'required_amount' => number_format($data['amount'], 2),
+                'shortfall' => number_format($shortfall, 2),
             ], 400);
         }
 
@@ -120,18 +178,65 @@ class PaymentController extends Controller
                 'status' => 'completed',
                 'transaction_id' => 'WALLET-' . $transaction->id
             ]);
+            $patient = $payment->patient;
 
             $appointment->update(['payment_status' => 'paid']);
+
+            $patient->user->notify(new PaymentConfirmationNotification($payment));
+
 
             return response()->json([
                 'success' => true,
                 'message' => 'Payment completed via wallet',
                 'payment' => $payment,
                 'wallet_balance' => $patient->fresh()->wallet_balance,
-                'transaction' => $transaction
+                'transaction' => $transaction,
+
+
             ]);
         });
     }
+
+    /*huge response :
+    return response()->json([
+    'success' => true,
+    'message' => 'Payment processed successfully',
+    'payment_id' => $payment->id,
+    'transaction' => [
+        'reference' => $transaction->reference,
+        'timestamp' => now()->toIso8601String(),
+        'amount' => [
+            'value' => $payment->amount,
+            'currency' => 'USD',
+            'formatted' => '$'.number_format($payment->amount, 2)
+        ],
+        'balance' => [
+            'previous' => [
+                'value' => $transaction->balance_before,
+                'formatted' => '$'.number_format($transaction->balance_before, 2)
+            ],
+            'current' => [
+                'value' => $transaction->balance_after,
+                'formatted' => '$'.number_format($transaction->balance_after, 2)
+            ]
+        ]
+    ],
+    'appointment' => [
+        'id' => $appointment->id,
+        'date' => $appointment->appointment_date->format('c'),
+        'doctor' => $appointment->doctor->user->name,
+        'clinic' => $appointment->clinic->name
+    ],
+    'receipt_url' => url('/receipts/'.$payment->id),
+    'next_steps' => [
+        'view_appointment' => url('/appointments/'.$appointment->id),
+        'download_receipt' => url('/receipts/'.$payment->id.'/pdf')
+    ]
+]);
+
+
+
+*/
 
     protected function handleCardPayment(Appointment $appointment, array $data)
     {

@@ -3,41 +3,35 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Notifications\Notifiable;
 
 /**
- *
- *
  * @property int $id
  * @property int $patient_id
  * @property int $doctor_id
- * @property string $appointment_date
+ * @property int $clinic_id
+ * @property int $time_slot_id
+ * @property \Illuminate\Support\Carbon $appointment_date
  * @property string $status
- * @property string $price
+ * @property float $price
  * @property int $service_id
  * @property string|null $notes
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $cancelled_at
+ * @property \Illuminate\Support\Carbon|null $previous_date
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read \App\Models\Doctor $doctor
  * @property-read \App\Models\Patient $patient
  * @property-read \App\Models\Payment|null $payment
  * @property-read \App\Models\Prescription|null $prescription
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereAppointmentDate($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereDoctorId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment wherePatientId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment wherePrice($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereServiceId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Appointment whereUpdatedAt($value)
- * @mixin \Eloquent
  */
 class Appointment extends Model
 {
+    use Notifiable;
+
+
+
+
     protected $fillable = [
         'patient_id',
         'doctor_id',
@@ -51,26 +45,22 @@ class Appointment extends Model
         'price',
         'notes',
         'cancelled_at',
-        'previous_date'
-
-    ];
-
-
-    protected $casts = [
-        'patient_id',
-        'doctor_id',
-        'clinic_id',
-        'appointment_date',
-        'end_time' => 'datetime',
-        'appointment_date' => 'datetime',
-        'cancelled_at' => 'datetime',
-        'previous_date' => 'datetime',
-        'status' => 'string',
-        'service_id',
-        'price' => 'float',
-        'cancelled_at',
         'previous_date',
         'rescheduled_by'
+    ];
+
+    protected $casts = [
+        'patient_id' => 'integer',
+        'doctor_id' => 'integer',
+        'clinic_id' => 'integer',
+        'time_slot_id' => 'integer',
+        'service_id' => 'integer',
+        'appointment_date' => 'datetime',
+        'end_time' => 'datetime:H:i:s',
+        'cancelled_at' => 'datetime',
+        'previous_date' => 'datetime',
+        'price' => 'float',
+        'rescheduled_by' => 'integer',
     ];
 
 

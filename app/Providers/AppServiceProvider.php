@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Appointment;
 use Illuminate\Notifications\Channels\DatabaseChannel;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;

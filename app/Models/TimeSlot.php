@@ -16,10 +16,14 @@ class TimeSlot extends Model
         'is_booked'
     ];
 
-    protected $casts = [
-        'date' => 'date',
-        'is_booked' => 'boolean'
-    ];
+protected $casts = [
+    'date' => 'date:Y-m-d',
+    'start_time' => 'string', // Store as string since it's just time
+    'end_time' => 'string',   // Store as string since it's just time
+    'is_booked' => 'boolean'
+];
+
+
 
     public function doctor(): BelongsTo
     {
