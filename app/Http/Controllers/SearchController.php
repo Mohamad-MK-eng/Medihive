@@ -19,9 +19,12 @@ class SearchController extends Controller
             $query->where('name', 'like', '%' . $request->name . '%');
         }
 
-       
 
-   $results = $query->withCount('doctors')->get();
+
+        $results = $query
+
+            ->withCount('doctors')
+            ->get();
 
         if ($results->isEmpty()) {
             return response()->json([
@@ -32,64 +35,75 @@ class SearchController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $results
+            'data' => $results->map(
+                function ($clinic) {
+                    return [
+                        'id' => $clinic->id,
+                        'name' => $clinic->name,
+                        'image_path' => $clinic->getIconUrl(),
+                        'doctors_count' => count($clinic->doctors)
+
+                    ];
+                }
+
+            )
         ]);
     }
 
     // Global doctor search
     public function searchDoctors(Request $request)
-{
-    $query = Doctor::with(['user', 'clinic', 'reviews']);
+    {
+        $query = Doctor::with(['user', 'clinic', 'reviews']);
 
-    if ($request->filled('keyword')) {
-        $keyword = $request->keyword;
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
 
-        $query->where(function ($q) use ($keyword) {
-            $q->whereHas('user', function ($uq) use ($keyword) {
-                $uq->where('first_name', 'like', "%$keyword%")
-                   ->orWhere('last_name', 'like', "%$keyword%");
-            })
-            ->orWhere('specialty', 'like', "%$keyword%")
-            ->orWhereHas('clinic', function ($cq) use ($keyword) {
-                $cq->where('name', 'like', "%$keyword%");
+            $query->where(function ($q) use ($keyword) {
+                $q->whereHas('user', function ($uq) use ($keyword) {
+                    $uq->where('first_name', 'like', "%$keyword%")
+                        ->orWhere('last_name', 'like', "%$keyword%");
+                })
+                    ->orWhere('specialty', 'like', "%$keyword%")
+                    ->orWhereHas('clinic', function ($cq) use ($keyword) {
+                        $cq->where('name', 'like', "%$keyword%");
+                    });
             });
-        });
-    }else {
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide a valid keyword to search.'
+            ], 400);
+        }
+
+        $results = $query->get();
+
+        if ($results->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No doctors found matching your search keyword'
+            ], 404);
+        }
+
         return response()->json([
-            'success' => false,
-            'message' => 'Please provide a valid keyword to search.'
-        ], 400);
+            'success' => true,
+            'data' => $results->map(function ($doctor) {
+                return [
+                    'id' => $doctor->id,
+                    'first_name' => $doctor->user->first_name,
+                    'last_name' => $doctor->user->last_name,
+                    'specialty' => $doctor->specialty,
+                    'experience_years' => $doctor->experience_years,
+                    'rate' => $doctor->rating,
+                    'profile_picture_url' => $doctor->user->getFileUrl('profile_picture')
+                ];
+            })
+        ],200);
     }
 
-    $results = $query->get();
-    
-    if ($results->isEmpty()) {
-        return response()->json([
-            'success' => false,
-            'message' => 'No doctors found matching your search keyword'
-        ], 404);
-    }
-
-    return response()->json([
-        'success' => true,
-        'data' => $results->map(function ($doctor) {
-            return [
-                'id' => $doctor->id,
-                'first_name' => $doctor->user->first_name,
-                'last_name' => $doctor->user->last_name,
-                'specialty' => $doctor->specialty,
-                'experience_years' => $doctor->experience_years,
-                'rating' => $doctor->rating,
-                'profile_picture_url' => $doctor->user->getFileUrl('profile_picture')
-            ];
-        })
-    ]);
-}
 
 
+    // هون ما عدلت عليه شي بعدين
 
-        // هون ما عدلت عليه شي بعدين
-        
     // Global patient search
     public function searchPatients(Request $request)
     {
@@ -106,18 +120,15 @@ class SearchController extends Controller
             $query->where('phone_number', 'like', '%' . $request->phone . '%');
         }
 
-    $results = $query->get();
+        $results = $query->get();
 
         if ($results->isEmpty()) {
             return response()->json([
                 'success' => false,
                 'message' => 'No patients found matching your search criteria'
             ], 404);
-
-
-
         }
-            return response()->json([
+        return response()->json([
             'success' => true,
             'data' => $results->map(function ($patient) {
                 return [
@@ -129,9 +140,6 @@ class SearchController extends Controller
                 ];
             })
         ]);
-
-
-
     }
 
 
@@ -147,7 +155,7 @@ class SearchController extends Controller
             });
         }
 
-    $results = $query->get();
+        $results = $query->get();
 
         if ($results->isEmpty()) {
             return response()->json([
@@ -168,7 +176,5 @@ class SearchController extends Controller
                 ];
             })
         ]);
-
-
     }
 }
