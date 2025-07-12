@@ -30,11 +30,29 @@ protected $casts = [
         return $this->belongsTo(Doctor::class);
     }
 
-    // Helper method to format time for display
-    public function getFormattedStartTimeAttribute(): string
-    {
-        return Carbon::parse($this->start_time)->format('g:i A');
-    }
+
+
+
+    // TimeSlot.php
+public function getFormattedStartTimeAttribute(): string
+{
+    return Carbon::parse($this->start_time)->format('g:i A');
+}
+
+
+public function getStartTimeDigitalAttribute(): string
+{
+    return Carbon::parse($this->start_time)->format('H:i');
+}
+
+public function getEndTimeDigitalAttribute(): string
+{
+    return Carbon::parse($this->end_time)->format('H:i');
+}
+
+
+
+
 
     public function getFormattedEndTimeAttribute(): string
     {

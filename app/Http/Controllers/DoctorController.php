@@ -19,10 +19,39 @@ class DoctorController extends Controller
     use HandlesFiles;
 
 
+public function getProfile()
+{
+    try {
+        $user = Auth::user(); // Get authenticated user
 
+        // Check if user has a doctor profile
+        if (!$user->doctor) {
+            return response()->json([
+                'error' => 'Doctor profile not found',
+                'message' => 'User is not associated with a doctor profile'
+            ], 404);
+        }
 
+        $doctor = $user->doctor;
 
+        return response()->json([
+            'name' => $user->first_name . ' ' . $user->last_name,
+            'email' => $user->email,
+            'phone' => $user->phone_number,
+            'date' => $user->created_at->format('m/d/Y'),
+            'specialty' => $doctor->specialty,
+            'consultation_fee' => $doctor->consultation_fee,
+            'experience_years' => $doctor->experience_years
+            // Add more fields as needed
+        ]);
 
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to load profile',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
 
 public function getProfilePicture()
 {
