@@ -193,6 +193,8 @@ Route::prefix('appointments')->group(function () {
             Route::get('/balance', [WalletController::class, 'getBalance']);
             Route::get('/transactions', [WalletController::class, 'getTransactions']);
             Route::post('/transfer', [WalletController::class, 'transferToClinic']);
+
+            Route::post('change_pin', [WalletController::class, 'changePin']);
         });
 
         // Payments

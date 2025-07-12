@@ -135,8 +135,6 @@ class PaymentController extends Controller
             ], 401);
         }
 
-        // Reset PIN attempts
-        $patient->update(['pin_attempts' => 0]);
 
 
 
