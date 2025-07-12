@@ -46,7 +46,8 @@ class Appointment extends Model
         'notes',
         'cancelled_at',
         'previous_date',
-        'rescheduled_by'
+        'rescheduled_by',
+        'method'
     ];
 
     protected $casts = [

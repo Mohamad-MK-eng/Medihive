@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Doctor;
+use App\Models\Payment;
 use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
 use App\Notifications\AppointmentBooked;
@@ -18,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\InvoicePaid;
+use Hash;
 
 class AppointmentController extends Controller
 {
@@ -40,6 +42,8 @@ class AppointmentController extends Controller
             'doctor_id' => 'required|exists:doctors,id',
             'slot_id' => 'required|exists:time_slots,id',
             'reason' => 'required|string|max:500',
+            'method' => 'required|in:cash,wallet',
+            'wallet_pin'=> 'required_if:method,wallet|digits:4 ',
             'notes' => 'nullable|string',
             'document_id' => 'nullable|exists:documents,id',
         ]);
@@ -48,7 +52,7 @@ class AppointmentController extends Controller
             try {
                 $slot = TimeSlot::where('id', $validated['slot_id'])
                     ->where('doctor_id', $validated['doctor_id'])
-                    ->lockForUpdate()
+                    ->lockForUpdate()  // here is the magic
                     ->firstOrFail();
 
                 if ($slot->is_booked) {
@@ -56,7 +60,6 @@ class AppointmentController extends Controller
                 }
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
-                $slot->update(['is_booked' => true]);
 
                 $appointment = Appointment::create([
                     'patient_id' => $patient->id,
@@ -69,24 +72,102 @@ class AppointmentController extends Controller
                     ),
                     'status' => 'confirmed',
                     'document_id' => $validated['document_id'] ?? null,
+                     'price' => $doctor->consultation_fee,
+
                     'reason' => $validated['reason'],
                     'notes' => $validated['notes'] ?? null,
                 ]);
 
-                Notification::sendNow($patient->user, new AppointmentBooked($appointment));
-                Notification::sendNow($doctor->user, new \App\Notifications\DoctorAppointmentBooked($appointment));
 
-                return response()->json([
-                    'appointment' => $appointment->load(['doctor.user', 'clinic']),
-                    'message' => 'Appointment booked successfully'
-                ]);
-            } catch (\Exception $e) {
+            if ($validated['method'] === 'wallet') {
+                // Verify wallet is activated
+                if (!$patient->wallet_activated_at) {
+                    return response()->json([
+                        'success' => false,
+                        'error_code' => 'wallet_not_activated',
+                        'message' => 'Please activate your wallet before making payments',
+                    ], 400);
+                }
 
-                return response()->json(['error' => 'Appointment booking failed'], 500);
+                // Simple PIN verification without attempt tracking
+                if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
+                    return response()->json([
+                        'success' => false,
+                        'error_code' => 'invalid_pin',
+                        'message' => 'Incorrect PIN',
+                    ], 401);
+                }
+
+
+                $paymentResult = $this->processWalletPayment($patient, $doctor->consultation_fee, $appointment);
+                if ($paymentResult !== true) {
+                    return $paymentResult; // Return error response if payment failed
+                }
             }
-        });
+
+
+
+                $slot->update(['is_booked' => true]);
+
+            Notification::sendNow($patient->user, new AppointmentBooked($appointment));
+            Notification::sendNow($doctor->user, new \App\Notifications\DoctorAppointmentBooked($appointment));
+
+            return response()->json([
+                'appointment' => $appointment->load(['doctor.user', 'clinic']),
+                'payment' => [
+                    'amount' => number_format($doctor->consultation_fee, 2),
+                    'method' => $validated['method'],
+                    'status' => $validated['method'] === 'wallet' ? 'paid' : 'pending'
+                ],
+                'message' => 'Appointment booked successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Appointment booking failed: ' . $e->getMessage()], 500);
+        }
+    });
+}
+
+protected function processWalletPayment($patient, $amount, $appointment)
+{
+    // Check balance
+    if ($patient->wallet_balance < $amount) {
+        return response()->json([
+            'success' => false,
+            'error_code' => 'insufficient_balance',
+            'message' => 'Your wallet balance is insufficient.',
+            'current_balance' => number_format($patient->wallet_balance, 2),
+            'required_amount' => number_format($amount, 2),
+            'shortfall' => number_format($amount - $patient->wallet_balance, 2),
+        ], 400);
     }
 
+    // Process payment
+    $patient->decrement('wallet_balance', $amount);
+
+    // Create wallet transaction
+    $transaction = WalletTransaction::create([
+        'patient_id' => $patient->id,
+        'amount' => $amount,
+        'type' => 'payment',
+        'reference' => 'APT-' . $appointment->id,
+        'balance_before' => $patient->wallet_balance + $amount, // Because we already decremented
+        'balance_after' => $patient->wallet_balance,
+        'notes' => 'Payment for appointment #' . $appointment->id
+    ]);
+
+    // Create payment record
+    Payment::create([
+        'appointment_id' => $appointment->id,
+        'patient_id' => $patient->id,
+        'amount' => $amount,
+        'method' => 'wallet',
+        'status' => 'completed',
+        'transaction_id' => 'WALLET-' . $transaction->id,
+        'paid_at' => now()
+    ]);
+
+    return true;
+}
 
 
 
@@ -128,10 +209,18 @@ $averageRating = $doctor->reviews->avg('rating');
         });
 
         return response()->json([
-            'consultation_fee' => $doctor->consultation_fee,
+            'name'=> $doctor->user->first_name . ' ' . $doctor->user->last_name ,
+            'specialty' => $doctor->specialty,
+
+            'consultation_fee' => number_format($doctor->consultation_fee,2),
             'bio' => $doctor->bio,
             'schedule' => $schedule,
             'review_count' => $doctor->reviews->count(),
+
+            'method' => [
+            'cash' => true,
+            'wallet' => true
+            ]
         ]);
     }
 

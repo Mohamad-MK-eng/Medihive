@@ -40,7 +40,8 @@ class Doctor extends Model
         'clinic_id',
         'specialty',
         'workdays',
-        'salary_id'
+        'salary_id',
+        'consultation_fee',
     ];
 
 
@@ -51,7 +52,7 @@ class Doctor extends Model
         'workdays' => 'array',
         'experience_start_date' => 'date:Y-m-d',
         'rating' => 'double',
-        'consultation_fee' => 'double'
+        'consultation_fee' => 'decimal:2'
     ];
 
 
