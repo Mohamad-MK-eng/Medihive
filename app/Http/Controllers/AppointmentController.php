@@ -104,7 +104,7 @@ class AppointmentController extends Controller
                     'id' => $doctor->id,
                     'first_name' => $doctor->user->first_name,
                     'last_name' => $doctor->user->last_name,
-                    'specialty' => $doctor->specialty, // Using the direct field
+                    'specialty' => $doctor->specialty,
                     'profile_picture_url' => $doctor->user->getProfilePictureUrl()
                         ? asset('storage/' . $doctor->user->profile_picture)
                         : null,
@@ -117,13 +117,13 @@ class AppointmentController extends Controller
 
     public function getDoctorDetails(Doctor $doctor)
     {
-        $doctor->load(['reviews', 'schedules']);
-
+        $doctor->load(['reviews', 'schedules','user']);
+$averageRating = $doctor->reviews->avg('rating');
         $schedule = $doctor->schedules->map(function ($schedule) {
             return [
                 'day' => ucfirst($schedule->day),
-                /* 'start_time' => Carbon::parse($schedule->start_time)->format('g:i A'),
-                'end_time' => Carbon::parse($schedule->end_time)->format('g:i A') */
+                 'start_time' => Carbon::parse($schedule->start_time)->format('g:i A'),
+                'end_time' => Carbon::parse($schedule->end_time)->format('g:i A')
             ];
         });
 
@@ -184,9 +184,128 @@ class AppointmentController extends Controller
 
 
 
+    public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request)
+{
+    $request->validate([
+        'period' => 'sometimes|integer|min:1|max:30',
+    ]);
+
+    $period = $request->input('period', 7);
+    $now = Carbon::now();
+$earliestDate = null;
+    $earliestSlot = null;
+    // Get doctor's working days
+    $workingDays = $doctor->schedules()
+        ->pluck('day')
+        ->map(fn ($day) => strtolower($day))
+        ->toArray();
+
+    $startDate = Carbon::today();
+    $endDate = $startDate->copy()->addDays($period);
+    $availableDays = [];
+
+    while ($startDate->lte($endDate)) {
+        $dayName = strtolower($startDate->englishDayOfWeek);
+        $dateDigital = $startDate->format('Y-m-d');
+        $dateWords = $startDate->format('d D');
+ $monthName = $startDate->format('F');
+        $dayNumber = $startDate->format('d');
+
+
+        if (in_array($dayName, $workingDays)) {
+            $slots = TimeSlot::where('doctor_id', $doctor->id)
+                ->where('date', $dateDigital)
+                ->where('is_booked', false)
+                ->orderBy('start_time')
+                ->get()
+                ->filter(function ($slot) use ($now, $dateDigital) {
+                    $slotDateTime = Carbon::createFromFormat('Y-m-d H:i:s', $dateDigital . ' ' . $slot->start_time);
+                    return $slotDateTime->gt($now);
+                })
+                ->map(function ($slot) {
+                    $start = Carbon::parse($slot->start_time);
+                    return [
+                        'id' => $slot->id,
+                        'start_time' => $start->format('g:i A'),
+                        'time_digital' => $start->format('H:i')
+
+                    ];
+                });
+
+                // Track earliest available slot
+                if (!$earliestDate || $startDate->lt($earliestDate)) {
+                    $earliestDate = $startDate->copy();
+                    $earliestSlot = $slots->first();
+                }
 
 
 
+            if ($slots->isNotEmpty()) {
+                $availableDays[] = [
+                'full_date' => $startDate->format('Y/m/d'),
+                    'date_digital' => $dateDigital,
+                    'date_words' => $dateWords,
+                    'day_name' => $startDate->format('D'),
+                      'day_number' => $dayNumber,
+                    'month' => $monthName,
+                ];
+            }
+        }
+        $startDate->addDay();
+    }
+
+
+  $earliestResponse = null;
+    if ($earliestDate && $earliestSlot) {
+        $earliestResponse = [
+            'full_date' => $earliestDate->format('Y/m/d'),
+            'day_name' => $earliestDate->format('D'),
+            'day_number' => $earliestDate->format('d'),
+            'month' => $earliestDate->format('F'),
+            'time' => $earliestSlot['start_time']
+        ];
+    }
+
+
+
+    return response()->json([
+        'doctor_id' => $doctor->id,
+                'earliest_date' => $earliestResponse,
+        'days' => $availableDays,
+
+        'period' => $period,
+        'available_days' => $availableDays
+    ]);
+}
+
+public function getAvailableTimes(Doctor $doctor, $date)
+{
+    // Clean the date parameter if it comes as 'date=2025-05-15'
+    $date = str_replace('date=', '', $date);
+
+    // Validate the date
+    try {
+        $parsedDate = Carbon::parse($date)->format('Y-m-d');
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Invalid date format. Use YYYY-MM-DD'], 400);
+    }
+
+    $slots = TimeSlot::where('doctor_id', $doctor->id)
+        ->where('date', $parsedDate)
+        ->where('is_booked', false)
+        ->orderBy('start_time')
+        ->get()
+        ->map(function ($slot) {
+            return [
+                'time' => Carbon::parse($slot->start_time)->format('g:i A')
+            ];
+        });
+
+    return response()->json([
+        'message' => '',
+        'times' => $slots
+    ]);
+}
 
 
 

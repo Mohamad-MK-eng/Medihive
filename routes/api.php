@@ -14,6 +14,8 @@ use App\Http\Controllers\RatingController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SecretaryController;
 use App\Http\Middleware\ApiAuthMiddleware;
+use App\Models\Doctor;
+use App\Models\TimeSlot;
 
 /*
 |--------------------------------------------------------------------------
@@ -99,12 +101,13 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
 
+Route::get('doctors/{doctor}/available-times/{date}', [AppointmentController::class, 'getAvailableTimes']);
 
 
-        // Appointments
-        Route::prefix('appointments')->group(function () {
+Route::prefix('appointments')->group(function () {
             Route::get('/', [AppointmentController::class, 'getAppointments']);
             Route::post('/', [AppointmentController::class, 'bookAppointment']);
             Route::put('/{appointment}', [AppointmentController::class, 'updateAppointment']);
