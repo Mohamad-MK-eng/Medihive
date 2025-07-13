@@ -111,7 +111,7 @@ class AdminController extends Controller
 
 
 
-    public function update(Request $request, $id)
+    public function updateclinic(Request $request, $id)
     {
         $clinic = Clinic::findOrFail($id);
 
@@ -445,9 +445,7 @@ class AdminController extends Controller
     public function updateDoctor(Request $request, Doctor $doctor)
     {
         $validator = Validator::make($request->all(), [
-            // User data
-            'first_name' => 'sometimes|string|max:255',
-            'last_name' => 'sometimes|string|max:255',
+
             'email' => [
                 'sometimes',
                 'email',
@@ -458,8 +456,8 @@ class AdminController extends Controller
             // Doctor data
             'specialty' => 'sometimes|string|max:255',
             'bio' => 'nullable|string',
-            'consultation_fee' => 'sometimes|numeric|min:0',
-            'experience_years' => 'sometimes|integer|min:0',
+            'consultation_fee' => 'sometimes|numeric|min:120',
+            'experience_years' => 'sometimes|integer|min:1',
             'clinic_id' => 'sometimes|exists:clinics,id',
             'workdays' => 'sometimes|array',
             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
@@ -477,14 +475,11 @@ class AdminController extends Controller
         return DB::transaction(function () use ($request, $doctor, $validated) {
             // Update user data if present
             if (
-                isset($validated['first_name']) || isset($validated['last_name']) ||
                 isset($validated['email']) || isset($validated['phone_number'])
             ) {
 
                 $userData = [
-                    'first_name' => $validated['first_name'] ?? $doctor->user->first_name,
-                    'last_name' => $validated['last_name'] ?? $doctor->user->last_name,
-                    'email' => $validated['email'] ?? $doctor->user->email,
+                  'email' => $validated['email'] ?? $doctor->user->email,
                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
                 ];
 

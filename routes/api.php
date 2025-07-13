@@ -31,8 +31,8 @@ use App\Models\TimeSlot;
 // Public Routes (No Authentication Required)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/forgot-password', [AuthController::class, 'sendPasswordResetLink']);
-
+Route::post('/forgot_password', [\App\Http\Controllers\Auth\PasswordResetController::class, 'sendResetLink']);
+Route::post('/reset_password', [\App\Http\Controllers\Auth\PasswordResetController::class, 'resetPassword']);
 
 
 
@@ -99,7 +99,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
-
+Route::get('get',[AppointmentController::class,'processWalletPayment']);
 
 Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
@@ -124,7 +124,27 @@ Route::prefix('appointments')->group(function () {
         //  Route::get('/clinics/{clinic}/doctors', [AppointmentController::class, 'getClinicDoctors']);
         Route::get('/clinics/{clinic}/doctors-with-slots', [AppointmentController::class, 'getClinicDoctorsWithSlots']);
         Route::get('/doctors/{doctor}', [AppointmentController::class, 'getDoctorDetails']);
-    });
+
+});
+
+
+ Route::get('clinics/{clinic}/wallet', [ClinicController::class, 'getWalletBalance']); // tamam
+    Route::get('clinics/{clinic}/wallet/transactions', [ClinicController::class, 'getWalletTransactions']); //tamam
+    Route::post('clinics/{clinic}/wallet/withdraw', [ClinicController::class, 'withdrawFromWallet']); // tamam
+
+    // Updated refund route
+    Route::post('appointments/{appointment}/refund', [AppointmentController::class, 'processRefund']); // tamam
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -198,8 +218,8 @@ Route::prefix('appointments')->group(function () {
         });
 
         // Payments
-        Route::get('/payments', [PatientController::class, 'getPaymentHistory']);
-        Route::post('/payments', [PaymentController::class, 'recordPayment']);
+        Route::get('/payments/history', [PatientController::class, 'getPaymentHistory']);
+        Route::get('/payments_info', [PaymentController::class, 'PaymentInfo']);
     });
 
 
@@ -237,7 +257,7 @@ Route::prefix('appointments')->group(function () {
     Route::middleware(['role:admin'])->group(function () {
         // Clinics
         Route::post('/clinics', [AdminController::class, 'createClinic']);
-        Route::put('/clinics/{clinic}', [AdminController::class, 'update']);
+        Route::put('/clinics/{clinic}', [AdminController::class, 'updateclinic']);
         Route::post('/clinics/{clinic}/upload_icon', [AdminController::class, 'uploadClinicIcon']);
 
         Route::get('/search/secretaries', [SearchController::class, 'searchSecretaries']);
@@ -260,7 +280,6 @@ Route::prefix('appointments')->group(function () {
         //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
         Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
         Route::delete('/picture', [AdminController::class, 'deleteProfilePicture']);
-        Route::post('/change-password', [AdminController::class, 'changePassword']);
     });
 
 
