@@ -30,7 +30,17 @@ protected $casts = [
         return $this->belongsTo(Doctor::class);
     }
 
-
+// In TimeSlot.php model
+public static function cleanupOldSlots()
+{
+    $now = Carbon::now();
+    return self::where('date', '<', $now->format('Y-m-d'))
+        ->orWhere(function($query) use ($now) {
+            $query->where('date', $now->format('Y-m-d'))
+                  ->where('end_time', '<', $now->format('H:i:s'));
+        })
+        ->delete();
+}
 
 
     // TimeSlot.php
