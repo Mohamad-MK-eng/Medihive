@@ -49,16 +49,51 @@ class AppointmentController extends Controller
             'document_id' => 'nullable|exists:documents,id',
         ]);
 
-        return DB::transaction(function () use ($validated, $patient) {
-            try {
-                $slot = TimeSlot::where('id', $validated['slot_id'])
-                    ->where('doctor_id', $validated['doctor_id'])
-                    ->lockForUpdate()  // here is the magic
-                    ->firstOrFail();
+ $existingAppointment = Appointment::where('patient_id', $patient->id)
+        ->where('doctor_id', $validated['doctor_id'])
+        ->whereIn('status', ['confirmed', 'pending'])
+        ->first();
 
+    if ($existingAppointment) {
+        return response()->json([
+            'error' => 'You already have an existing appointment with this doctor',
+            'existing_appointment' => $existingAppointment
+        ], 409);
+    }
+
+    return DB::transaction(function () use ($validated, $patient) {
+        try {
+            // First check if the slot exists for this doctor
+            $slotExists = TimeSlot::where('id', $validated['slot_id'])
+                ->where('doctor_id', $validated['doctor_id'])
+                ->exists();
+
+            if (!$slotExists) {
+                return response()->json([
+                    'error' => 'The selected time slot is not available for this doctor'
+                ], 404);
+            }
+
+            // Then proceed with the locked query
+            $slot = TimeSlot::where('id', $validated['slot_id'])
+                ->where('doctor_id', $validated['doctor_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if (!$slot) {
+                return response()->json(['error' => 'Time slot not found'], 404);
+            }
+
+            if ($slot->is_booked) {
+                return response()->json(['error' => 'This time slot has already been booked'], 409);
+            }
+
+<<<<<<< HEAD
                 if ($slot->is_booked) {
                     return response()->json(['message' => 'This time slot has already been booked'], 409);
                 }
+=======
+>>>>>>> 54bf2e02d549d8d144baf85d861b5262f59d819e
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
 
@@ -129,7 +164,7 @@ class AppointmentController extends Controller
 }
 
 
-protected function processWalletPayment($patient, $amount, $appointment)
+public function processWalletPayment($patient, $amount, $appointment)
 {
     // Check balance
     if ($patient->wallet_balance < $amount) {
@@ -291,8 +326,31 @@ $averageRating = $doctor->reviews->avg('rating');
     }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request)
 {
+
+    TimeSlot::cleanupOldSlots();
+
     $request->validate([
         'period' => 'sometimes|integer|min:1|max:30',
     ]);
@@ -308,6 +366,20 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
         ->map(fn ($day) => strtolower($day))
         ->toArray();
 
+
+
+         if (empty($workingDays)) {
+        return response()->json([
+            'doctor_id' => $doctor->id,
+            'message' => 'Doctor has no working schedule',
+            'earliest_date' => null,
+            'days' => []
+        ]);
+    }
+
+
+
+
     $startDate = Carbon::today();
     $endDate = $startDate->copy()->addDays($period);
     $availableDays = [];
@@ -320,24 +392,26 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
         $dayNumber = $startDate->format('d');
 
         if (in_array($dayName, $workingDays)) {
-            $slots = TimeSlot::where('doctor_id', $doctor->id)
-                ->where('date', $dateDigital)
-                ->where('is_booked', false)
-                ->orderBy('start_time')
-                ->get()
-                ->filter(function ($slot) use ($now, $dateDigital) {
-                    $slotDateTime = Carbon::createFromFormat('Y-m-d H:i:s', $dateDigital . ' ' . $slot->start_time);
-                    return $slotDateTime->gt($now);
-                })
-                ->map(function ($slot) {
-                    $start = Carbon::parse($slot->start_time);
-                    return [
-                        'id' => $slot->id,
-                        'start_time' => $start->format('g:i A'),
-                        'time_digital' => $start->format('H:i')
-                    ];
-                })
-                ->values(); // Reset array keys
+          $slots = TimeSlot::where('doctor_id', $doctor->id)
+            ->where('date', $dateDigital)
+            ->where('is_booked', false)
+            ->orderBy('start_time')
+            ->get()
+            ->filter(function ($slot) use ($now, $dateDigital) {
+                $slotDateTime = Carbon::createFromFormat('Y-m-d H:i:s', $dateDigital . ' ' . $slot->start_time);
+                return $slotDateTime->gt($now);
+            })
+            ->unique(function ($item) {
+                return $item->date.$item->start_time.$item->end_time;
+            })
+            ->map(function ($slot) {
+                return [
+                    'id' => $slot->id,
+                    'start_time' => $slot->formatted_start_time,
+                    'time_digital' => $slot->start_time_digital
+                ];
+            })
+            ->values();
 
             if ($slots->isNotEmpty()) {
                 $availableDays[] = [
