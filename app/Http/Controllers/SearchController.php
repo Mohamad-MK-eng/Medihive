@@ -40,7 +40,7 @@ class SearchController extends Controller
                     return [
                         'id' => $clinic->id,
                         'name' => $clinic->name,
-                        'image_path' => $clinic->getIconUrl(),
+                        'icon_url' => $clinic->getIconUrl(),
                         'doctors_count' => count($clinic->doctors)
 
                     ];
