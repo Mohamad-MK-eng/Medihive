@@ -156,7 +156,18 @@ class User extends Authenticatable
     //public function hasRole(string $role):bool {
     //  return $this->role()->where('first_name',$role)->exists();
     //}
+public function payments()
+{
+    if (!$this->relationLoaded('patient')) {
+        $this->load('patient');
+    }
 
+    if (!$this->patient) {
+        return null;
+    }
+
+    return $this->patient->payments();
+}
 
 
 

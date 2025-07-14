@@ -46,7 +46,10 @@ class Clinic extends Model
     }
 
 
-
+public function wallet()
+{
+    return $this->hasOne(ClinicWallet::class);
+}
 
 
 

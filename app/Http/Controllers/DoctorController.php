@@ -38,7 +38,7 @@ public function getProfile()
             'name' => $user->first_name . ' ' . $user->last_name,
             'email' => $user->email,
             'phone' => $user->phone_number,
-            'date' => $user->created_at->format('m/d/Y'),
+            'date' => $user->created_at->format('d/m/Y'),
             'specialty' => $doctor->specialty,
             'consultation_fee' => $doctor->consultation_fee,
             'experience_years' => $doctor->experience_years
@@ -111,15 +111,9 @@ public function updateProfile(Request $request)
     $validator = Validator::make($request->all(), [
         'first_name' => 'sometimes|string|max:255',
         'last_name' => 'sometimes|string|max:255',
-        'email' => [
-            'sometimes',
-            'email',
-            'unique:users,email,' . $user->id
-        ],
+
         'phone_number' => 'sometimes|string|max:20',
         'address' => 'sometimes|string',
-        'date_of_birth' => 'sometimes|date',
-        'gender' => 'sometimes|string|in:male,female,other',
         'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
     ]);
 

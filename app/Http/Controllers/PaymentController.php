@@ -29,46 +29,61 @@ class PaymentController extends Controller
 
 
 
+public function PaymentInfo(Request $request)
+{
+    $validated = $request->validate([
+        'appointment_id' => 'required|exists:appointments,id'
+    ]);
 
-    public function recordPayment(Request $request)
-    {
-        $validated = $this->validatePaymentRequest($request);
+    $appointment = Appointment::with(['patient', 'payments'])->findOrFail($validated['appointment_id']);
 
-        return DB::transaction(function () use ($validated) {
-            /** @var \App\Models\Appointment $appointment */
-            $appointment = Appointment::with('patient')->findOrFail($validated['appointment_id']);
+    // Ensure payments is treated as a collection
+    $payments = $appointment->payments()->get();
 
-            switch ($validated['method']) {
-                case 'cash':
-                    return $this->handleCashPayment($appointment, $validated);
-                case 'wallet':
-                    return $this->handleWalletPayment($appointment, $validated);
-                case 'card':
-                    return $this->handleCardPayment($appointment, $validated);
-                case 'insurance':
-                    return $this->handleInsurancePayment($appointment, $validated);
-                default:
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Invalid payment method'
-                    ], 400);
-            }
-        });
-    }
+    return response()->json([
+        'success' => true,
+        'appointment' => [
+            'id' => $appointment->id,
+            'patient' => $appointment->patient ? $appointment->patient->only(['id', 'name']) : null,
+            'amount_due' => $appointment->amount_due ?? 0,
+            'payment_status' => $appointment->payment_status,
+            'existing_payments' => $payments->map(function($payment) {
+                return [
+                    'method' => $payment->method,
+                    'amount' => $payment->amount,
+                    'status' => $payment->status,
+                    'created_at' => $payment->created_at
+                ];
+            })->all() // Convert to array
+        ],
+        'payment_options' => [
+            'cash' => true,
+            'wallet' => $appointment->patient && $appointment->patient->wallet_activated_at !== null,
+            'card' => true,
+            'insurance' => $appointment->patient && $appointment->patient->insurance_coverage !== null
+        ],
+        'wallet_balance' => $appointment->patient ? ($appointment->patient->wallet_balance ?? 0) : 0
+    ]);
+}
 
-    protected function validatePaymentRequest(Request $request)
-    {
-        return $request->validate([
-            'appointment_id' => 'required|exists:appointments,id',
-            'amount' => 'required|numeric|min:0',
-            'method' => 'required|in:cash,wallet,card,insurance',
-            'card_details' => 'required_if:method,card|array',
-            'card_details.number' => 'required_if:method,card',
-            'card_details.expiry' => 'required_if:method,card',
-            'card_details.cvc' => 'required_if:method,card',
-            'wallet_pin' => 'required_if:method,wallet|digits:4',
-        ]);
-    }
+
+
+
+
+protected function validatePaymentRequest(Request $request)
+{
+    return $request->validate([
+        'appointment_id' => 'required|exists:appointments,id',
+        'method' => 'required|in:cash,wallet,card,insurance',
+        'amount' => 'required|numeric|min:0',
+        'wallet_pin' => 'required_if:method,wallet|digits:4',
+        // For card payments (optional parameters)
+        'card_last_four' => 'sometimes|required_if:method,card|digits:4',
+        'card_brand' => 'sometimes|required_if:method,card|string',
+        // For insurance (optional)
+        'insurance_provider' => 'sometimes|required_if:method,insurance|string'
+    ]);
+}
 
     protected function handleCashPayment(Appointment $appointment, array $data)
     {
@@ -129,7 +144,7 @@ class PaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'error_code' => self::INVALID_PIN,
-                'message' => 'Incorrect PIN. ' . $attemptsLeft . ' attempts remaining.',
+                'message' => 'Incorrect PIN. ',
                 'attempts_remaining' => $attemptsLeft,
                 'security_tip' => 'Never share your PIN with anyone'
             ], 401);
@@ -173,7 +188,7 @@ class PaymentController extends Controller
                 'patient_id' => $patient->id,
                 'amount' => $data['amount'],
                 'method' => 'wallet',
-                'status' => 'completed',
+                'status' => 'paid',
                 'transaction_id' => 'WALLET-' . $transaction->id
             ]);
             $patient = $payment->patient;

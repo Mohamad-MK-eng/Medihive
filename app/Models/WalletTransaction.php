@@ -41,7 +41,11 @@ class WalletTransaction extends Model
 
 
 
-
+public function payment()
+{
+    return $this->belongsTo(Payment::class, 'reference', 'transaction_id')
+        ->where('transaction_id', 'like', 'WALLET-%');
+}
 
 
     public static $validTypes = ['deposit', 'payment', 'refund', 'withdrawal', 'fee'];

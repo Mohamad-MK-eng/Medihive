@@ -160,7 +160,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'current_password' => 'required',
-            'new_password' => 'required|min:8|confirmed',
+            'new_password' => 'required|min:8',
         ]);
 
         $user = Auth::user();

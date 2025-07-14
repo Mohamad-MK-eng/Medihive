@@ -77,6 +77,11 @@ class Payment extends Model
 
 
 
+public function walletTransaction()
+{
+    return $this->hasOne(WalletTransaction::class, 'reference', 'transaction_id')
+        ->where('reference', 'like', 'WALLET-%');
+}
 
 
 
