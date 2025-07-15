@@ -88,12 +88,9 @@ class AppointmentController extends Controller
                 return response()->json(['error' => 'This time slot has already been booked'], 409);
             }
 
-<<<<<<< HEAD
-                if ($slot->is_booked) {
+               if ($slot->is_booked) {
                     return response()->json(['message' => 'This time slot has already been booked'], 409);
                 }
-=======
->>>>>>> 54bf2e02d549d8d144baf85d861b5262f59d819e
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
 
@@ -387,7 +384,7 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     while ($startDate->lte($endDate)) {
         $dayName = strtolower($startDate->englishDayOfWeek);
         $dateDigital = $startDate->format('Y-m-d');
-        $dateWords = $startDate->format('d D');
+     //   $dateWords = $startDate->format('d D');
         $monthName = $startDate->format('F');
         $dayNumber = $startDate->format('d');
 
@@ -417,11 +414,11 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
                 $availableDays[] = [
                     'full_date' => $startDate->format('Y-m-d'),
                     'date_digital' => $dateDigital,
-                    'date_words' => $dateWords,
+                //    'date_words' => $dateWords,
                     'day_name' => $startDate->format('D'),
                     'day_number' => $dayNumber,
                     'month' => $monthName,
-                    'slots' => $slots // Include slots in the response
+                   'slots' => $slots // Include slots in the response
                 ];
 
                 // Track earliest available slot only if we haven't found one yet
@@ -439,8 +436,9 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     if ($earliestDate && $earliestSlot) {
         $earliestResponse = [
             'full_date' => $earliestDate->format('Y-m-d'),
-            'date_words' => $earliestDate->format('d D'),
-
+//'date_words' => $earliestDate->format('d D'),
+            'day_number' => $earliestDate->format('d'),
+            'day_name' =>$earliestDate->format('D'),
             'month' => $earliestDate->format('F'),
             'time' => $earliestSlot['start_time'],
             'slot_id' => $earliestSlot['id']

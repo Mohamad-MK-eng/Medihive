@@ -6,6 +6,7 @@ use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\WalletTransaction;
 use App\Notifications\PaymentConfirmationNotification;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,10 +17,20 @@ class WalletController extends Controller
     public function getBalance()
     {
         $patient = Auth::user()->patient;
+        if (is_null($patient->wallet_activated_at)) {
         return response()->json([
-            'balance' => $patient->wallet_balance,
-            'wallet_activated' => !is_null($patient->wallet_activated_at)
-        ]);
+            'success' => false,
+            'error_code' => 'wallet_not_activated',
+            'message' => 'Please activate your wallet before checking balance.'
+        ], 403);
+    }
+    $formatedDate = Carbon::parse($patient->wallet_activated_at)->format('Y/m/d');
+    return response()->json([
+        'success' => true,
+        'balance' => $patient->wallet_balance,
+        'wallet_activated_at' => $formatedDate,
+    ], 200);
+
     }
 
     public function addFunds(Request $request)
@@ -182,8 +193,8 @@ public function changePin(Request $request)
 {
     $request->validate([
         'current_pin' => 'required|digits:4',
-        'new_pin' => 'required|digits:4|confirmed',
-        'new_pin_confirmation' => 'required|digits:4'
+        'new_pin' => 'required|digits:4',
+        
     ]);
 
     $user = Auth::user();
