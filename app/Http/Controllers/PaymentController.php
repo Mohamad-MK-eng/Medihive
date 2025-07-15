@@ -100,7 +100,7 @@ protected function validatePaymentRequest(Request $request)
         ]);
     }
 
-    protected function handleWalletPayment(Appointment $appointment, array $data)
+    public function handleWalletPayment(Appointment $appointment, array $data)
     {
 
 

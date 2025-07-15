@@ -99,7 +99,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
-Route::get('get',[AppointmentController::class,'processWalletPayment']);
 
 Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
@@ -264,7 +263,9 @@ Route::prefix('appointments')->group(function () {
 
 
 
+        Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlotsForDoctor']);
 
+Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlots']);
 
         // Wallet Reports
         Route::prefix('admin/wallet')->group(function () {

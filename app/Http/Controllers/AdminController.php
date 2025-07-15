@@ -74,7 +74,7 @@ class AdminController extends Controller
                 return $q->where('type', $request->type);
             })
             ->orderBy('created_at', 'desc')
-            ->paginate(3);
+            ->paginate(20);
 
         return response()->json($transactions);
     }
@@ -365,66 +365,81 @@ class AdminController extends Controller
         }
     }
 
-public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
-{
-    // First delete any existing future slots to prevent duplicates
-    TimeSlot::where('doctor_id', $doctor->id)
-        ->where('date', '>=', now()->format('Y-m-d'))
-        ->delete();
 
+    public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
+{
     $timeSlots = [];
     $now = Carbon::now();
     $startDate = $now->copy()->startOfDay();
+
+    \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days");
 
     for ($i = 0; $i < $daysToGenerate; $i++) {
         $date = $startDate->copy()->addDays($i);
         $dayName = strtolower($date->englishDayOfWeek);
 
         $schedule = $doctor->schedules()->where('day', $dayName)->first();
-        if (!$schedule) continue;
+        if (!$schedule) {
+            \Log::info("No schedule for {$dayName} on {$date->format('Y-m-d')}");
+            continue;
+        }
 
         $dateStr = $date->format('Y-m-d');
         $start = Carbon::parse($schedule->start_time);
         $end = Carbon::parse($schedule->end_time);
 
+        // Adjust for today: only generate future slots
+        if ($date->isToday()) {
+            $currentTime = $now->copy();
+            // Only adjust if current time is within working hours
+            if ($currentTime->between($start, $end)) {
+                $start = $currentTime;
+            }
+        }
+
         // Generate slots
         $current = $start->copy();
+        $slotsCount = 0;
+
         while ($current->addMinutes($slotDuration)->lte($end)) {
-            $slotStart = $current->copy()->subMinutes($slotDuration);
-            $slotEnd = $current->copy();
+    $slotStart = $current->copy()->subMinutes($slotDuration);
+    $slotEnd = $current->copy();
 
             // Skip past slots for today
             if ($date->isToday() && $slotEnd->lte($now)) {
                 continue;
             }
 
-            // Check if slot already exists
-            $exists = TimeSlot::where('doctor_id', $doctor->id)
-                ->where('date', $dateStr)
-                ->where('start_time', $slotStart->format('H:i:s'))
-                ->exists();
-
-            if (!$exists) {
-                $timeSlots[] = [
-                    'doctor_id' => $doctor->id,
-                    'date' => $dateStr,
-                    'start_time' => $slotStart->format('H:i:s'),
-                    'end_time' => $slotEnd->format('H:i:s'),
-                    'is_booked' => false,
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ];
-            }
+            $timeSlots[] = [
+                'doctor_id' => $doctor->id,
+                'date' => $dateStr,
+                'start_time' => $slotStart->format('H:i:s'),
+                'end_time' => $slotEnd->format('H:i:s'),
+                'is_booked' => false,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+            $slotsCount++;
         }
+
+        \Log::info("Generated {$slotsCount} slots for {$dateStr} ({$dayName})");
     }
 
     if (!empty($timeSlots)) {
-        TimeSlot::insert($timeSlots);
-        return count($timeSlots);
+        try {
+            \Log::info("Inserting ".count($timeSlots)." slots for doctor {$doctor->id}");
+            TimeSlot::insert($timeSlots);
+            return count($timeSlots);
+        } catch (\Exception $e) {
+            \Log::error("Failed to insert slots: ".$e->getMessage());
+            return 0;
+        }
     }
 
+    \Log::warning("No slots generated for doctor {$doctor->id}");
     return 0;
 }
+
 
 
     public function updateDoctor(Request $request, Doctor $doctor)
