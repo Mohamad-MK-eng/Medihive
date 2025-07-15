@@ -37,12 +37,13 @@ class AppointmentController extends Controller
         $patient = Auth::user()->patient;
 
         if (!$patient) {
-            return response()->json(['message' => 'Authenticated user is not a patient'], 403);
+            return response()->json(['error' => 'Authenticated user is not a patient'], 403);
         }
 
         $validated = $request->validate([
             'doctor_id' => 'required|exists:doctors,id',
             'slot_id' => 'required|exists:time_slots,id',
+            'reason' => 'required|string|max:500',
             'method' => 'required|in:cash,wallet',
             'wallet_pin'=> 'required_if:method,wallet|digits:4 ',
             'notes' => 'nullable|string',
@@ -56,10 +57,9 @@ class AppointmentController extends Controller
                     ->lockForUpdate()  // here is the magic
                     ->firstOrFail();
 
-            if ($slot->is_booked) {
-                return response()->json(['error' => 'This time slot has already been booked'], 409);
-            }
-
+                if ($slot->is_booked) {
+                    return response()->json(['error' => 'This time slot has already been booked'], 409);
+                }
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
 
@@ -138,9 +138,9 @@ protected function processWalletPayment($patient, $amount, $appointment)
             'success' => false,
             'error_code' => 'insufficient_balance',
             'message' => 'Your wallet balance is insufficient.',
-         //   'current_balance' => number_format($patient->wallet_balance, 2),
-         //   'required_amount' => number_format($amount, 2),
-         //   'shortfall' => number_format($amount - $patient->wallet_balance, 2),
+            'current_balance' => number_format($patient->wallet_balance, 2),
+            'required_amount' => number_format($amount, 2),
+            'shortfall' => number_format($amount - $patient->wallet_balance, 2),
         ], 400);
     }
 
@@ -316,7 +316,7 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     while ($startDate->lte($endDate)) {
         $dayName = strtolower($startDate->englishDayOfWeek);
         $dateDigital = $startDate->format('Y-m-d');
-     //   $dateWords = $startDate->format('d D');
+        $dateWords = $startDate->format('d D');
         $monthName = $startDate->format('F');
         $dayNumber = $startDate->format('d');
 
@@ -342,13 +342,13 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
 
             if ($slots->isNotEmpty()) {
                 $availableDays[] = [
-                    'full_date' => $startDate->format('Y-m-d'),
+                    'full_date' => $startDate->format('Y/m/d'),
                     'date_digital' => $dateDigital,
-                //    'date_words' => $dateWords,
+                    'date_words' => $dateWords,
                     'day_name' => $startDate->format('D'),
                     'day_number' => $dayNumber,
                     'month' => $monthName,
-                   'slots' => $slots // Include slots in the response
+                    'slots' => $slots // Include slots in the response
                 ];
 
                 // Track earliest available slot only if we haven't found one yet
@@ -365,10 +365,9 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     $earliestResponse = null;
     if ($earliestDate && $earliestSlot) {
         $earliestResponse = [
-            'full_date' => $earliestDate->format('Y-m-d'),
-//'date_words' => $earliestDate->format('d D'),
-            'day_number' => $earliestDate->format('d'),
-            'day_name' =>$earliestDate->format('D'),
+            'full_date' => $earliestDate->format('Y/m/d'),
+            'date_words' => $earliestDate->format('d D'),
+
             'month' => $earliestDate->format('F'),
             'time' => $earliestSlot['start_time'],
             'slot_id' => $earliestSlot['id']
@@ -401,7 +400,6 @@ public function getAvailableTimes(Doctor $doctor, $date)
         ->get()
         ->map(function ($slot) {
             return [
-                'slot_id' => $slot->id,
                 'time' => Carbon::parse($slot->start_time)->format('g:i A')
             ];
         })->unique('times')->values();
