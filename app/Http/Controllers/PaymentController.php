@@ -57,10 +57,7 @@ public function PaymentInfo(Request $request)
             })->all() // Convert to array
         ],
         'payment_options' => [
-            'cash' => true,
             'wallet' => $appointment->patient && $appointment->patient->wallet_activated_at !== null,
-            'card' => true,
-            'insurance' => $appointment->patient && $appointment->patient->insurance_coverage !== null
         ],
         'wallet_balance' => $appointment->patient ? ($appointment->patient->wallet_balance ?? 0) : 0
     ]);
@@ -103,7 +100,7 @@ protected function validatePaymentRequest(Request $request)
         ]);
     }
 
-    protected function handleWalletPayment(Appointment $appointment, array $data)
+    public function handleWalletPayment(Appointment $appointment, array $data)
     {
 
 

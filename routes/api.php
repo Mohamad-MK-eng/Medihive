@@ -99,12 +99,11 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
-Route::get('get',[AppointmentController::class,'processWalletPayment']);
 
 Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
 
-Route::get('doctors/{doctor}/available-times/{date}', [AppointmentController::class, 'getAvailableTimes']);
+Route::get('doctors/{doctor}/available_times/{date}', [AppointmentController::class, 'getAvailableTimes']);
 
 
 Route::prefix('appointments')->group(function () {
@@ -112,7 +111,7 @@ Route::prefix('appointments')->group(function () {
             Route::post('/', [AppointmentController::class, 'bookAppointment']);
             Route::put('/{appointment}', [AppointmentController::class, 'updateAppointment']);
             Route::delete('/{appointment}', [AppointmentController::class, 'cancelAppointment']);
-            Route::get('/available-slots/{doctor}/{date}', [AppointmentController::class, 'getAvailableSlots']);
+            Route::get('/available_slots/{doctor}/{date}', [AppointmentController::class, 'getAvailableSlots']);
         });
 
 
@@ -144,6 +143,7 @@ Route::prefix('appointments')->group(function () {
 
 
 
+            Route::get('/patient_transactions/{patient}', [WalletController::class, 'getTransactions']);
 
 
 
@@ -164,7 +164,6 @@ Route::prefix('appointments')->group(function () {
         // Wallet Management
         Route::prefix('wallet')->group(function () {
             Route::post('/add_funds', [WalletController::class, 'addFunds']);
-            Route::get('/patient-transactions/{patient}', [WalletController::class, 'getTransactions']);
         });
 
 
@@ -264,7 +263,9 @@ Route::prefix('appointments')->group(function () {
 
 
 
+        Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlotsForDoctor']);
 
+Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlots']);
 
         // Wallet Reports
         Route::prefix('admin/wallet')->group(function () {
