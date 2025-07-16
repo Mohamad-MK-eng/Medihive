@@ -99,17 +99,15 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
-<<<<<<< HEAD
 // days done
 Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
 //times done
-=======
+
 
 Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
 
->>>>>>> be492b5f4c570e914134f08c0aab2eb0e2d9a14e
 Route::get('doctors/{doctor}/available_times/{date}', [AppointmentController::class, 'getAvailableTimes']);
 
 
@@ -118,11 +116,11 @@ Route::prefix('appointments')->group(function () {
             Route::post('/', [AppointmentController::class, 'bookAppointment']);
             Route::put('/{appointment}', [AppointmentController::class, 'updateAppointment']);
             Route::delete('/{appointment}', [AppointmentController::class, 'cancelAppointment']);
-<<<<<<< HEAD
        // leave it for the secretary's side
-=======
->>>>>>> be492b5f4c570e914134f08c0aab2eb0e2d9a14e
-            Route::get('/available_slots/{doctor}/{date}', [AppointmentController::class, 'getAvailableSlots']);
+
+
+
+       Route::get('/available_slots/{doctor}/{date}', [AppointmentController::class, 'getAvailableSlots']);
         });
 
 
