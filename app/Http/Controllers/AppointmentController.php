@@ -37,13 +37,13 @@ class AppointmentController extends Controller
         $patient = Auth::user()->patient;
 
         if (!$patient) {
-            return response()->json(['error' => 'Authenticated user is not a patient'], 403);
+            return response()->json(['message' => 'Authenticated user is not a patient'], 403);
         }
 
         $validated = $request->validate([
             'doctor_id' => 'required|exists:doctors,id',
             'slot_id' => 'required|exists:time_slots,id',
-            'reason' => 'required|string|max:500',
+           // 'reason' => 'required|string|max:500',
             'method' => 'required|in:cash,wallet',
             'wallet_pin'=> 'required_if:method,wallet|digits:4 ',
             'notes' => 'nullable|string',
@@ -58,7 +58,7 @@ class AppointmentController extends Controller
                     ->firstOrFail();
 
                 if ($slot->is_booked) {
-                    return response()->json(['error' => 'This time slot has already been booked'], 409);
+                    return response()->json(['message' => 'This time slot has already been booked'], 409);
                 }
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
@@ -76,7 +76,7 @@ class AppointmentController extends Controller
                     'document_id' => $validated['document_id'] ?? null,
                      'price' => $doctor->consultation_fee,
 
-                    'reason' => $validated['reason'],
+                   // 'reason' => $validated['reason'],
                     'notes' => $validated['notes'] ?? null,
                 ]);
 
@@ -119,13 +119,13 @@ class AppointmentController extends Controller
     'message' => 'Operation Done Successfully',
     'appointment_details' => [
         'clinic' => $doctor->clinic->name,
-        'doctor' => 'Dr. ' . $doctor->user->name,
+'doctor' => $doctor->user->first_name . ' ' . $doctor->user->last_name,
         'date' => $appointment->appointment_date->format('D d F Y'),
         'note' => 'Stay tuned for any updates'
     ]
 ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Appointment booking failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Appointment booking failed: ' . $e->getMessage()], 500);
         }
     });
 }
@@ -220,28 +220,32 @@ protected function processWalletPayment($patient, $amount, $appointment)
     public function getDoctorDetails(Doctor $doctor)
     {
         $doctor->load(['reviews', 'schedules','user']);
-$averageRating = $doctor->reviews->avg('rating');
+//$averageRating = $doctor->reviews->avg('rating');
         $schedule = $doctor->schedules->map(function ($schedule) {
             return [
                 'day' => ucfirst($schedule->day),
-                 'start_time' => Carbon::parse($schedule->start_time)->format('g:i A'),
-                'end_time' => Carbon::parse($schedule->end_time)->format('g:i A')
+                 /* 'start_time' => Carbon::parse($schedule->start_time)->format('g:i A'),
+                'end_time' => Carbon::parse($schedule->end_time)->format('g:i A') */
             ];
         });
 
-        return response()->json([
-            'name'=> $doctor->user->first_name . ' ' . $doctor->user->last_name ,
-            'specialty' => $doctor->specialty,
+        
+       
 
-            'consultation_fee' => $doctor->consultation_fee,2,
+        return response()->json([
+           /*  'name'=> $doctor->user->first_name . ' ' . $doctor->user->last_name ,
+            'specialty' => $doctor->specialty, */
+
+            'consultation_fee' => $doctor->consultation_fee,
             'bio' => $doctor->bio,
             'schedule' => $schedule,
             'review_count' => $doctor->reviews->count(),
+            'experience_years' => $doctor->experience_years,
 
-            'method' => [
+          /*   'method' => [
             'cash' => true,
             'wallet' => true
-            ]
+            ] */
         ]);
     }
 
@@ -388,12 +392,12 @@ public function getAvailableTimes(Doctor $doctor, $date)
         $slots[0]['time'] = $slots[0]['time'] . '';
     }
 
-    return response()->json([
+     return response()->json([
         'times' => $slots,
        // 'date' => Carbon::parse($parsedDate)->timezone('Asia/Damascus')->format('D j F'), // "Sun 20 July"
         //'timezone' => 'Asia/Damascus',
        // 'current_time' => $now->format('g:i A') // For debugging
-    ]);
+    ]); 
 }
 
 

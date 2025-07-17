@@ -42,6 +42,8 @@ class Doctor extends Model
         'workdays',
         'salary_id',
         'consultation_fee',
+        'bio',
+        'experience_years'
     ];
 
 

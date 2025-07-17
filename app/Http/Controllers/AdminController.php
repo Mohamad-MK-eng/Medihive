@@ -314,7 +314,7 @@ class AdminController extends Controller
                 $timeSlots = [];
                 $slotDuration = $request->slot_duration;
 
-                for ($i = 1; $i <= $request->generate_slots_for_days; $i++) {
+              /*   for ($i = 1; $i <= $request->generate_slots_for_days; $i++) {
                     $date = now()->addDays($i)->format('Y-m-d');
                     $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
 
@@ -340,7 +340,7 @@ class AdminController extends Controller
                         ];
                     }
                 }
-
+ */
                 // Insert time slots if any were generated
                 if (!empty($timeSlots)) {
                     TimeSlot::insert($timeSlots);
