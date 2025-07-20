@@ -319,7 +319,6 @@ protected function validatePaymentRequest(Request $request)
 
 
 
-
 public function getPaymentHistory(Request $request)
 {
     $user = Auth::user();
@@ -337,7 +336,7 @@ public function getPaymentHistory(Request $request)
     $walletTransactions = $user->patient->walletTransactions()
         ->with([
             'admin',
-            'secretary.user', // Load secretary with user relationship
+            'secretary.user',
             'payment.secretary.user'
         ])
         ->get();
@@ -358,34 +357,30 @@ public function getPaymentHistory(Request $request)
 
         $chargedBy = null;
 
-        // For all transaction types, try to get secretary name
         if ($transaction->secretary && $transaction->secretary->user) {
             $chargedBy = $transaction->secretary->user->name ??
                        $transaction->secretary->user->first_name . ' ' .
                        $transaction->secretary->user->last_name;
         }
-        // Fallback to payment secretary if no direct secretary
         elseif ($transaction->payment && $transaction->payment->secretary && $transaction->payment->secretary->user) {
             $chargedBy = $transaction->payment->secretary->user->name ??
                        $transaction->payment->secretary->user->first_name . ' ' .
                        $transaction->payment->secretary->user->last_name;
         }
-        // Fallback to admin if no secretary
         elseif ($transaction->admin) {
             $chargedBy = $transaction->admin->first_name.' '.$transaction->admin->last_name;
         }
 
-        $transactionData = [
+        $allTransactions->push([
             'id' => $transaction->id,
             'date' => $date,
             'time' => $time,
             'amount' => $formattedAmount,
             'type' => $transaction->type,
             'charged_by' => $chargedBy,
-            'timestamp' => $timestamp
-        ];
-
-        $allTransactions->push($transactionData);
+            'timestamp' => $timestamp,
+            'sort_date' => $transaction->created_at // Add this for proper date sorting
+        ]);
     }
 
     // Process payments (appointment payments)
@@ -405,19 +400,16 @@ public function getPaymentHistory(Request $request)
         $amount = (float)$payment->amount;
         $formattedAmount = ''.number_format($amount, 2);
 
-        // Initialize clinic and doctor info
         $clinicName = null;
         $doctorName = null;
         $chargedBy = null;
 
-        // Get secretary name if available
         if ($payment->secretary && $payment->secretary->user) {
             $chargedBy = $payment->secretary->user->name ??
                         $payment->secretary->user->first_name . ' ' .
                         $payment->secretary->user->last_name;
         }
 
-        // Get clinic and doctor information if appointment exists
         if ($payment->appointment) {
             $clinicName = optional($payment->appointment->clinic)->name;
 
@@ -440,36 +432,66 @@ public function getPaymentHistory(Request $request)
             'charged_by' => $chargedBy,
             'clinic_name' => $clinicName,
             'doctor_name' => $doctorName ? "Dr. $doctorName" : null,
-            'timestamp' => $timestamp
+            'timestamp' => $timestamp,
+            'sort_date' => $payment->paid_at // Add this for proper date sorting
         ]);
     }
 
-    // Sort by timestamp (newest first)
-    $sortedTransactions = $allTransactions->sortByDesc('timestamp')
-        ->map(function ($item) {
-            unset($item['timestamp']);
+    // Sort by date (newest first) - using both the timestamp and the actual date for more accurate sorting
+    $sortedTransactions = $allTransactions->sortByDesc(function ($item) {
+        // First try to use the actual datetime if available
+        if (isset($item['sort_date']) && $item['sort_date']) {
+            return $item['sort_date'];
+        }
+        // Fallback to timestamp if available
+        if (isset($item['timestamp']) && $item['timestamp']) {
+            return $item['timestamp'];
+        }
+        // Fallback to date string as last resort
+        return $item['date'] ?? 0;
+    })->map(function ($item) {
+        // Remove temporary sorting fields
+        unset($item['timestamp']);
+        unset($item['sort_date']);
 
-            if ($item['type'] === 'deposit') {
-                return [
-                    'id' => $item['id'],
-                    'date' => $item['date'],
-                    'time' => $item['time'],
-                    'amount' => $item['amount'],
-                    'type' => $item['type'],
-                    'charged_by' => $item['charged_by']
-                ];
-            }
+        if ($item['type'] === 'deposit') {
+            return [
+                'id' => $item['id'],
+                'date' => $item['date'],
+                'time' => $item['time'],
+                'amount' => $item['amount'],
+                'type' => $item['type'],
+                'charged_by' => $item['charged_by']
+            ];
+        }
 
-            return $item;
-        })
-        ->values();
+        return $item;
+    })->values();
+
+    // Pagination
+    $page = $request->input('page', 1);
+    $perPage = 7;
+
+    $paginatedData = new \Illuminate\Pagination\LengthAwarePaginator(
+        $sortedTransactions->forPage($page, $perPage),
+        $sortedTransactions->count(),
+        $perPage,
+        $page,
+        ['path' => $request->url(), 'query' => $request->query()]
+    );
 
     return response()->json([
         'message' => 'Payment history retrieved successfully',
-        'data' => $sortedTransactions
+        'data' => $paginatedData->items(),
+        'pagination' => [
+            'total' => $paginatedData->total(),
+            'per_page' => $paginatedData->perPage(),
+            'current_page' => $paginatedData->currentPage(),
+            'last_page' => $paginatedData->lastPage(),
+
+        ]
     ]);
 }
-
 
 
 
