@@ -83,7 +83,7 @@ class Patient extends Model
         'chronic_conditions' => 'array',
         'insurance_provider' => 'array',
         'wallet_activated_at' => 'datetime',
-         'wallet_balance' => 'decimal:2',
+         'wallet_balance' => 'float',
     'wallet_locked_until' => 'datetime'
     ];
 
@@ -211,30 +211,46 @@ class Patient extends Model
 
 
 
+public function deposit($amount, $notes = null, $secretaryId = null)
+{
+    return DB::transaction(function () use ($amount, $notes, $secretaryId) {
+        // Get fresh data directly from database
+        $currentBalance = DB::table('patients')
+            ->where('id', $this->id)
+            ->value('wallet_balance');
 
-    // In Patient model (add these methods)
-    public function deposit($amount, $notes = null, $adminId = null)
-    {
-        return DB::transaction(function () use ($amount, $notes, $adminId) {
-            $previousBalance = $this->wallet_balance;
-            $newBalance = $previousBalance + $amount;
+        $newBalance = (float)$currentBalance + (float)$amount;
 
-            $transaction = WalletTransaction::create([
-                'patient_id' => $this->id,
-                'admin_id' => $adminId,
-                'amount' => $amount,
-                'type' => 'deposit',
-                'reference' => 'DEP-' . now()->format('YmdHis'),
-                'balance_before' => $previousBalance,
-                'balance_after' => $newBalance,
-                'notes' => $notes
-            ]);
+        $transactionData = [
+            'patient_id' => $this->id,
+            'amount' => (float)$amount,
+            'type' => 'deposit',
+            'reference' => 'DEP-' . now()->format('YmdHis'),
+            'balance_before' => $currentBalance,
+            'balance_after' => $newBalance,
+            'notes' => $notes
+        ];
 
-            $this->update(['wallet_balance' => $newBalance]);
+        if ($secretaryId) {
+            $transactionData['secretary_id'] = $secretaryId;
+        }
 
-            return $transaction;
-        });
-    }
+        // Create transaction
+        $transaction = WalletTransaction::create($transactionData);
+
+        // Update balance directly in database
+        DB::table('patients')
+            ->where('id', $this->id)
+            ->update(['wallet_balance' => $newBalance]);
+
+        // Return the fresh balance
+        return [
+            'transaction' => $transaction,
+            'new_balance' => $newBalance
+        ];
+    });
+}
+
 
     public function withdraw($amount, $notes = null)
     {

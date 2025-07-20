@@ -226,7 +226,7 @@ Route::prefix('appointments')->group(function () {
         });
 
         // Payments
-        Route::get('/payments/history', [PatientController::class, 'getPaymentHistory']);
+        Route::get('/payments/history', [PaymentController::class, 'getPaymentHistory']);
         Route::get('/payments_info', [PaymentController::class, 'PaymentInfo']);
     });
 

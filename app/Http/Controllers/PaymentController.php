@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Payment;
+use App\Models\Secretary;
 use App\Models\WalletTransaction;
 use App\Notifications\PaymentConfirmationNotification;
 use App\Notifications\PaymentConfirmed;
 use Auth;
+use Carbon\Carbon;
 use Hash;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -311,4 +313,166 @@ protected function validatePaymentRequest(Request $request)
             'payment' => $payment
         ]);
     }
+
+
+
+
+
+
+
+public function getPaymentHistory(Request $request)
+{
+    $user = Auth::user();
+
+    if (!$user->patient) {
+        return response()->json([
+            'message' => 'Patient profile not found',
+            'data' => []
+        ], 404);
+    }
+
+    $allTransactions = collect();
+
+    // Process wallet transactions (deposits/charges)
+    $walletTransactions = $user->patient->walletTransactions()
+        ->with([
+            'admin',
+            'secretary.user', // Load secretary with user relationship
+            'payment.secretary.user'
+        ])
+        ->get();
+
+    foreach ($walletTransactions as $transaction) {
+        $date = $transaction->created_at ? Carbon::parse($transaction->created_at)->format('Y-m-d') : null;
+        $time = $transaction->created_at ? Carbon::parse($transaction->created_at)->format('h:i A') : null;
+        $timestamp = $transaction->created_at ? Carbon::parse($transaction->created_at)->timestamp : 0;
+
+        $amount = (float)$transaction->amount;
+        $formattedAmount = number_format(abs($amount), 2);
+
+        if (in_array($transaction->type, ['payment', 'withdrawal'])) {
+            $formattedAmount = ''.$formattedAmount;
+        } else {
+            $formattedAmount = ''.$formattedAmount;
+        }
+
+        $chargedBy = null;
+
+        // For all transaction types, try to get secretary name
+        if ($transaction->secretary && $transaction->secretary->user) {
+            $chargedBy = $transaction->secretary->user->name ??
+                       $transaction->secretary->user->first_name . ' ' .
+                       $transaction->secretary->user->last_name;
+        }
+        // Fallback to payment secretary if no direct secretary
+        elseif ($transaction->payment && $transaction->payment->secretary && $transaction->payment->secretary->user) {
+            $chargedBy = $transaction->payment->secretary->user->name ??
+                       $transaction->payment->secretary->user->first_name . ' ' .
+                       $transaction->payment->secretary->user->last_name;
+        }
+        // Fallback to admin if no secretary
+        elseif ($transaction->admin) {
+            $chargedBy = $transaction->admin->first_name.' '.$transaction->admin->last_name;
+        }
+
+        $transactionData = [
+            'id' => $transaction->id,
+            'date' => $date,
+            'time' => $time,
+            'amount' => $formattedAmount,
+            'type' => $transaction->type,
+            'charged_by' => $chargedBy,
+            'timestamp' => $timestamp
+        ];
+
+        $allTransactions->push($transactionData);
+    }
+
+    // Process payments (appointment payments)
+    $payments = $user->payments()
+        ->with([
+            'appointment.doctor.user',
+            'appointment.clinic',
+            'secretary.user'
+        ])
+        ->get();
+
+    foreach ($payments as $payment) {
+        $date = $payment->paid_at ? Carbon::parse($payment->paid_at)->format('Y-m-d') : null;
+        $time = $payment->paid_at ? Carbon::parse($payment->paid_at)->format('h:i A') : null;
+        $timestamp = $payment->paid_at ? Carbon::parse($payment->paid_at)->timestamp : 0;
+
+        $amount = (float)$payment->amount;
+        $formattedAmount = ''.number_format($amount, 2);
+
+        // Initialize clinic and doctor info
+        $clinicName = null;
+        $doctorName = null;
+        $chargedBy = null;
+
+        // Get secretary name if available
+        if ($payment->secretary && $payment->secretary->user) {
+            $chargedBy = $payment->secretary->user->name ??
+                        $payment->secretary->user->first_name . ' ' .
+                        $payment->secretary->user->last_name;
+        }
+
+        // Get clinic and doctor information if appointment exists
+        if ($payment->appointment) {
+            $clinicName = optional($payment->appointment->clinic)->name;
+
+            if ($payment->appointment->doctor && $payment->appointment->doctor->user) {
+                $doctorName = $payment->appointment->doctor->user->name ??
+                            $payment->appointment->doctor->user->first_name . ' ' .
+                            $payment->appointment->doctor->user->last_name;
+            } elseif ($payment->appointment->doctor) {
+                $doctorName = $payment->appointment->doctor->first_name . ' ' .
+                             $payment->appointment->doctor->last_name;
+            }
+        }
+
+        $allTransactions->push([
+            'id' => $payment->id,
+            'date' => $date,
+            'time' => $time,
+            'amount' => $formattedAmount,
+            'type' => 'payment',
+            'charged_by' => $chargedBy,
+            'clinic_name' => $clinicName,
+            'doctor_name' => $doctorName ? "Dr. $doctorName" : null,
+            'timestamp' => $timestamp
+        ]);
+    }
+
+    // Sort by timestamp (newest first)
+    $sortedTransactions = $allTransactions->sortByDesc('timestamp')
+        ->map(function ($item) {
+            unset($item['timestamp']);
+
+            if ($item['type'] === 'deposit') {
+                return [
+                    'id' => $item['id'],
+                    'date' => $item['date'],
+                    'time' => $item['time'],
+                    'amount' => $item['amount'],
+                    'type' => $item['type'],
+                    'charged_by' => $item['charged_by']
+                ];
+            }
+
+            return $item;
+        })
+        ->values();
+
+    return response()->json([
+        'message' => 'Payment history retrieved successfully',
+        'data' => $sortedTransactions
+    ]);
+}
+
+
+
+
+
+
 }

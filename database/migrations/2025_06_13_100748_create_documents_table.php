@@ -14,12 +14,13 @@ return new class extends Migration
         Schema::create('documents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('patient_id')->constrained('patients');
+            $table->foreignId('doctor_id')->constrained('doctors');
 
             $table->foreignId('prescription_id')->constrained('prescriptions')->onDelete('cascade');
 
             $table->string('title');
             $table->enum('type', ['lab_report', 'scan', 'other']);
-            $table->string('file_path');
+            $table->string('file_path')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

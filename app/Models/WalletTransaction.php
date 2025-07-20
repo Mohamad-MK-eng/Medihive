@@ -11,6 +11,7 @@ class WalletTransaction extends Model
 
     protected $fillable = [
         'patient_id',
+        'secretary_id',
         'amount',
         'type',
         'reference',
@@ -31,6 +32,16 @@ class WalletTransaction extends Model
     {
         return $this->belongsTo(Patient::class);
     }
+
+
+
+public function secretary()
+{
+    return $this->belongsTo(Secretary::class);
+}
+
+
+
 
     public function admin()
     {

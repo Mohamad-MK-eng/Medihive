@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\WalletTransaction;
-use App\Notifications\PaymentConfirmationNotification;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,20 +15,10 @@ class WalletController extends Controller
     public function getBalance()
     {
         $patient = Auth::user()->patient;
-        if (is_null($patient->wallet_activated_at)) {
         return response()->json([
-            'success' => false,
-            'error_code' => 'wallet_not_activated',
-            'message' => 'Please activate your wallet before checking balance.'
-        ], 403);
-    }
-    $formatedDate = Carbon::parse($patient->wallet_activated_at)->format('Y/m/d');
-    return response()->json([
-        'success' => true,
-        'balance' => $patient->wallet_balance,
-        'wallet_activated_at' => $formatedDate,
-    ], 200);
-
+            'balance' => $patient->wallet_balance,
+            'wallet_activated' => !is_null($patient->wallet_activated_at)
+        ]);
     }
 
     public function addFunds(Request $request)
@@ -92,8 +80,8 @@ class WalletController extends Controller
     public function setupWallet(Request $request)
     {
         $validated = $request->validate([
-            'pin' => 'required|digits:4',
-          //  'pin_confirmation' => 'required'
+            'pin' => 'required|digits:4|confirmed',
+            'pin_confirmation' => 'required'
         ]);
 
         $user = Auth::user();
@@ -164,17 +152,12 @@ class WalletController extends Controller
             $payment = Payment::create([
                 'appointment_id' => $validated['appointment_id'],
                 'patient_id' => $patient->id,
+                'service_id' => $validated['service_id'],
                 'amount' => $validated['amount'],
                 'method' => 'wallet',
                 'status' => 'completed',
                 'transaction_id' => 'WALLET-' . $transaction->id
             ]);
-
-
-
-            $patient->user->notifyNow(new PaymentConfirmationNotification($payment));
-
-
 
             return response()->json([
                 'message' => 'Payment successful',
@@ -183,59 +166,4 @@ class WalletController extends Controller
             ]);
         });
     }
-
-
-
-
-
-
-public function changePin(Request $request)
-{
-    $request->validate([
-        'current_pin' => 'required|digits:4',
-        'new_pin' => 'required|digits:4',
-        
-    ]);
-
-    $user = Auth::user();
-    $patient = $user->patient;
-
-    if (!$patient) {
-        return response()->json(['message' => 'Patient profile not found'], 404);
-    }
-
-    // Verify wallet is activated
-    if (!$patient->wallet_activated_at) {
-        return response()->json(['message' => 'Wallet not activated'], 400);
-    }
-
-    // Verify current PIN
-    if (!Hash::check($request->current_pin, $patient->wallet_pin)) {
-        return response()->json([
-            'message' => 'Incorrect current PIN'
-        ], 401);
-    }
-
-    // Check if new PIN is different
-    if (Hash::check($request->new_pin, $patient->wallet_pin)) {
-        return response()->json([
-            'message' => 'New PIN must be different from current PIN'
-        ], 400);
-    }
-
-    // Update the PIN
-    $patient->update([
-        'wallet_pin' => Hash::make($request->new_pin),
-    ]);
-
-    return response()->json([
-        'message' => 'PIN changed successfully'
-    ]);
-}
-
-
-
-
-
-
 }

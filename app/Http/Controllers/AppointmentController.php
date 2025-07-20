@@ -497,12 +497,7 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
 
         return response()->json([
             'data' => $appointments->items(),
-            'meta' => [
-                'current_page' => $appointments->currentPage(),
-                'total' => $appointments->total(),
-                'per_page' => $appointments->perPage(),
-                'last_page' => $appointments->lastPage()
-            ]
+
         ]);
     }
 

@@ -282,6 +282,7 @@ class AdminController extends Controller
                     'email' => $request->email,
                     'password' => Hash::make('temporary_password'),
                     'role_id' => $doctorRole->id,
+                    'gender'=>$request->gender,
                 ]);
 
                 // Create doctor profile

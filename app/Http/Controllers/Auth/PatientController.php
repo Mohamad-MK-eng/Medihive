@@ -379,28 +379,6 @@ class PatientController extends Controller
 
 
 
-    // not tested yet
-    public function getPaymentHistory()
-    {
-        $user = Auth::user();
-
-        if (!$user->patient) {
-            return response()->json([
-                'message' => 'Patient profile not found',
-                'payments' => []
-            ], 200);
-        }
-
-        $payments = $user->payments()
-            ->with('appointment.doctor.user')
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
-
-        return response()->json($payments);
-    }
-
-
-
 
 
 

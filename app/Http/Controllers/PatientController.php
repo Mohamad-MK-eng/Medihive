@@ -12,7 +12,10 @@ use App\Models\Prescription;
 use App\Models\Review;
 use App\Models\Secretary;
 use App\Models\TimeSlot;
+use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
+
+
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
@@ -300,7 +303,7 @@ class PatientController extends Controller
     public function uploadDocument(Request $request)
     {
         $validated = $request->validate([
-            'file' => 'required|file|mimes:pdf,jpg,png|max:5120',
+         //   'file' => 'required|file|mimes:pdf,jpg,png|max:5120',
             'type' => 'required|in:lab_report,prescription,scan',
             'appointment_id' => 'sometimes|exists:appointments,id'
         ]);
@@ -359,63 +362,9 @@ class PatientController extends Controller
             ->pluck('prescription') // Extract prescriptions
             ->filter(); // Remove null entries (if any)
 
-        // Alternative 2: If prescriptions have a direct patient_id column
-        // $prescriptions = Prescription::where('patient_id', $patient->id)
-        //     ->orderBy('created_at', 'desc')
-        //     ->get();
 
         return response()->json($prescriptions);
     }
-
-
-
-
-public function getPaymentHistory()
-{
-    $user = Auth::user();
-
-    // More defensive check
-    if (!$user->relationLoaded('patient')) {
-        $user->load('patient');
-    }
-
-    if (!$user->patient) {
-        return response()->json([
-            'message' => 'Patient profile not found',
-            'payments' => []
-        ], 404);
-    }
-
-    // Safely access through patient
-    $payments = $user->patient->payments()
-        ->with('appointment.doctor.user')
-        ->orderBy('created_at', 'desc')
-        ->paginate(10);
-
-    return response()->json($payments);
-}
-
-
-/*public function getPaymentHistory()
-    {
-        $user = Auth::user();
-
-        if (!$user->patient) {
-            return response()->json([
-                'message' => 'Patient profile not found',
-                'payments' => []
-            ], 200);
-        }
-
-        $payments = $user->payments()
-            ->with('appointment.doctor.user')
-            ->orderBy('created_at', 'desc')
-            ->paginate(4);
-
-        return response()->json($payments);
-    }*/
-
-
 
 
 

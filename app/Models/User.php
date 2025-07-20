@@ -70,6 +70,7 @@ class User extends Authenticatable
     'email',
     'password',
     'role_id',
+    'gender',
     'profile_picture',
 ];
 

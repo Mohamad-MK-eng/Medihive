@@ -182,15 +182,7 @@ $prescription = Prescription::create([
     'expiry_date' => now()->addDays(30)
 ]);
 
-// Then create the document
-$document = \App\Models\Document::create([
-    'patient_id' => $patient->id,
-    'prescription_id' => $prescription->id, // Use the actual prescription ID
-    'title' => 'Initial Consultation Report',
-    'type' => 'other',
-    'file_path' => 'documents/initial.pdf',
-    'notes' => 'Initial patient consultation document'
-]);
+
 
         // Insert all time slots at once for better performance
         TimeSlot::insert($timeSlots);
@@ -217,7 +209,6 @@ $document = \App\Models\Document::create([
             'status' => 'confirmed',
             'price' => 100.00,
             'fee' => 80.00 ,
-            'document_id' => 1
         ]);
 
             // هون لازم نتابع سلسلة FK  منشان ما عت يضرب ايرورات

@@ -94,6 +94,15 @@ class Doctor extends Model
         return $this->workdays[$date] ?? false;
     }
 
+
+
+
+    public function getGenderAttribute()
+{
+    return $this->user->gender;
+}
+
+
     public function getAvailableServices()
     {
         return $this->services()->get();
