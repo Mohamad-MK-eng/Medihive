@@ -311,4 +311,191 @@ protected function validatePaymentRequest(Request $request)
             'payment' => $payment
         ]);
     }
+<<<<<<< HEAD
+=======
+
+
+
+
+
+
+public function getPaymentHistory(Request $request)
+{
+    $user = Auth::user();
+
+    if (!$user->patient) {
+        return response()->json([
+            'message' => 'Patient profile not found',
+            'data' => []
+        ], 404);
+    }
+
+    $allTransactions = collect();
+
+    // Process wallet transactions (deposits/charges)
+    $walletTransactions = $user->patient->walletTransactions()
+        ->with([
+            'admin',
+            'secretary.user',
+            'payment.secretary.user'
+        ])
+        ->get();
+
+    foreach ($walletTransactions as $transaction) {
+        $date = $transaction->created_at ? Carbon::parse($transaction->created_at)->format('Y-m-d') : null;
+        $time = $transaction->created_at ? Carbon::parse($transaction->created_at)->format('h:i A') : null;
+        $timestamp = $transaction->created_at ? Carbon::parse($transaction->created_at)->timestamp : 0;
+
+        $amount = (float)$transaction->amount;
+        $formattedAmount = number_format(abs($amount), 2);
+
+        if (in_array($transaction->type, ['payment', 'withdrawal'])) {
+            $formattedAmount = ''.$formattedAmount;
+        } else {
+            $formattedAmount = ''.$formattedAmount;
+        }
+
+        $chargedBy = null;
+
+        if ($transaction->secretary && $transaction->secretary->user) {
+            $chargedBy = $transaction->secretary->user->name ??
+                       $transaction->secretary->user->first_name . ' ' .
+                       $transaction->secretary->user->last_name;
+        }
+        elseif ($transaction->payment && $transaction->payment->secretary && $transaction->payment->secretary->user) {
+            $chargedBy = $transaction->payment->secretary->user->name ??
+                       $transaction->payment->secretary->user->first_name . ' ' .
+                       $transaction->payment->secretary->user->last_name;
+        }
+        elseif ($transaction->admin) {
+            $chargedBy = $transaction->admin->first_name.' '.$transaction->admin->last_name;
+        }
+
+        $allTransactions->push([
+            'id' => $transaction->id,
+            'date' => $date,
+            'time' => $time,
+            'amount' => $formattedAmount,
+            'type' => $transaction->type,
+            'charged_by' => $chargedBy,
+            'timestamp' => $timestamp,
+            'sort_date' => $transaction->created_at // Add this for proper date sorting
+        ]);
+    }
+
+    // Process payments (appointment payments)
+    $payments = $user->payments()
+        ->with([
+            'appointment.doctor.user',
+            'appointment.clinic',
+            'secretary.user'
+        ])
+        ->get();
+
+    foreach ($payments as $payment) {
+        $date = $payment->paid_at ? Carbon::parse($payment->paid_at)->format('Y-m-d') : null;
+        $time = $payment->paid_at ? Carbon::parse($payment->paid_at)->format('h:i A') : null;
+        $timestamp = $payment->paid_at ? Carbon::parse($payment->paid_at)->timestamp : 0;
+
+        $amount = (float)$payment->amount;
+        $formattedAmount = ''.number_format($amount, 2);
+
+        $clinicName = null;
+        $doctorName = null;
+        $chargedBy = null;
+
+        if ($payment->secretary && $payment->secretary->user) {
+            $chargedBy = $payment->secretary->user->name ??
+                        $payment->secretary->user->first_name . ' ' .
+                        $payment->secretary->user->last_name;
+        }
+
+        if ($payment->appointment) {
+            $clinicName = optional($payment->appointment->clinic)->name;
+
+            if ($payment->appointment->doctor && $payment->appointment->doctor->user) {
+                $doctorName = $payment->appointment->doctor->user->name ??
+                            $payment->appointment->doctor->user->first_name . ' ' .
+                            $payment->appointment->doctor->user->last_name;
+            } elseif ($payment->appointment->doctor) {
+                $doctorName = $payment->appointment->doctor->first_name . ' ' .
+                             $payment->appointment->doctor->last_name;
+            }
+        }
+
+        $allTransactions->push([
+            'id' => $payment->id,
+            'date' => $date,
+            'time' => $time,
+            'amount' => $formattedAmount,
+            'type' => 'payment',
+            'charged_by' => $chargedBy,
+            'clinic_name' => $clinicName,
+            'doctor_name' => $doctorName ? "Dr. $doctorName" : null,
+            'timestamp' => $timestamp,
+            'sort_date' => $payment->paid_at // Add this for proper date sorting
+        ]);
+    }
+
+    // Sort by date (newest first) - using both the timestamp and the actual date for more accurate sorting
+    $sortedTransactions = $allTransactions->sortByDesc(function ($item) {
+        // First try to use the actual datetime if available
+        if (isset($item['sort_date']) && $item['sort_date']) {
+            return $item['sort_date'];
+        }
+        // Fallback to timestamp if available
+        if (isset($item['timestamp']) && $item['timestamp']) {
+            return $item['timestamp'];
+        }
+        // Fallback to date string as last resort
+        return $item['date'] ?? 0;
+    })->map(function ($item) {
+        // Remove temporary sorting fields
+        unset($item['timestamp']);
+        unset($item['sort_date']);
+
+        if ($item['type'] === 'deposit') {
+            return [
+                'id' => $item['id'],
+                'date' => $item['date'],
+                'time' => $item['time'],
+                'amount' => $item['amount'],
+                'type' => $item['type'],
+                'charged_by' => $item['charged_by']
+            ];
+        }
+
+        return $item;
+    })->values();
+
+    // Pagination
+    $page = $request->input('page', 1);
+    $perPage = 7;
+
+    $paginatedData = new \Illuminate\Pagination\LengthAwarePaginator(
+        $sortedTransactions->forPage($page, $perPage),
+        $sortedTransactions->count(),
+        $perPage,
+        $page,
+        ['path' => $request->url(), 'query' => $request->query()]
+    );
+
+    return response()->json([
+        'message' => 'Payment history retrieved successfully',
+        'data' => $paginatedData->items(),
+        'pagination' => [
+            'total' => $paginatedData->total(),
+            'per_page' => $paginatedData->perPage(),
+            'current_page' => $paginatedData->currentPage(),
+            'last_page' => $paginatedData->lastPage(),
+
+        ]
+    ]);
+}
+
+
+
+
+
+>>>>>>> eff2c9a ( سيد عامود)
 }
