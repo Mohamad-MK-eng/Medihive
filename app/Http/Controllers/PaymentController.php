@@ -317,8 +317,6 @@ protected function validatePaymentRequest(Request $request)
 
 
 
-
-
 public function getPaymentHistory(Request $request)
 {
     $user = Auth::user();
@@ -332,13 +330,14 @@ public function getPaymentHistory(Request $request)
 
     $allTransactions = collect();
 
-    // Process wallet transactions (deposits/charges)
+    // Process wallet transactions (only deposits and withdrawals, exclude payments)
     $walletTransactions = $user->patient->walletTransactions()
         ->with([
             'admin',
             'secretary.user',
             'payment.secretary.user'
         ])
+        ->where('type', '!=', 'payment') // Exclude wallet payments since we'll get them from payments table
         ->get();
 
     foreach ($walletTransactions as $transaction) {
@@ -348,12 +347,6 @@ public function getPaymentHistory(Request $request)
 
         $amount = (float)$transaction->amount;
         $formattedAmount = number_format(abs($amount), 2);
-
-        if (in_array($transaction->type, ['payment', 'withdrawal'])) {
-            $formattedAmount = ''.$formattedAmount;
-        } else {
-            $formattedAmount = ''.$formattedAmount;
-        }
 
         $chargedBy = null;
 
@@ -379,7 +372,7 @@ public function getPaymentHistory(Request $request)
             'type' => $transaction->type,
             'charged_by' => $chargedBy,
             'timestamp' => $timestamp,
-            'sort_date' => $transaction->created_at // Add this for proper date sorting
+            'sort_date' => $transaction->created_at
         ]);
     }
 
@@ -433,28 +426,25 @@ public function getPaymentHistory(Request $request)
             'clinic_name' => $clinicName,
             'doctor_name' => $doctorName ? "Dr. $doctorName" : null,
             'timestamp' => $timestamp,
-            'sort_date' => $payment->paid_at // Add this for proper date sorting
+            'sort_date' => $payment->paid_at
         ]);
     }
 
-    // Sort by date (newest first) - using both the timestamp and the actual date for more accurate sorting
+    // Sort by date (newest first)
     $sortedTransactions = $allTransactions->sortByDesc(function ($item) {
-        // First try to use the actual datetime if available
         if (isset($item['sort_date']) && $item['sort_date']) {
             return $item['sort_date'];
         }
-        // Fallback to timestamp if available
         if (isset($item['timestamp']) && $item['timestamp']) {
             return $item['timestamp'];
         }
-        // Fallback to date string as last resort
         return $item['date'] ?? 0;
     })->map(function ($item) {
         // Remove temporary sorting fields
         unset($item['timestamp']);
         unset($item['sort_date']);
 
-        if ($item['type'] === 'deposit') {
+        if ($item['type'] === 'deposit' || $item['type'] === 'withdrawal') {
             return [
                 'id' => $item['id'],
                 'date' => $item['date'],
@@ -488,7 +478,6 @@ public function getPaymentHistory(Request $request)
             'per_page' => $paginatedData->perPage(),
             'current_page' => $paginatedData->currentPage(),
             'last_page' => $paginatedData->lastPage(),
-
         ]
     ]);
 }
