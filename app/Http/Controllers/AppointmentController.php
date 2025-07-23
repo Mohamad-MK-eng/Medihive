@@ -43,11 +43,11 @@ class AppointmentController extends Controller
         $validated = $request->validate([
             'doctor_id' => 'required|exists:doctors,id',
             'slot_id' => 'required|exists:time_slots,id',
-            'reason' => 'required|string|max:500',
+        //    'reason' => 'required|string|max:500',
             'method' => 'required|in:cash,wallet',
             'wallet_pin'=> 'required_if:method,wallet|digits:4 ',
-            'notes' => 'nullable|string',
-            'document_id' => 'nullable|exists:documents,id',
+          //  'notes' => 'nullable|string',
+           // 'document_id' => 'nullable|exists:documents,id',
         ]);
 
         return DB::transaction(function () use ($validated, $patient) {
@@ -88,7 +88,7 @@ $status = 'confirmed'; // Default status
                     'document_id' => $validated['document_id'] ?? null,
                      'price' => $doctor->consultation_fee,
 
-                    'reason' => $validated['reason'],
+                  //  'reason' => $validated['reason'],
                     'notes' => $validated['notes'] ?? null,
                 ]);
 
@@ -785,7 +785,7 @@ public function getAppointments(Request $request)
 {
     $patient = Auth::user()->patient;
     $type = $request->query('type', 'upcoming');
-    $perPage = $request->query('per_page', 6);
+    $perPage = $request->query('per_page', 8);
 
     date_default_timezone_set('Asia/Damascus');
     $nowLocal = Carbon::now('Asia/Damascus');
@@ -818,9 +818,11 @@ public function getAppointments(Request $request)
                 return [
                     'id' => $appointment->id,
                     'date' => $localTime->format('Y-m-d h:i A'),
-                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
-                                     $appointment->doctor->user->last_name,
-                    'doctor_profile_picture' => $profilePictureUrl,
+                    'doctor_id' => $appointment->doctor->id,
+                    'first_name' =>  $appointment->doctor->user->first_name ,
+                     'last_name' =>   $appointment->doctor->user->last_name,
+                     'specialty' =>  $appointment->doctor->specialty,
+                    'profile_picture_url' => $profilePictureUrl,
                     'clinic_name' => $appointment->clinic->name,
                     'type' => $paymentStatus,
                     'price' => $appointment->price,
@@ -855,9 +857,11 @@ public function getAppointments(Request $request)
                 return [
                     'id' => $appointment->id,
                     'date' => $localTime->format('Y-m-d h:i A'),
-                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
-                                     $appointment->doctor->user->last_name,
-                    'doctor_profile_picture' => $profilePictureUrl,
+                    'doctor_id' => $appointment->doctor->id,
+                    'first_name' =>  $appointment->doctor->user->first_name ,
+                     'last_name' =>   $appointment->doctor->user->last_name,
+                     'specialty' =>  $appointment->doctor->specialty,
+                    'profile_picture_url' => $profilePictureUrl,
                     'clinic_name' => $appointment->clinic->name,
                     'type' => $paymentStatus,
                     'price' => $appointment->price,
