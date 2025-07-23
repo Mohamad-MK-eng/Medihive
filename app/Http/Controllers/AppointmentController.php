@@ -63,16 +63,28 @@ class AppointmentController extends Controller
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
 
+$status = 'confirmed'; // Default status
+            $paymentStatus = 'pending';
+
+
+            $appointment_date = Carbon::createFromFormat(
+    'Y-m-d H:i:s',
+    $slot->date->format('Y-m-d') . ' ' . $slot->start_time,
+    'Asia/Damascus'
+);
+
+
+
+
+
                 $appointment = Appointment::create([
                     'patient_id' => $patient->id,
                     'doctor_id' => $validated['doctor_id'],
                     'clinic_id' => $doctor->clinic_id,
                     'time_slot_id' => $slot->id,
-                    'appointment_date' => Carbon::createFromFormat(
-                        'Y-m-d H:i:s',
-                        $slot->date->format('Y-m-d') . ' ' . $slot->start_time
-                    ),
-                    'status' => 'confirmed',
+                    'appointment_date' => $appointment_date,
+                    'status' => $status,
+                    'payment_status' => $paymentStatus,
                     'document_id' => $validated['document_id'] ?? null,
                      'price' => $doctor->consultation_fee,
 
@@ -83,6 +95,7 @@ class AppointmentController extends Controller
 
             if ($validated['method'] === 'wallet') {
                 // Verify wallet is activated
+
                 if (!$patient->wallet_activated_at) {
                     return response()->json([
                         'success' => false,
@@ -90,6 +103,15 @@ class AppointmentController extends Controller
                         'message' => 'Please activate your wallet before making payments',
                     ], 400);
                 }
+
+
+   if ($validated['method'] === 'wallet') {
+                // Verify wallet and process payment
+                if (!$this->processWalletPayment($patient, $doctor->consultation_fee, $appointment)) {
+                    throw new \Exception('Wallet payment failed');
+                }
+                $paymentStatus = 'paid';
+            }
 
                 // Simple PIN verification without attempt tracking
                 if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
@@ -480,26 +502,381 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     ]);
 }
 
-    public function getAppointments(Request $request)
-    {
-        $patient = Auth::user()->patient;
 
-        $appointments = $patient->appointments()
-            ->with(['doctor.user:id,first_name,last_name', 'clinic:id,name'])
-            ->when($request->has('status'), function ($query) use ($request) {
-                return $query->where('status', $request->status);
+
+
+
+
+/*
+
+public function getAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
+
+    // Set explicit timezone for all operations
+    date_default_timezone_set('Asia/Damascus');
+    $nowLocal = Carbon::now('Asia/Damascus');
+    $nowUTC = Carbon::now('UTC');
+
+    // First get ALL appointments with full details
+    $allAppointments = $patient->appointments()
+        ->with([
+            'doctor.user:id,first_name,last_name,profile_picture',
+            'clinic:id,name',
+            'payments' => function($query) {
+                $query->whereIn('status', ['completed', 'paid']);
+            }
+        ])
+        ->orderBy('appointment_date', 'desc')
+        ->get();
+
+    // Filter upcoming appointments (confirmed and in future in LOCAL time)
+    $upcomingAppointments = $allAppointments->filter(function($appointment) use ($nowLocal) {
+        // Convert UTC appointment date to local timezone
+        $localAppointmentTime = Carbon::parse($appointment->appointment_date)
+            ->setTimezone('Asia/Damascus');
+
+        return $appointment->status === 'confirmed' &&
+               $localAppointmentTime->gte($nowLocal->startOfDay());
+    })->map(function ($appointment) {
+        $paymentStatus = $appointment->payments->isNotEmpty()
+            ? 'confirmed'
+            : 'pending';
+
+   $doctorUser = $appointment->doctor->user;
+        $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+        return [
+            'id' => $appointment->id,
+            'date' => Carbon::parse($appointment->appointment_date)
+                ->timezone('Asia/Damascus')
+                ->format('Y-m-d h:i A'),
+            'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                             $appointment->doctor->user->last_name,
+            'doctor_profile_picture' => $profilePictureUrl,
+
+            'clinic_name' => $appointment->clinic->name,
+            'type' => $paymentStatus, //yes or no
+            'price' => $appointment->price, // yes or no
+
+        ];
+    });
+
+
+
+    return response()->json([
+        'data' => $upcomingAppointments->values(),
+    ]);
+}
+*/
+
+
+
+
+/*
+public function getAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
+    $type = $request->query('type', 'upcoming'); // Default to upcoming if not specified
+    $perPage = $request->query('per_page', 10); // Default to 10 items per page
+
+    // Set explicit timezone for all operations
+    date_default_timezone_set('Asia/Damascus');
+    $nowLocal = Carbon::now('Asia/Damascus');
+
+    // Base query with eager loading
+    $query = $patient->appointments()
+        ->with([
+            'doctor.user:id,first_name,last_name,profile_picture',
+            'clinic:id,name',
+            'payments' => function($query) {
+                $query->whereIn('status', ['completed', 'paid']);
+            }
+        ])
+        ->orderBy('appointment_date', 'desc');
+
+    if ($type === 'upcoming') {
+        // Get upcoming appointments (confirmed and in future in LOCAL time)
+        $appointments = $query->where('status', 'confirmed')
+            ->whereDate('appointment_date', '>=', $nowLocal->startOfDay())
+            ->get()
+            ->map(function ($appointment) use ($nowLocal) {
+                $localAppointmentTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                // Only include appointments that are still upcoming in local time
+                if ($localAppointmentTime->gte($nowLocal)) {
+                    $paymentStatus = $appointment->payments->isNotEmpty()
+                        ? 'confirmed'
+                        : 'pending';
+
+                    $doctorUser = $appointment->doctor->user;
+                    $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+
+                    return [
+                        'id' => $appointment->id,
+                        'date' => $localAppointmentTime->format('Y-m-d h:i A'),
+                        'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                                         $appointment->doctor->user->last_name,
+                        'doctor_profile_picture' => $profilePictureUrl,
+                        'clinic_name' => $appointment->clinic->name,
+                        'type' => $paymentStatus,
+                        'price' => $appointment->price,
+                    ];
+                }
+                return null;
             })
-            ->when($request->has('upcoming'), function ($query) {
-                return $query->where('appointment_date', '>=', now());
+            ->filter() // Remove null values
+            ->values();
+
+        return response()->json([
+            'data' => $appointments,
+        ]);
+    }
+    else if ($type === 'completed') {
+        // Get completed appointments (paginated)
+        $appointments = $query->where(function($q) use ($nowLocal) {
+                $q->where('status', 'completed')
+                  ->orWhereDate('appointment_date', '<', $nowLocal->startOfDay());
             })
-            ->orderBy('appointment_date', 'desc')
-            ->paginate(10);
+            ->paginate($perPage)
+            ->through(function ($appointment) {
+                $paymentStatus = $appointment->payments->isNotEmpty()
+                    ? 'confirmed'
+                    : 'pending';
+
+                $doctorUser = $appointment->doctor->user;
+                $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+                $localAppointmentTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $localAppointmentTime->format('Y-m-d h:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                                     $appointment->doctor->user->last_name,
+                    'doctor_profile_picture' => $profilePictureUrl,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentStatus,
+                    'price' => $appointment->price,
+                ];
+            });
 
         return response()->json([
             'data' => $appointments->items(),
-
+            'meta' => [
+                'current_page' => $appointments->currentPage(),
+                'last_page' => $appointments->lastPage(),
+                'per_page' => $appointments->perPage(),
+                'total' => $appointments->total(),
+            ],
         ]);
     }
+
+    return response()->json(['message' => 'Invalid appointment type'], 400);
+}
+*/
+
+
+
+/*
+public function getAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
+    $type = $request->query('type', 'upcoming'); // Default to upcoming if not specified
+    $perPage = $request->query('per_page', 6); // Default to 6 items per page to match your example
+
+    // Set explicit timezone for all operations
+    date_default_timezone_set('Asia/Damascus');
+    $nowLocal = Carbon::now('Asia/Damascus');
+
+    // Base query with eager loading
+    $query = $patient->appointments()
+        ->with([
+            'doctor.user:id,first_name,last_name,profile_picture',
+            'clinic:id,name',
+            'payments' => function($query) {
+                $query->whereIn('status', ['completed', 'paid']);
+            }
+        ])
+        ->orderBy('appointment_date', 'desc');
+
+    if ($type === 'upcoming') {
+        // Get upcoming appointments (confirmed and in future in LOCAL time)
+        $appointments = $query->where('status', 'confirmed')
+            ->where('appointment_date', '>=', $nowLocal)
+            ->get()
+            ->map(function ($appointment) {
+                $localAppointmentTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                $paymentStatus = $appointment->payments->isNotEmpty()
+                    ? 'confirmed'
+                    : 'pending';
+
+                $doctorUser = $appointment->doctor->user;
+                $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $localAppointmentTime->format('Y-m-d h:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                                     $appointment->doctor->user->last_name,
+                    'doctor_profile_picture' => $profilePictureUrl,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentStatus,
+                    'price' => $appointment->price,
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments->values(),
+        ]);
+    }
+    else if ($type === 'completed') {
+        // Get completed appointments (either status=completed or date in past)
+        $completedAppointments = $query->where(function($q) use ($nowLocal) {
+                $q->where('status', 'completed')
+                  ->orWhere('appointment_date', '<', $nowLocal);
+            })
+            ->paginate($perPage);
+
+        // Transform the paginated results
+        $transformedAppointments = $completedAppointments->map(function ($appointment) {
+            $paymentStatus = $appointment->payments->isNotEmpty()
+                ? 'confirmed'
+                : 'pending';
+
+            $doctorUser = $appointment->doctor->user;
+            $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+            $localAppointmentTime = Carbon::parse($appointment->appointment_date)
+                ->setTimezone('Asia/Damascus');
+
+            return [
+                'id' => $appointment->id,
+                'date' => $localAppointmentTime->format('Y-m-d h:i A'),
+                'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                                 $appointment->doctor->user->last_name,
+                'doctor_profile_picture' => $profilePictureUrl,
+                'clinic_name' => $appointment->clinic->name,
+                'type' => $paymentStatus,
+                'price' => $appointment->price,
+            ];
+        });
+
+        return response()->json([
+            'data' => $transformedAppointments,
+            'meta' => [
+                'current_page' => $completedAppointments->currentPage(),
+                'last_page' => $completedAppointments->lastPage(),
+                'per_page' => $completedAppointments->perPage(),
+                'total' => $completedAppointments->total(),
+            ],
+        ]);
+    }
+
+    return response()->json(['message' => 'Invalid appointment type'], 400);
+}
+*/
+
+
+
+
+public function getAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
+    $type = $request->query('type', 'upcoming');
+    $perPage = $request->query('per_page', 6);
+
+    date_default_timezone_set('Asia/Damascus');
+    $nowLocal = Carbon::now('Asia/Damascus');
+
+    $query = $patient->appointments()
+        ->with([
+            'doctor.user:id,first_name,last_name,profile_picture',
+            'clinic:id,name',
+            'payments' => function($query) {
+                $query->whereIn('status', ['completed', 'paid']);
+            }
+        ])
+        ->orderBy('appointment_date', 'desc');
+
+    if ($type === 'upcoming') {
+        $appointments = $query->where('status', 'confirmed')
+            ->where('appointment_date', '>=', $nowLocal)
+            ->get()
+            ->map(function ($appointment) {
+                // Determine payment status
+                $paymentStatus = $appointment->payments->isNotEmpty()
+                    ? 'paid'
+                    : 'pending';
+
+                $doctorUser = $appointment->doctor->user;
+                $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                                     $appointment->doctor->user->last_name,
+                    'doctor_profile_picture' => $profilePictureUrl,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentStatus,
+                    'price' => $appointment->price,
+                ];
+            });
+
+        return response()->json(['data' => $appointments->values()]);
+    }
+    else if ($type === 'completed') {
+        // Get both explicitly completed and past appointments
+        $completedAppointments = $query->where(function($q) use ($nowLocal) {
+                $q->where('status', 'completed')
+                  ->orWhere('appointment_date', '<', $nowLocal);
+            })
+            ->paginate($perPage)
+            ->through(function ($appointment) use ($nowLocal) {
+                // For appointments that are past but not marked completed
+                if ($appointment->status !== 'completed' &&
+                    $appointment->appointment_date < $nowLocal) {
+                    $appointment->update(['status' => 'completed']);
+                }
+
+                $paymentStatus = $appointment->payments->isNotEmpty()
+                    ? 'paid'
+                    : 'pending';
+
+                $doctorUser = $appointment->doctor->user;
+                $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' .
+                                     $appointment->doctor->user->last_name,
+                    'doctor_profile_picture' => $profilePictureUrl,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentStatus,
+                    'price' => $appointment->price,
+                ];
+            });
+
+        return response()->json([
+            'data' => $completedAppointments->items(),
+            'meta' => [
+                'current_page' => $completedAppointments->currentPage(),
+                'last_page' => $completedAppointments->lastPage(),
+                'per_page' => $completedAppointments->perPage(),
+                'total' => $completedAppointments->total(),
+            ],
+        ]);
+    }
+
+    return response()->json(['message' => 'Invalid appointment type'], 400);
+}
 
 
     public function updateAppointment(Request $request, $id)

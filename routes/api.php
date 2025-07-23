@@ -112,7 +112,8 @@ Route::get('doctors/{doctor}/available_times/{date}', [AppointmentController::cl
 
 
 Route::prefix('appointments')->group(function () {
-            Route::get('/', [AppointmentController::class, 'getAppointments']);
+    //first route is for another time
+    Route::get('/', [AppointmentController::class, 'getAppointments']);
             Route::post('/', [AppointmentController::class, 'bookAppointment']);
             Route::put('/{appointment}', [AppointmentController::class, 'updateAppointment']);
             Route::delete('/{appointment}', [AppointmentController::class, 'cancelAppointment']);

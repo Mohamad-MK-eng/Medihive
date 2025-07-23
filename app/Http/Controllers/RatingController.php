@@ -15,7 +15,7 @@ class RatingController extends Controller
     {
         $request->validate([
             'appointment_id' => 'required|exists:appointments,id',
-            'rating' => 'required|double|between:1,5',
+            'rating' => 'required|numeric|between:1,5',
             'comment' => 'nullable|string|max:500'
         ]);
 
