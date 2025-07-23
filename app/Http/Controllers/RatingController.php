@@ -53,7 +53,7 @@ class RatingController extends Controller
             'success' => true,
             'message' => 'Rating submitted successfully',
             'data' => $review
-        ]);
+        ],200);
     }
 
     public function getTopDoctors()

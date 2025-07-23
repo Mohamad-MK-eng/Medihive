@@ -254,7 +254,7 @@ $averageRating = $doctor->reviews->avg('rating');
         return response()->json([
             'name'=> $doctor->user->first_name . ' ' . $doctor->user->last_name ,
             'specialty' => $doctor->specialty,
-
+            'rate' => $doctor->rating,
             'consultation_fee' => $doctor->consultation_fee,2,
             'bio' => $doctor->bio,
             'schedule' => $schedule,

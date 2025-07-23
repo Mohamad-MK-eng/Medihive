@@ -463,7 +463,7 @@ public function getPaymentHistory(Request $request)
     $perPage = 7;
 
     $paginatedData = new \Illuminate\Pagination\LengthAwarePaginator(
-        $sortedTransactions->forPage($page, $perPage),
+        $sortedTransactions->forPage($page, $perPage)->values(),
         $sortedTransactions->count(),
         $perPage,
         $page,
