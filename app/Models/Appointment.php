@@ -77,11 +77,14 @@ class Appointment extends Model
     }
 
 
-    public function prescription()
-    {
-        return $this->hasOne(Prescription::class);
-    }
 
+public function report()
+{
+
+return $this->hasOne(Report::class);
+
+
+}
 
     public function payments()
     {
@@ -112,7 +115,32 @@ class Appointment extends Model
 
 
 
-    // Relationship to secretary who rescheduled
+
+
+public function markAsCompleted()
+{
+    if (!$this->report) {
+        throw new \Exception('Cannot complete appointment without a medical report');
+    }
+
+    $this->update([
+        'status' => 'completed',
+        'completed_at' => now()
+    ]);
+}
+
+protected static function boot()
+{
+    parent::boot();
+
+    static::updating(function ($appointment) {
+        if ($appointment->isDirty('status') && $appointment->status === 'completed') {
+            if (!$appointment->report) {
+                throw new \Exception('Cannot mark appointment as completed without a medical report');
+            }
+        }
+    });
+}
     public function rescheduledBy()
     {
         return $this->belongsTo(User::class, 'rescheduled_by');

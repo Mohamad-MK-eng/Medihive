@@ -27,18 +27,33 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Prescription extends Model
 {
-    protected $fillable = [
+  protected $fillable = [
+        'report_id',
         'appointment_id',
         'medication',
         'dosage',
+        'frequency',
         'instructions',
-        'created_at'
+        'is_completed',
+        'issue_date'
     ];
 
     protected $casts = [
-
-        'appointment_id'
+        'is_completed' => 'boolean'
     ];
+
+
+
+        public function report()
+    {
+        return $this->belongsTo(Report::class);
+    }
+
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
+
 
     public function appointment()
     {

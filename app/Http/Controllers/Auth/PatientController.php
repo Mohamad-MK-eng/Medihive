@@ -239,7 +239,67 @@ class PatientController extends Controller
 
 
 
+public function getPatientAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
 
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    // Validate request parameters
+    $validated = $request->validate([
+        'date' => 'sometimes|date_format:Y-m-d',
+        'clinic_id' => 'sometimes|exists:clinics,id',
+        'per_page' => 'sometimes|integer|min:1|max:100',
+        'page' => 'sometimes|integer|min=1'
+    ]);
+
+    $query = Appointment::with([
+            'clinic:id,name',
+            'doctor.user:id,first_name,last_name,profile_picture'
+        ])
+        ->where('patient_id', $patient->id)
+        ->orderBy('appointment_date', 'desc');
+
+    // Apply date filter if provided
+    if ($request->has('date')) {
+        $query->whereDate('appointment_date', $validated['date']);
+    }
+
+    // Apply clinic filter if provided
+    if ($request->has('clinic_id')) {
+        $query->where('clinic_id', $validated['clinic_id']);
+    }
+
+    // Paginate results
+    $perPage = $validated['per_page'] ?? 10;
+    $appointments = $query->paginate($perPage);
+
+    // Format response to match your interface
+    $formattedAppointments = $appointments->map(function ($appointment) {
+        $doctorUser = $appointment->doctor->user;
+        $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+
+        return [
+            'date' => $appointment->appointment_date->format('Y-m-d - h:i A'), // "2025-17-7 - 1:00 PM"
+            'clinic' => $appointment->clinic->name, // "Oncology"
+            'doctor' => $doctorUser ? 'Dr. ' . $doctorUser->first_name . ' ' . $doctorUser->last_name : null,
+            'specialty' => $appointment->doctor->specialty,
+            'doctor_profile_picture' => $profilePictureUrl // Added profile picture URL
+        ];
+    });
+
+    return response()->json([
+        'data' => $formattedAppointments,
+        'meta' => [
+            'current_page' => $appointments->currentPage(),
+            'per_page' => $appointments->perPage(),
+            'total' => $appointments->total(),
+            'last_page' => $appointments->lastPage(),
+        ]
+    ]);
+}
 
 
     // tested successfully

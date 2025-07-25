@@ -95,7 +95,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::put('/profile', [PatientController::class, 'updateProfile']);
             Route::post('/profile_picture', [PatientController::class, 'uploadProfilePicture']);
             Route::get('/profile_picture', [PatientController::class, 'getProfilePicture']);
-            // new
+
+Route::get('/appointments' , [PatientController::class, 'getPatientAppointments']);
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
@@ -190,17 +191,19 @@ Route::prefix('appointments')->group(function () {
 
 
 
-    Route::middleware(['role:secretary,patient,doctor'])->group(function () {
-
-        // Medical records
-        Route::get('/medical-history', [PatientController::class, 'getMedicalHistory']);
-        Route::get('/prescriptions', [PatientController::class, 'getPrescriptions']); // did not work
-        Route::post('/documents', [PatientController::class, 'uploadDocument']); // Fix
-    });
 
 
 
+    Route::post('/appointments/{appointment}/reports', [DoctorController::class, 'SubmitMedicalReport']);
 
+    Route::post('/reports/{report}/prescriptions', [DoctorController::class, 'addPrescriptions']);
+
+    Route::get('/appointments/{appointment}/reports', [DoctorController::class, 'getAppointmentReports']);
+
+Route::group(['middleware' => ['auth:api', 'patient']], function() {
+
+    Route::get('/reports/{report}', [PatientController::class, 'getReport']);
+});
 
 
 
@@ -230,6 +233,7 @@ Route::prefix('appointments')->group(function () {
         Route::get('/payments/history', [PaymentController::class, 'getPaymentHistory']);
         Route::get('/payments_info', [PaymentController::class, 'PaymentInfo']);
     });
+
 
 
 

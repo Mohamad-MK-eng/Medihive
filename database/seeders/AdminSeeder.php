@@ -173,14 +173,8 @@ class AdminSeeder extends Seeder
             }
         }
 
-$prescription = Prescription::create([
-    'patient_id' => $patient->id,
-    'medication' => 'Sample medication',
-    'dosage' => '500mg',
-    'instructions' => 'Take twice daily',
-    'issue_date' => now(),
-    'expiry_date' => now()->addDays(30)
-]);
+
+
 
 
 

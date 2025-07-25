@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
+use App\Models\Prescription;
+use App\Models\Report;
 use App\Models\TimeSlot;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\Traits\HandlesFiles;
 use Carbon\Carbon;
+use DB;
 
 class DoctorController extends Controller
 {
@@ -78,7 +81,7 @@ public function getProfilePicture()
 public function uploadProfilePicture(Request $request)
 {
     $request->validate([
-        'profile_picture' => 'required|image|mimes:jpg,jpeg,png|max:3072'
+        'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png|max:3072'
     ]);
 
     $user = Auth::user();
@@ -337,4 +340,138 @@ public function updateProfile(Request $request)
             'data' => $topDoctors
         ]);
     }
+
+
+
+
+
+
+
+
+
+
+
+
+public function addPrescriptions(Request $request, $reportId)
+{
+    $doctor = Auth::user()->doctor;
+    if (!$doctor) {
+        return response()->json(['message' => 'Doctor profile not found'], 404);
+    }
+
+    $validated = $request->validate([
+        'prescriptions' => 'nullable|array',
+        'prescriptions.*.medication' => 'nullable|string|max:255',
+        'prescriptions.*.dosage' => 'nullable|string|max:100',
+        'prescriptions.*.frequency' => 'nullable|string|max:100',
+        'prescriptions.*.instructions' => 'nullable|string',
+        'prescriptions.*.is_completed' => 'sometimes|boolean',
+    ]);
+
+    $report = Report::whereHas('appointment', function($query) use ($doctor) {
+            $query->where('doctor_id', $doctor->id);
+        })
+        ->where('id', $reportId)
+        ->firstOrFail();
+
+    return DB::transaction(function () use ($report, $validated) {
+        $prescriptions = [];
+
+        foreach ($validated['prescriptions'] as $prescriptionData) {
+            $prescription = new Prescription([
+                'report_id' => $report->id,
+                'appointment_id' => $report->appointment_id,
+                'medication' => $prescriptionData['medication'],
+                'dosage' => $prescriptionData['dosage'],
+                'frequency' => $prescriptionData['frequency'] ?? null,
+                'instructions' => $prescriptionData['instructions'] ?? null,
+                'is_completed' => $prescriptionData['is_completed'] ?? false,
+                'issue_date' => now(),
+            ]);
+            $prescription->save();
+            $prescriptions[] = $prescription;
+        }
+
+        return response()->json([
+            'message' => 'Prescriptions added successfully',
+            'prescriptions' => $prescriptions,
+        ], 201);
+    });
 }
+
+public function submitMedicalReport(Request $request, $appointmentId)
+{
+    $doctor = Auth::user()->doctor;
+    if (!$doctor) {
+        return response()->json(['message' => 'Doctor profile not found'], 404);
+    }
+
+    $appointment = Appointment::with(['clinic', 'doctor.user'])->where('doctor_id', $doctor->id)
+        ->where('id', $appointmentId)
+        ->firstOrFail();
+
+    // Validate the request
+    $validated = $request->validate([
+        'title' => 'nullable|string|max:255',
+        'content' => 'nullable|string|min:20',
+        'prescriptions' => 'nullable|array',
+        'prescriptions.*.medication' => 'nullable|string|max:255',
+        'prescriptions.*.dosage' => 'nullable|string|max:100',
+        'prescriptions.*.frequency' => 'nullable|string|max:100',
+        'prescriptions.*.instructions' => 'nullable|string',    ]);
+
+    return DB::transaction(function () use ($appointment, $validated) {
+        // Create the report
+        $report = Report::create([
+            'appointment_id' => $appointment->id,
+            'title' => $validated['title'],
+            'content' => $validated['content']
+        ]);
+
+        // Add prescriptions
+        foreach ($validated['prescriptions'] as $prescriptionData) {
+            Prescription::create([
+                'report_id' => $report->id,
+                'appointment_id' => $appointment->id,
+                'medication' => $prescriptionData['medication'],
+                'dosage' => $prescriptionData['dosage'],
+                'frequency' => $prescriptionData['frequency'],
+                'instructions' => $prescriptionData['instructions'],
+                'issue_date' => now()
+            ]);
+        }
+
+        // Mark appointment as completed
+        $appointment->update(['status' => 'completed']);
+
+        // Format the response to exactly match your interface
+        return response()->json([
+            'success' => true,
+            'message' => 'Medical report submitted successfully',
+            'report' => [
+                'date' => $appointment->appointment_date->format('Y-m-d h:i A'), // "2025-08-01 09:00 AM" format
+                'clinic' => $appointment->clinic->name, // "Oncology"
+                'doctor' => $appointment->doctor->user->name, // "John White" or null if not set
+                'specialty' => $appointment->doctor->specialty, // "Cardiology"
+                'title' => $report->title, // "Annual Checkup Report"
+                'content' => $report->content, // Patient health details
+                'prescriptions' => $report->prescriptions->map(function($prescription) {
+                    return [
+                        'medication' => $prescription->medication, // "Paracetamol"
+                        'dosage' => $prescription->dosage, // "500mg"
+                        'frequency' => $prescription->frequency, // "3x/day"
+                        'instructions' => $prescription->instructions, // "After meal"
+                    ];
+                })->toArray()
+            ]
+        ]);
+    });
+}
+}
+
+
+
+
+
+
+

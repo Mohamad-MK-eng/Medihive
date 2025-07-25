@@ -61,21 +61,6 @@ class PatientController extends Controller
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     public function updateProfile(Request $request)
     {
         $user = Auth::user();
@@ -252,79 +237,6 @@ class PatientController extends Controller
 
 
 
-
-
-    // tested successfully there is a problem here
-
-    public function getMedicalHistory(Request $request)
-    {
-        $patient = Auth::user()->patient;
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
-
-
-        return $request->user()->patient->appointments()
-            ->with(['prescription', 'medicalNotes', 'doctor.user', 'clinic'])
-            ->where('appointment_date', '<=', now())
-            ->orderBy('appointment_date', 'desc')
-            ->get()
-            ->map(function ($appointment) {
-                return [
-                    'id' => $appointment->id,
-                    'date' => $appointment->appointment_date,
-                    'clinic' => $appointment->clinic->name,
-                    'doctor' => $appointment->doctor->user->name,
-                    'diagnosis' => $appointment->diagnosis,
-                    'notes' => $appointment->notes,
-                    'prescription' => $appointment->prescription,
-                ];
-            });
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    //  not tested yet
-    public function uploadDocument(Request $request)
-    {
-        $validated = $request->validate([
-         //   'file' => 'required|file|mimes:pdf,jpg,png|max:5120',
-            'type' => 'required|in:lab_report,prescription,scan',
-            'appointment_id' => 'sometimes|exists:appointments,id'
-        ]);
-
-        $path = $request->file('file')->store('patient_documents');
-
-        $document = Auth::user()->patient->documents()->create([
-            'file_path' => $path,
-            'type' => $validated['type'],
-            'appointment_id' => $validated['appointment_id'] ?? null,
-            'uploaded_at' => now()
-        ]);
-
-        return response()->json($document, 201);
-    }
-
-
-
-
-
-    // not tested  yet
     public function getWalletBalance()
     {
         $patient = Auth::user()->patient;
@@ -337,13 +249,6 @@ class PatientController extends Controller
             'wallet_activated' => !is_null($patient->wallet_activated_at)
         ]);
     }
-
-
-
-
-
-
-
 
 
 
@@ -367,14 +272,6 @@ class PatientController extends Controller
     }
 
 
-
-
-
-
-
-
-
-    //  until another time
     public function submitRating(Request $request)
     {
         $validated = $request->validate([
@@ -391,5 +288,10 @@ class PatientController extends Controller
 
         return response()->json($review, 201);
     }
+
+
+
+
+
 
 }
