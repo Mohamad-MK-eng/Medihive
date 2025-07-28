@@ -141,7 +141,7 @@ $status = 'confirmed'; // Default status
     'message' => 'Operation Done Successfully',
     'appointment_details' => [
         'clinic' => $doctor->clinic->name,
-        'doctor' => 'Dr. ' . $doctor->user->name,
+        'doctor' => $doctor->user->first_name.' '.$doctor->user->last_name,
         'date' => $appointment->appointment_date->format('D d F Y'),
         'note' => 'Stay tuned for any updates'
     ]
@@ -883,51 +883,65 @@ public function getAppointments(Request $request)
 }
 
 
-    public function updateAppointment(Request $request, $id)
-    {
-        try {
-            $patient = Auth::user()->patient;
-            if (!$patient) {
-                return response()->json(['message' => 'Patient profile not found'], 404);
-            }
-
-            $appointment = $patient->appointments()->findOrFail($id);
-
-            // Updated validation to match request field names
-            $validated = $request->validate([
-                'doctor_id' => 'sometimes|exists:doctors,id',
-                'time_slot_id' => 'sometimes|exists:time_slots,id', // Changed from slot_id
-                'reason' => 'sometimes|string|max:500|nullable',
-            ], [
-                'doctor_id.exists' => 'The selected doctor does not exist',
-                'time_slot_id.exists' => 'The selected time slot does not exist' // Updated
-            ]);
-
-            // Manual field updates - simplified since names now match
-            if (isset($validated['doctor_id'])) {
-                $appointment->doctor_id = $validated['doctor_id'];
-            }
-
-            if (isset($validated['time_slot_id'])) {
-                $appointment->time_slot_id = $validated['time_slot_id'];
-            }
-
-            if (array_key_exists('reason', $validated)) {
-                $appointment->reason = $validated['reason'];
-            }
-
-            if (!$appointment->save()) {
-                return response()->json(['message' => 'Failed to save changes'], 500);
-            }
-
-            return response()->json($appointment->fresh()->load('doctor.user'));
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Update failed',
-                'error' => $e->getMessage()
-            ], 500);
+ public function updateAppointment(Request $request, $id)
+{
+    try {
+        $patient = Auth::user()->patient;
+        if (!$patient) {
+            return response()->json(['message' => 'Patient profile not found'], 404);
         }
+
+        $appointment = $patient->appointments()->findOrFail($id);
+
+        $validated = $request->validate([
+            'doctor_id' => 'sometimes|exists:doctors,id',
+            'time_slot_id' => 'sometimes|exists:time_slots,id',
+            'reason' => 'sometimes|string|max:500|nullable',
+        ], [
+            'doctor_id.exists' => 'The selected doctor does not exist',
+            'time_slot_id.exists' => 'The selected time slot does not exist'
+        ]);
+
+        if (isset($validated['doctor_id'])) {
+            $appointment->doctor_id = $validated['doctor_id'];
+        }
+
+        if (isset($validated['time_slot_id'])) {
+            $appointment->time_slot_id = $validated['time_slot_id'];
+        }
+
+        if (array_key_exists('reason', $validated)) {
+            $appointment->reason = $validated['reason'];
+        }
+
+        if (!$appointment->save()) {
+            return response()->json(['message' => 'Failed to save changes'], 500);
+        }
+
+        // تحديث البيانات من القاعدة
+        $appointment->refresh();
+
+        // ✅ جلب معلومات الدكتور بعد الحفظ
+        $doctor = $appointment->doctor()->with('clinic', 'user')->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Operation Done Successfully',
+            'appointment_details' => [
+                'clinic' => $doctor->clinic->name ?? 'Unknown Clinic',
+                'doctor' =>$doctor->user->first_name.' '.$doctor->user->last_name ?? 'Unknown Doctor',
+                'date' => $appointment->appointment_date->format('D d F Y'),
+                'note' => 'Stay tuned for any updates'
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Update failed',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
 
     public function cancelAppointment(Request $request, $id)
     {
