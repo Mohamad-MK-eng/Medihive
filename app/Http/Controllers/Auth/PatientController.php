@@ -231,12 +231,23 @@ class PatientController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
+
+
+
+            if ($transactions->isEmpty()) {
+        return response()->json([
+            'message' => 'No transactions found',
+            'data' => [],
+            'meta' => [
+                'current_page' => $transactions->currentPage(),
+                'per_page' => $transactions->perPage(),
+                'total' => $transactions->total(),
+                'last_page' => $transactions->lastPage(),
+            ]
+        ]);
+    }
         return response()->json($transactions);
     }
-
-
-
-
 
 
 public function getPatientHistory(Request $request)
@@ -247,26 +258,65 @@ public function getPatientHistory(Request $request)
         return response()->json(['message' => 'Patient profile not found'], 404);
     }
 
-    // Validate request parameters
-    $validated = $request->validate([
-        'date' => 'sometimes|date_format:Y-n-j',
+    // Custom validation for date (accepts both YYYY-M and YYYY-M-D)
+    $validator = Validator::make($request->all(), [
+        'date' => ['sometimes', 'regex:/^\d{4}-\d{1,2}(-\d{1,2})?$/'],
         'clinic_id' => 'sometimes|exists:clinics,id',
         'per_page' => 'sometimes|integer|min:1|max:100',
         'page' => 'sometimes|integer|min:1'
     ]);
 
-    $query = Appointment::with([
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors' => $validator->errors()
+        ], 422);
+    }
 
+    $validated = $validator->validated();
+
+    $query = Appointment::with([
             'clinic:id,name',
             'doctor.user:id,first_name,last_name,profile_picture'
         ])
         ->where('patient_id', $patient->id)
         ->orderBy('appointment_date', 'desc');
 
-   if ($request->has('date')) {
-    $date = Carbon::createFromFormat('Y-n-j', $validated['date'])->format('Y-m-d');
-    $query->whereDate('appointment_date', $date); // ← Use the converted date
-}
+    if ($request->has('date')) {
+        $dateInput = $validated['date'];
+        $dateParts = explode('-', $dateInput);
+
+        if (count($dateParts) === 2) {
+            // Format: YYYY-M (month filter)
+            $year = $dateParts[0];
+            $month = $dateParts[1];
+
+            // Validate month
+            if ($month < 1 || $month > 12) {
+                return response()->json([
+                    'message' => 'Invalid month value (1-12)',
+                    'errors' => ['date' => ['Month must be between 1 and 12']]
+                ], 422);
+            }
+
+            $query->whereYear('appointment_date', $year)
+                  ->whereMonth('appointment_date', $month);
+        } else {
+            // Format: YYYY-M-D (specific date filter)
+            try {
+                $date = Carbon::createFromFormat('Y-n-j', $dateInput);
+                if (!$date || $date->format('Y-n-j') !== $dateInput) {
+                    throw new \Exception('Invalid date');
+                }
+                $query->whereDate('appointment_date', $date->format('Y-m-d'));
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Invalid date format',
+                    'errors' => ['date' => ['Date must be in format YYYY-M or YYYY-M-D']]
+                ], 422);
+            }
+        }
+    }
 
     // Apply clinic filter if provided
     if ($request->has('clinic_id')) {
@@ -277,23 +327,38 @@ public function getPatientHistory(Request $request)
     $perPage = $validated['per_page'] ?? 10;
     $appointments = $query->paginate($perPage);
 
+
+      if ($appointments->isEmpty()) {
+        return response()->json([
+            'message' => 'No appointments found for the given criteria',
+            'data' => [],
+            'meta' => [
+                'current_page' => $appointments->currentPage(),
+                'per_page' => $appointments->perPage(),
+                'total' => $appointments->total(),
+                'last_page' => $appointments->lastPage(),
+            ]
+        ]);
+    }
     // Format response to match your interface
     $formattedAppointments = $appointments->map(function ($appointment) {
         $doctorUser = $appointment->doctor->user;
         $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
 
         return [
-            'date' => $appointment->appointment_date->format('Y-n-j h:i A'), // "2025-17-7 - 1:00 PM"
-            'clinic' => $appointment->clinic->name, // "Oncology"
+            'date' => $appointment->appointment_date->format('Y-n-j h:i A'),
+            'clinic' => $appointment->clinic->name,
+            'doctor_id'=>$appointment->doctor->id,
+            'first_name'=>$appointment->patient->user->first_name,
+            'last_name'=>$appointment->patient->user->last_name,
             'doctor' => $doctorUser ? 'Dr. ' . $doctorUser->first_name . ' ' . $doctorUser->last_name : null,
             'specialty' => $appointment->doctor->specialty,
-            'doctor_profile_picture' => $profilePictureUrl // Added profile picture URL
-        ];
+            'doctor_profile_picture' => $profilePictureUrl
+                ];
     });
 
     return response()->json([
         'data' => $formattedAppointments,
-
         'meta' => [
             'current_page' => $appointments->currentPage(),
             'per_page' => $appointments->perPage(),
@@ -302,7 +367,6 @@ public function getPatientHistory(Request $request)
         ]
     ]);
 }
-
 
     // tested successfully
 
@@ -314,39 +378,32 @@ public function getPatientHistory(Request $request)
         }
 
 
-        return $request->user()->patient->appointments()
-            ->with(['prescription', 'medicalNotes', 'doctor.user', 'clinic'])
-            ->where('appointment_date', '<=', now())
-            ->orderBy('appointment_date', 'desc')
-            ->get()
-            ->map(function ($appointment) {
-                return [
-                    'id' => $appointment->id,
-                    'date' => $appointment->appointment_date,
-                    'clinic' => $appointment->clinic->name,
-                    'doctor' => $appointment->doctor->user->name,
-                    'diagnosis' => $appointment->diagnosis,
-                    'notes' => $appointment->notes,
-                    'prescription' => $appointment->prescription,
-                ];
-            });
-        /*
-    $history = $patient->appointments()
-        ->with(['doctor.user:id,first_name,last_name', 'prescriptions.medications'])
-        ->where('status', 'completed')
-        ->when($request->has('from'), function($query) use ($request) {
-            return $query->whereDate('appointment_date', '>=', $request->from);
-        })
-        ->when($request->has('to'), function($query) use ($request) {
-            return $query->whereDate('appointment_date', '<=', $request->to);
-        })
+         $history = $request->user()->patient->appointments()
+        ->with(['prescription', 'medicalNotes', 'doctor.user', 'clinic'])
+        ->where('appointment_date', '<=', now())
         ->orderBy('appointment_date', 'desc')
         ->get();
 
-    return response()->json($history);
-
-    */
+    if ($history->isEmpty()) {
+        return response()->json([
+            'message' => 'No medical history found',
+            'data' => []
+        ]);
     }
+
+
+      return $history->map(function ($appointment) {
+        return [
+            'id' => $appointment->id,
+            'date' => $appointment->appointment_date,
+            'clinic' => $appointment->clinic->name,
+            'doctor' => $appointment->doctor->user->name,
+            'diagnosis' => $appointment->diagnosis,
+            'notes' => $appointment->notes,
+            'prescription' => $appointment->prescription,
+        ];
+    });
+}
 
 
 
@@ -427,11 +484,10 @@ public function getPatientHistory(Request $request)
             ->pluck('prescription') // Extract prescriptions
             ->filter(); // Remove null entries (if any)
 
-        // Alternative 2: If prescriptions have a direct patient_id column
-        // $prescriptions = Prescription::where('patient_id', $patient->id)
-        //     ->orderBy('created_at', 'desc')
-        //     ->get();
-
+         if ($prescriptions->isEmpty()) {
+        return response()->json([
+            'message' => 'No prescriptions found'        ]);
+    }
         return response()->json($prescriptions);
     }
 
@@ -444,7 +500,6 @@ public function getAppointmentReports(Appointment $appointment)
 {
     $patient = Auth::user()->patient;
 
-    // Verify the appointment belongs to the authenticated patient
     if ($appointment->patient_id !== $patient->id) {
         return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
     }
