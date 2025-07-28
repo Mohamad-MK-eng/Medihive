@@ -20,6 +20,9 @@ class AdminSeeder extends Seeder
         ];
 
         // Create clinic
+          Clinic::create([
+            'name' => 'ENt',
+        ]);
         $clinic1 = Clinic::create([
             'name' => 'Oncology',
         ]);
@@ -29,6 +32,7 @@ class AdminSeeder extends Seeder
         Clinic::create([
             'name' => 'Opthalmology',
         ]);
+      
 
 
                // Create secretary

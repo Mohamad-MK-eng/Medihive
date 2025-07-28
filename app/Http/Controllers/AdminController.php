@@ -312,7 +312,7 @@ class AdminController extends Controller
                 $request->slot_duration
             );
                 // Generate time slots
-                $timeSlots = [];
+              /*   $timeSlots = [];
                 $slotDuration = $request->slot_duration;
 
                 for ($i = 1; $i <= $request->generate_slots_for_days; $i++) {
@@ -340,7 +340,7 @@ class AdminController extends Controller
                             'updated_at' => now()
                         ];
                     }
-                }
+                } */
 
                 // Insert time slots if any were generated
                 if (!empty($timeSlots)) {
