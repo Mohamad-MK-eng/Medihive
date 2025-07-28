@@ -96,7 +96,11 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::post('/profile_picture', [PatientController::class, 'uploadProfilePicture']);
             Route::get('/profile_picture', [PatientController::class, 'getProfilePicture']);
 
-Route::get('/appointments' , [PatientController::class, 'getPatientAppointments']);
+
+
+
+            // hereeeeeeeeeeeee
+Route::get('/appointments' , [PatientController::class, 'getPatientHistory']);
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
@@ -198,12 +202,13 @@ Route::prefix('appointments')->group(function () {
 
     Route::post('/reports/{report}/prescriptions', [DoctorController::class, 'addPrescriptions']);
 
-    Route::get('/appointments/{appointment}/reports', [DoctorController::class, 'getAppointmentReports']);
 
-Route::group(['middleware' => ['auth:api', 'patient']], function() {
 
-    Route::get('/reports/{report}', [PatientController::class, 'getReport']);
-});
+
+
+    //hereeeeeeeeeeeeeeeee
+    Route::get('/appointments/{appointment}/reports', [PatientController::class, 'getAppointmentReports']);
+
 
 
 

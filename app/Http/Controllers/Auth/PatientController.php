@@ -239,7 +239,7 @@ class PatientController extends Controller
 
 
 
-public function getPatientAppointments(Request $request)
+public function getPatientHistory(Request $request)
 {
     $patient = Auth::user()->patient;
 
@@ -249,23 +249,24 @@ public function getPatientAppointments(Request $request)
 
     // Validate request parameters
     $validated = $request->validate([
-        'date' => 'sometimes|date_format:Y-m-d',
+        'date' => 'sometimes|date_format:Y-n-j',
         'clinic_id' => 'sometimes|exists:clinics,id',
         'per_page' => 'sometimes|integer|min:1|max:100',
-        'page' => 'sometimes|integer|min=1'
+        'page' => 'sometimes|integer|min:1'
     ]);
 
     $query = Appointment::with([
+
             'clinic:id,name',
             'doctor.user:id,first_name,last_name,profile_picture'
         ])
         ->where('patient_id', $patient->id)
         ->orderBy('appointment_date', 'desc');
 
-    // Apply date filter if provided
-    if ($request->has('date')) {
-        $query->whereDate('appointment_date', $validated['date']);
-    }
+   if ($request->has('date')) {
+    $date = Carbon::createFromFormat('Y-n-j', $validated['date'])->format('Y-m-d');
+    $query->whereDate('appointment_date', $date); // ← Use the converted date
+}
 
     // Apply clinic filter if provided
     if ($request->has('clinic_id')) {
@@ -282,7 +283,7 @@ public function getPatientAppointments(Request $request)
         $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
 
         return [
-            'date' => $appointment->appointment_date->format('Y-m-d - h:i A'), // "2025-17-7 - 1:00 PM"
+            'date' => $appointment->appointment_date->format('Y-n-j h:i A'), // "2025-17-7 - 1:00 PM"
             'clinic' => $appointment->clinic->name, // "Oncology"
             'doctor' => $doctorUser ? 'Dr. ' . $doctorUser->first_name . ' ' . $doctorUser->last_name : null,
             'specialty' => $appointment->doctor->specialty,
@@ -292,6 +293,7 @@ public function getPatientAppointments(Request $request)
 
     return response()->json([
         'data' => $formattedAppointments,
+
         'meta' => [
             'current_page' => $appointments->currentPage(),
             'per_page' => $appointments->perPage(),
@@ -438,10 +440,48 @@ public function getPatientAppointments(Request $request)
 
 
 
+public function getAppointmentReports(Appointment $appointment)
+{
+    $patient = Auth::user()->patient;
 
+    // Verify the appointment belongs to the authenticated patient
+    if ($appointment->patient_id !== $patient->id) {
+        return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
+    }
 
+    // Load the report with prescriptions and related data
+    $report = $appointment->report()
+                ->with(['prescriptions', 'appointment.doctor.user', 'appointment.clinic'])
+                ->first();
 
+    if (!$report) {
+        return response()->json(['message' => 'No report found for this appointment'], 404);
+    }
 
+    // Format the response to match your interface
+    $formattedReport = [
+        'date' => $appointment->appointment_date->format('Y-n-j h:i A'), // "2025-7-20 10:00 AM"
+        'clinic' => $appointment->clinic->name, // "Oncology"
+        'doctor' => $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name, // "John White"
+        'specialty' => $appointment->doctor->specialty, // "special"
+        'title' => $report->title ?? 'Medical Report', // "Report Title"
+        'content' => $report->content, // The content of the report
+        'prescriptions' => $report->prescriptions->map(function($prescription) {
+            return [
+                'medication' => $prescription->medication, // "Paracetamol"
+                'dosage' => $prescription->dosage, // "500mg"
+                'frequency' => $prescription->frequency, // "3x/day"
+                'instructions' => $prescription->instructions, // "After meal"
+                'is_completed' => (bool)$prescription->is_completed // checkbox status
+            ];
+        })->toArray()
+    ];
+
+    return response()->json([
+        'success' => true,
+        'report' => $formattedReport
+    ]);
+}
 
 
 
