@@ -40,6 +40,21 @@ class AppointmentController extends Controller
             return response()->json(['error' => 'Authenticated user is not a patient'], 403);
         }
 
+
+           $absentCount = Appointment::where('patient_id', $patient->id)
+        ->where('status', 'absent')
+        ->count();
+
+
+        $absentCount = Appointment::where('patient_id', $patient->id)
+        ->where('status', 'absent')
+        ->count();
+    if ($absentCount >= 3) {
+        return response()->json([
+            'error' => 'account_blocked',
+            'message' => 'Your account has been blocked due to multiple missed appointments. Please contact the clinic center.'
+        ], 403);
+    }
         $validated = $request->validate([
             'doctor_id' => 'required|exists:doctors,id',
             'slot_id' => 'required|exists:time_slots,id',
@@ -58,8 +73,18 @@ class AppointmentController extends Controller
                     ->firstOrFail();
 
                 if ($slot->is_booked) {
+                 $existingAppointment = Appointment::where('time_slot_id', $slot->id)
+                    ->whereIn('status', ['confirmed', 'completed'])
+                    ->first();
+
+                if ($existingAppointment) {
                     return response()->json(['error' => 'This time slot has already been booked'], 409);
+                } else {
+                    // If no active appointment exists but slot is marked as booked, fix it
+                    $slot->update(['is_booked' => false]);
                 }
+            }
+
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
 
@@ -780,7 +805,6 @@ public function getAppointments(Request $request)
 
 
 
-
 public function getAppointments(Request $request)
 {
     $patient = Auth::user()->patient;
@@ -878,6 +902,46 @@ public function getAppointments(Request $request)
             ],
         ]);
     }
+ else if ($type === 'absent') {
+        // Get only absent appointments
+        $absentAppointments = $query->where('status', 'absent')
+            ->paginate($perPage)
+            ->through(function ($appointment) {
+                $paymentStatus = $appointment->payments->isNotEmpty()
+                    ? 'paid'
+                    : 'pending';
+
+                $doctorUser = $appointment->doctor->user;
+                $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'doctor_id' => $appointment->doctor->id,
+                    'first_name' => $appointment->doctor->user->first_name,
+                    'last_name' => $appointment->doctor->user->last_name,
+                    'specialty' => $appointment->doctor->specialty,
+                    'profile_picture_url' => $profilePictureUrl,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentStatus,
+                    'price' => $appointment->price,
+                    'status' => $appointment->status,
+                    'is_absent' => true // Additional flag for frontend
+                ];
+            });
+
+        return response()->json([
+            'data' => $absentAppointments->items(),
+            'meta' => [
+                'current_page' => $absentAppointments->currentPage(),
+                'last_page' => $absentAppointments->lastPage(),
+                'per_page' => $absentAppointments->perPage(),
+                'total' => $absentAppointments->total(),
+            ],
+        ]);
+    }
 
     return response()->json(['message' => 'Invalid appointment type'], 400);
 }
@@ -943,45 +1007,157 @@ public function getAppointments(Request $request)
 }
 
 
-    public function cancelAppointment(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'reason' => 'required|string|max:500'
-        ]);
 
-        $appointment = Auth::user()->patient->appointments()
-            ->where('status', '!=', 'completed')
-            ->findOrFail($id);
 
-        $hoursBeforeCancellation = 24;
-        /*  if (now()->diffInHours($appointment->appointment_date) < $hoursBeforeCancellation) {
+protected function emptyAppointmentSlot(Appointment $appointment)
+{
+    DB::transaction(function () use ($appointment) {
+        // Free up the time slot
+        $timeSlot = TimeSlot::find($appointment->time_slot_id);
+        if ($timeSlot) {
+            $timeSlot->update(['is_booked' => false]);
+        }
+
+        // Process refund if paid via wallet
+        $payment = Payment::where('appointment_id', $appointment->id)
+            ->where('method', 'wallet')
+            ->where('status', 'completed')
+            ->first();
+
+        if ($payment) {
+            $refundAmount = $appointment->price;
+            $clinicWallet = ClinicWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
+
+            if ($clinicWallet->balance >= $refundAmount) {
+                // Refund to patient
+                $appointment->patient->increment('wallet_balance', $refundAmount);
+
+                // Deduct from clinic wallet
+                $clinicWallet->decrement('balance', $refundAmount);
+
+                // Create transactions
+                WalletTransaction::create([
+                    'patient_id' => $appointment->patient->id,
+                    'amount' => $refundAmount,
+                    'type' => 'refund',
+                    'reference' => 'APT-' . $appointment->id,
+                    'balance_before' => $appointment->patient->wallet_balance - $refundAmount,
+                    'balance_after' => $appointment->patient->wallet_balance,
+                    'notes' => 'Refund for emptied appointment #' . $appointment->id
+                ]);
+
+                ClinicWalletTransaction::create([
+                    'clinic_wallet_id' => $clinicWallet->id,
+                    'amount' => $refundAmount,
+                    'type' => 'refund',
+                    'reference' => 'APT-' . $appointment->id,
+                    'balance_before' => $clinicWallet->balance + $refundAmount,
+                    'balance_after' => $clinicWallet->balance,
+                    'notes' => 'Refund for emptied appointment #' . $appointment->id
+                ]);
+
+                $payment->update([
+                    'status' => 'refunded',
+                    'refunded_at' => now(),
+                    'refund_amount' => $refundAmount
+                ]);
+            }
+        }
+    });
+}
+public function cancelAppointment(Request $request, $id)
+{
+    $validated = $request->validate([
+        'reason' => 'required|string|max:500'
+    ]);
+
+    return DB::transaction(function () use ($validated, $id) {
+        try {
+            $patient = Auth::user()->patient;
+            $appointment = $patient->appointments()
+                ->where('status', '!=', 'completed')
+                ->findOrFail($id);
+
+            // Free up the time slot with lock to prevent race conditions
+            $timeSlot = TimeSlot::where('id', $appointment->time_slot_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($timeSlot) {
+                $timeSlot->update(['is_booked' => false]);
+            }
+
+            // Update appointment status
+            $appointment->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancellation_reason' => $validated['reason']
+            ]);
+
+            // Process refund if paid via wallet
+            $payment = Payment::where('appointment_id', $appointment->id)
+                ->where('method', 'wallet')
+                ->where('status', 'completed')
+                ->first();
+
+            $refundAmount = 0;
+            if ($payment) {
+                $refundAmount = $appointment->price;
+                $clinicWallet = ClinicWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
+
+                if ($clinicWallet->balance >= $refundAmount) {
+                    // Refund to patient
+                    $patient->increment('wallet_balance', $refundAmount);
+
+                    // Deduct from clinic wallet
+                    $clinicWallet->decrement('balance', $refundAmount);
+
+                    // Create transactions
+                    WalletTransaction::create([
+                        'patient_id' => $patient->id,
+                        'amount' => $refundAmount,
+                        'type' => 'refund',
+                        'reference' => 'APT-' . $appointment->id,
+                        'balance_before' => $patient->wallet_balance - $refundAmount,
+                        'balance_after' => $patient->wallet_balance,
+                        'notes' => 'Refund for cancelled appointment #' . $appointment->id
+                    ]);
+
+                    ClinicWalletTransaction::create([
+                        'clinic_wallet_id' => $clinicWallet->id,
+                        'amount' => $refundAmount,
+                        'type' => 'refund',
+                        'reference' => 'APT-' . $appointment->id,
+                        'balance_before' => $clinicWallet->balance + $refundAmount,
+                        'balance_after' => $clinicWallet->balance,
+                        'notes' => 'Refund for cancelled appointment #' . $appointment->id
+                    ]);
+
+                    $payment->update([
+                        'status' => 'refunded',
+                        'refunded_at' => now(),
+                        'refund_amount' => $refundAmount
+                    ]);
+                }
+            }
+
+            Notification::sendNow($patient->user, new AppointmentCancelled($appointment));
+
             return response()->json([
-                'message' => "Appointments must be cancelled at least {$hoursBeforeCancellation} hours in advance"
-            ], 403);
-        } */
+                'message' => 'Appointment cancelled successfully',
+                'slot_freed' => $timeSlot ? $timeSlot->id : null,
+                'refund_processed' => $payment ? true : false,
+                'refund_amount' => $payment ? $refundAmount : 0
+            ]);
 
-        $appointment->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancellation_reason' => $validated['reason']
-        ]); // بدي عالج قصة الخصم
-
-        /*  لا تقيم الكومنت لا تقيم الكومنت لا تقيم الكومنت
-        $appointment->patient->notifications()->create([
-            'title' => 'Appointment Cancelled',
-            'body' => "Your appointment on {$appointment->appointment_date->format('M j, Y g:i A')} has been cancelled. Reason: {$validated['reason']}",
-            'type' => 'appointment_update'
-        ]);
-*/
-
-        $patient = Auth::user()->patient;
-
-
-
-        Notification::sendNow($patient->user, new AppointmentCancelled($appointment));
-
-        return response()->json(['message' => 'Appointment cancelled successfully']);
-    }
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'cancellation_failed',
+                'message' => 'Failed to cancel appointment: ' . $e->getMessage()
+            ], 500);
+        }
+    });
+}
 
     public function rescheduleAppointment(Request $request, $id)
     {

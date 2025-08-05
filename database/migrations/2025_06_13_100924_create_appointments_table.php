@@ -20,7 +20,7 @@ return new class extends Migration
 $table->foreignId('time_slot_id')->references('id')->on('time_slots')->onDelete('cascade');
 
             $table->datetime('appointment_date')->nullable(false);
-            $table->enum('status', ['pending', 'confirmed', 'cancelled','completed']);
+            $table->enum('status', ['pending', 'confirmed','absent', 'cancelled','completed']);
             $table->decimal('price', 10, 2)->nullable();
             $table->decimal('fee',8,2)->nullable();
 $table->string('reason')->nullable();
