@@ -124,18 +124,22 @@ public function uploadProfilePicture(Request $request)
         ], 500);
     }
 }
-
 public function updateProfile(Request $request)
 {
     $user = Auth::user();
+    $doctor = $user->doctor;
+
+    if (!$doctor) {
+        return response()->json([
+            'error' => 'Doctor profile not found',
+            'message' => 'User is not associated with a doctor profile'
+        ], 404);
+    }
 
     $validator = Validator::make($request->all(), [
-        'first_name' => 'sometimes|string|max:255',
-        'last_name' => 'sometimes|string|max:255',
-
         'phone_number' => 'sometimes|string|max:20',
         'address' => 'sometimes|string',
-        'bio'=>'sometimes|string',
+        'bio' => 'sometimes|string|max:1000',
         'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
     ]);
 
@@ -143,36 +147,54 @@ public function updateProfile(Request $request)
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    if ($request->hasFile('profile_picture')) {
-        try {
-            $uploaded = $user->uploadFile($request->file('profile_picture'), 'profile_picture');
-
-            if (!$uploaded) {
-                throw new \Exception('Failed to upload profile picture');
+    try {
+        DB::transaction(function () use ($user, $doctor, $request, $validator) {
+            // Update phone number if provided
+            if ($request->has('phone_number')) {
+                $user->phone = $request->phone_number;
+                $user->save();
             }
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to upload picture',
-                'message' => $e->getMessage()
-            ], 500);
-        }
+
+            // Update address if provided (assuming address is stored in clinic)
+            if ($request->has('address') && $doctor->clinic) {
+                $doctor->clinic->address = $request->address;
+                $doctor->clinic->save();
+            }
+
+            // Update bio if provided
+            if ($request->has('bio')) {
+                $doctor->bio = $request->bio;
+                $doctor->save();
+            }
+
+            // Handle profile picture upload if provided
+            if ($request->hasFile('profile_picture')) {
+                $uploaded = $user->uploadFile($request->file('profile_picture'), 'profile_picture');
+                if (!$uploaded) {
+                    throw new \Exception('Failed to upload profile picture');
+                }
+            }
+        });
+
+        // Refresh the models to get updated data
+        $user->refresh();
+        $doctor->refresh();
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+                'phone_number' => $user->phone,
+                'address' => $doctor->clinic->address ?? null,
+                'bio' => $doctor->bio,
+                'profile_picture_url' => $user->getProfilePictureUrl()
+
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to update profile',
+            'message' => $e->getMessage()
+        ], 500);
     }
-
-    $user->update($validator->except(['profile_picture']));
-
-    return response()->json([
-        'message' => 'Profile updated successfully',
-        'user' => [
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-            'email' => $user->email,
-            'phone_number' => $user->phone_number,
-            'address' => $user->address,
-            'date_of_birth' => $user->date_of_birth,
-            'gender' => $user->gender,
-            'profile_picture_url' => $user->getProfilePictureUrl()
-        ]
-    ]);
 }
 
 
