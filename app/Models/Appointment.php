@@ -117,7 +117,7 @@ return $this->hasOne(Report::class);
 
 
 
-public function markAsCompleted()
+/* public function markAsCompleted()
 {
     if (!$this->report) {
         throw new \Exception('Cannot complete appointment without a medical report');
@@ -127,9 +127,9 @@ public function markAsCompleted()
         'status' => 'completed',
         'completed_at' => now()
     ]);
-}
+} */
 
-protected static function boot()
+/* protected static function boot()
 {
     parent::boot();
 
@@ -140,7 +140,7 @@ protected static function boot()
             }
         }
     });
-}
+} */
     public function rescheduledBy()
     {
         return $this->belongsTo(User::class, 'rescheduled_by');

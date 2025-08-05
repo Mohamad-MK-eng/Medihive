@@ -50,6 +50,7 @@ class WalletController extends Controller
             $transaction = $patient->deposit(
                 $validated['amount'],
                 $validated['notes'] ?? 'Added by staff',
+                
             );
 
             return response()->json([
@@ -91,8 +92,8 @@ class WalletController extends Controller
     public function setupWallet(Request $request)
     {
         $validated = $request->validate([
-            'pin' => 'required|digits:4|confirmed',
-            'pin_confirmation' => 'required'
+            'pin' => 'required|digits:4',
+         // لا تحطو يا كحبة   'pin_confirmation' => 'required'
         ]);
 
         $user = Auth::user();
