@@ -21,7 +21,6 @@ class DoctorController extends Controller
 {
     use HandlesFiles;
 
-
 public function getProfile()
 {
     try {
@@ -35,17 +34,36 @@ public function getProfile()
             ], 404);
         }
 
-        $doctor = $user->doctor;
+        $doctor = $user->doctor->load(['clinic', 'schedules', 'reviews']);
+
+        // Format working days
+        $workingDays = $doctor->schedules->map(function ($schedule) {
+            return [
+                 ucfirst($schedule->day),
+             ];
+        });
 
         return response()->json([
-            'name' => $user->first_name . ' ' . $user->last_name,
-            'email' => $user->email,
-            'phone' => $user->phone_number,
-            'date' => $user->created_at->format('d/m/Y'),
-            'specialty' => $doctor->specialty,
-            'consultation_fee' => $doctor->consultation_fee,
-            'experience_years' => $doctor->experience_years
-            // Add more fields as needed
+            'personal_information' => [
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'phone_number' => $user->phone,
+                'email' => $user->email,
+                'gender' => $user->gender ?? 'Not specified',
+                'address' => $doctor->clinic->address ?? 'Not specified',
+                'specialty' => $doctor->specialty,
+                'consultation_fee' => number_format($doctor->consultation_fee, 0),
+                'start_working_date' => $doctor->experience_start_date
+                    ? Carbon::parse($doctor->experience_start_date)->format('Y-m-d')
+                    : 'Not specified',
+                'experience_years' => $doctor->getExperienceYearsAttribute(),
+                'rating' => round($doctor->rating, 1),
+                'rating_count' => $doctor->reviews->count(),
+                'bio' => $doctor->bio ?? 'No bio available',
+                'profile_picture_url' => $user->getProfilePictureUrl(),
+                'clinic' => $doctor->clinic->name ,
+                'working_days' => $workingDays
+            ]
         ]);
 
     } catch (\Exception $e) {
@@ -117,6 +135,7 @@ public function updateProfile(Request $request)
 
         'phone_number' => 'sometimes|string|max:20',
         'address' => 'sometimes|string',
+        'bio'=>'sometimes|string',
         'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
     ]);
 
@@ -467,6 +486,58 @@ public function submitMedicalReport(Request $request, $appointmentId)
         ]);
     });
 }
+
+
+
+
+
+
+
+
+
+
+// In your AppointmentController or similar
+
+public function markAsAbsent(Appointment $appointment)
+{
+    // Verify the authenticated user is the doctor for this appointment
+    if (Auth::user()->doctor->id !== $appointment->doctor_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    // Check if appointment can be marked as absent
+    if (!in_array($appointment->status, ['pending', 'confirmed'])) {
+        return response()->json(['message' => 'Appointment cannot be marked as absent in its current state'], 400);
+    }
+try {
+        DB::transaction(function () use ($appointment) {
+            $appointment->update([
+                'status' => 'absent',
+                'cancelled_at' => now()
+            ]);
+
+            $patient = $appointment->patient;
+            $absentCount = $patient->appointments()->where('status', 'absent')->count();
+
+            // Notify patient if they're approaching the limit
+            if ($absentCount >= 2) {
+                $remaining = 3 - $absentCount;
+                $message = $remaining > 0
+                    ? "You have missed $absentCount appointments. After $remaining more absences, your account will be blocked."
+                    : "Your account has been blocked due to multiple missed appointments. Please contact the clinic center.";
+
+            }
+        });
+
+        return response()->json(['message' => 'Appointment marked as absent successfully']);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Failed to update appointment status'], 500);
+    }
+}
+
+
+
+
 }
 
 

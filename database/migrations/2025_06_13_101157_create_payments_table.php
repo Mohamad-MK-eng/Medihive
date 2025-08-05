@@ -19,7 +19,7 @@ return new class extends Migration
             $table->decimal('amount', 10, 2)->nullable(false);
 
 
-            $table->enum('status', ['pending', 'paid', 'cancelled','completed']);
+            $table->enum('status', ['pending', 'paid','refunded', 'cancelled','completed']);
             $table->enum('method', ['cash', 'wallet', 'insurance']);
                       $table->string('transaction_id')->nullable();
 

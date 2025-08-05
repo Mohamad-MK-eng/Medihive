@@ -119,11 +119,60 @@ class SecretaryController extends Controller
 
 
 
+public function unblockPatient(Request $request)
+{
+    // Verify the authenticated user is a secretary
+    if (!Auth::user()->hasRole('secretary')) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    $validated = $request->validate([
+        'patient_id' => 'required|exists:patients,id',
+    ]);
+
+    $patient = Patient::findOrFail($validated['patient_id']);
+
+    // Get all absent appointments
+    $absentAppointments = $patient->appointments()
+        ->where('status', 'absent')
+        ->get();
+
+    // Option 1: Change status to 'cancelled' (soft approach)
+    foreach ($absentAppointments as $appointment) {
+        $appointment->update([
+            'status' => 'cancelled',
+            'cancelled_by' => Auth::id(),
+        ]);
+    }
+    return response()->json('message:block removed');
+}
 
 
+public function listBlockedPatients()
+{
+    // Get the threshold from config
+    $threshold = config('app.absent_appointment_threshold', 3);
 
+    // Get patients who meet or exceed the threshold
+    $blockedPatients = Patient::withCount(['appointments as absent_count' => function($query) {
+            $query->where('status', 'absent');
+        }])
+        ->having('absent_count', '>=', $threshold)
+        ->with('user:id,first_name,last_name,email,phone')
+        ->get();
 
-
+    return response()->json([
+        'blocked_patients' => $blockedPatients->map(function($patient) {
+            return [
+                'id' => $patient->id,
+                'name' => $patient->user->first_name.' '.$patient->user->last_name,
+                'email' => $patient->user->email,
+                'phone' => $patient->user->phone,
+                'absent_count' => $patient->absent_count
+            ];
+        })
+    ]);
+}
 
 
 

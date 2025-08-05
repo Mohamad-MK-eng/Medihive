@@ -479,7 +479,8 @@ public function getPatientHistory(Request $request)
 
         // Alternative 1: If prescriptions are linked via appointments
         $prescriptions = $patient->appointments()
-            ->with(['prescription']) // Ensure 'prescription' is a defined relationship in Appointment model
+            ->with(['prescription'])
+            ->where('status', '!=', 'absent') // Ensure 'prescription' is a defined relationship in Appointment model
             ->whereHas('prescription') // Only appointments with prescriptions
             ->get()
             ->pluck('prescription') // Extract prescriptions
@@ -500,6 +501,24 @@ public function getPatientHistory(Request $request)
 public function getAppointmentReports(Appointment $appointment)
 {
     $patient = Auth::user()->patient;
+
+
+
+      if ($appointment->status === 'absent') {
+        return response()->json([
+            'success' => false,
+            'message' => 'No report available for absent appointments'
+        ], 404);
+    }
+
+    if ($appointment->patient_id !== $patient->id) {
+        return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
+    }
+
+
+
+
+
 
     if ($appointment->patient_id !== $patient->id) {
         return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);

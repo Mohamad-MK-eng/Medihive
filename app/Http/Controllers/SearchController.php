@@ -42,6 +42,13 @@ class SearchController extends Controller
                         'name' => $clinic->name,
                         'image_path' => $clinic->getIconUrl(),
                         'doctors_count' => count($clinic->doctors)
+/* $results = $query
+        ->withCount('doctors')
+        ->get();
+
+ 'doctors_count' => $clinic->doctors_count // Use the withCount result
+ */
+
 
                     ];
                 }
