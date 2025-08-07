@@ -37,10 +37,11 @@ public function getProfile()
         $doctor = $user->doctor->load(['clinic', 'schedules', 'reviews']);
 
         // Format working days
-        $workingDays = $doctor->schedules->map(function ($schedule) {
+        $schedule = $doctor->schedules->map(function ($schedule) {
             return [
-                 ucfirst($schedule->day),
-             ];
+                'day' => ucfirst($schedule->day),
+              
+            ];
         });
 
         return response()->json([
@@ -50,7 +51,7 @@ public function getProfile()
                 'phone_number' => $user->phone,
                 'email' => $user->email,
                 'gender' => $user->gender ?? 'Not specified',
-                'address' => $doctor->clinic->address ?? 'Not specified',
+                'address' =>$user->address ?? 'Not specified',
                 'specialty' => $doctor->specialty,
                 'consultation_fee' => number_format($doctor->consultation_fee, 0),
                 'start_working_date' => $doctor->experience_start_date
@@ -62,7 +63,7 @@ public function getProfile()
                 'bio' => $doctor->bio ?? 'No bio available',
                 'profile_picture_url' => $user->getProfilePictureUrl(),
                 'clinic' => $doctor->clinic->name ,
-                'working_days' => $workingDays
+                'working_days' => $schedule
             ]
         ]);
 
@@ -157,8 +158,8 @@ public function updateProfile(Request $request)
 
             // Update address if provided (assuming address is stored in clinic)
             if ($request->has('address') && $doctor->clinic) {
-                $doctor->clinic->address = $request->address;
-                $doctor->clinic->save();
+                $user->address = $request->address;
+                $user->save();
             }
 
             // Update bio if provided
@@ -180,13 +181,36 @@ public function updateProfile(Request $request)
         $user->refresh();
         $doctor->refresh();
 
+        // Format working days
+        $schedule = $doctor->schedules->map(function ($schedule) {
+            return [
+                'day' => ucfirst($schedule->day),
+              
+            ];
+        });
+
         return response()->json([
             'message' => 'Profile updated successfully',
+                'personal_information' => [
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
                 'phone_number' => $user->phone,
-                'address' => $doctor->clinic->address ?? null,
-                'bio' => $doctor->bio,
-                'profile_picture_url' => $user->getProfilePictureUrl()
-
+                'email' => $user->email,
+                'gender' => $user->gender ?? 'Not specified',
+                'address' => $user->address ?? 'Not specified',
+                'specialty' => $doctor->specialty,
+                'consultation_fee' => number_format($doctor->consultation_fee, 0),
+                'start_working_date' => $doctor->experience_start_date
+                    ? Carbon::parse($doctor->experience_start_date)->format('Y-m-d')
+                    : 'Not specified',
+                'experience_years' => $doctor->getExperienceYearsAttribute(),
+                'rating' => round($doctor->rating, 1),
+                'rating_count' => $doctor->reviews->count(),
+                'bio' => $doctor->bio ?? 'No bio available',
+                'profile_picture_url' => $user->getProfilePictureUrl(),
+                'clinic' => $doctor->clinic->name ,
+                'working_days' => $schedule
+            ]
         ]);
 
     } catch (\Exception $e) {
