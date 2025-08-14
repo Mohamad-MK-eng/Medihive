@@ -159,8 +159,6 @@ public function updateProfile(Request $request)
 
 
 
-
-
     public function getSchedule()
     {
         $doctor = Auth::user()->doctor;
@@ -222,11 +220,6 @@ public function updateProfile(Request $request)
     }
 
 
-
-
-
-
-
     public function getDoctorScheduleInfo()
     {
         $doctor = Auth::user()->doctor;
@@ -276,12 +269,6 @@ public function updateProfile(Request $request)
     }
 
 
-
-
-
-
-
-
     private function getFormattedAvailability(Doctor $doctor)
     {
         $schedules = $doctor->schedules()
@@ -313,13 +300,6 @@ public function updateProfile(Request $request)
     }
 
 
-
-
-
-
-
-
-
     public function getTopDoctors()
     {
         $topDoctors = Doctor::topRated()->get()->map(function ($doctor) {
@@ -340,15 +320,6 @@ public function updateProfile(Request $request)
             'data' => $topDoctors
         ]);
     }
-
-
-
-
-
-
-
-
-
 
 
 

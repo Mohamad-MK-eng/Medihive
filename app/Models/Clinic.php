@@ -15,7 +15,8 @@ class Clinic extends Model
         'description',
         'opening_time',
         'closing_time',
-        'image_path'
+        'image_path',
+        'specialty'
     ];
 
 

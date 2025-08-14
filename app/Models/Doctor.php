@@ -45,8 +45,6 @@ class Doctor extends Model
     ];
 
 
-
-
     protected $casts = [
         'clinic_id',
         'workdays' => 'array',
@@ -79,13 +77,18 @@ class Doctor extends Model
 
     public function clinic()
     {
-        return $this->belongsTo(Clinic::class);
+        return $this->belongsTo(Clinic::class,"clinic_id");
     }
 
     public function timeSlots()
     {
         return $this->hasMany(TimeSlot::class);
     }
+    public function salary()
+{
+    return $this->belongsTo(Salary::class);
+}
+
 
 
     // Helper methods
@@ -167,7 +170,6 @@ public function updateRating()
     $this->rating = $this->averageRating();
     $this->save();
 }
-
 
 
 
