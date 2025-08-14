@@ -85,7 +85,7 @@ class AuthController extends Controller
         $token = $user->createToken('Personal Access Token')->accessToken;
 
         // in case patient
-        if ($user->role->name === 'patient') {
+        if ($user->role->name === 'patient' || $user->role->name === 'doctor') {
 
             return response()->json([
                 'message' => 'Patient logged in successfully',

@@ -21,7 +21,6 @@ class DoctorController extends Controller
 {
     use HandlesFiles;
 
-
 public function getProfile()
 {
     try {
@@ -35,17 +34,37 @@ public function getProfile()
             ], 404);
         }
 
-        $doctor = $user->doctor;
+        $doctor = $user->doctor->load(['clinic', 'schedules', 'reviews']);
+
+        // Format working days
+        $schedule = $doctor->schedules->map(function ($schedule) {
+            return [
+                'day' => ucfirst($schedule->day),
+              
+            ];
+        });
 
         return response()->json([
-            'name' => $user->first_name . ' ' . $user->last_name,
-            'email' => $user->email,
-            'phone' => $user->phone_number,
-            'date' => $user->created_at->format('d/m/Y'),
-            'specialty' => $doctor->specialty,
-            'consultation_fee' => $doctor->consultation_fee,
-            'experience_years' => $doctor->experience_years
-            // Add more fields as needed
+            'personal_information' => [
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'phone_number' => $user->phone,
+                'email' => $user->email,
+                'gender' => $user->gender ?? 'Not specified',
+                'address' =>$user->address ?? 'Not specified',
+                'specialty' => $doctor->specialty,
+                'consultation_fee' => number_format($doctor->consultation_fee, 0),
+                'start_working_date' => $doctor->experience_start_date
+                    ? Carbon::parse($doctor->experience_start_date)->format('Y-m-d')
+                    : 'Not specified',
+                'experience_years' => $doctor->getExperienceYearsAttribute(),
+                'rating' => round($doctor->rating, 1),
+                'rating_count' => $doctor->reviews->count(),
+                'bio' => $doctor->bio ?? 'No bio available',
+                'profile_picture_url' => $user->getProfilePictureUrl(),
+                'clinic' => $doctor->clinic->name ,
+                'working_days' => $schedule
+            ]
         ]);
 
     } catch (\Exception $e) {
@@ -106,17 +125,22 @@ public function uploadProfilePicture(Request $request)
         ], 500);
     }
 }
-
 public function updateProfile(Request $request)
 {
     $user = Auth::user();
+    $doctor = $user->doctor;
+
+    if (!$doctor) {
+        return response()->json([
+            'error' => 'Doctor profile not found',
+            'message' => 'User is not associated with a doctor profile'
+        ], 404);
+    }
 
     $validator = Validator::make($request->all(), [
-        'first_name' => 'sometimes|string|max:255',
-        'last_name' => 'sometimes|string|max:255',
-
         'phone_number' => 'sometimes|string|max:20',
         'address' => 'sometimes|string',
+        'bio' => 'sometimes|string|max:1000',
         'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
     ]);
 
@@ -124,36 +148,77 @@ public function updateProfile(Request $request)
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    if ($request->hasFile('profile_picture')) {
-        try {
-            $uploaded = $user->uploadFile($request->file('profile_picture'), 'profile_picture');
-
-            if (!$uploaded) {
-                throw new \Exception('Failed to upload profile picture');
+    try {
+        DB::transaction(function () use ($user, $doctor, $request, $validator) {
+            // Update phone number if provided
+            if ($request->has('phone_number')) {
+                $user->phone = $request->phone_number;
+                $user->save();
             }
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to upload picture',
-                'message' => $e->getMessage()
-            ], 500);
-        }
+
+            // Update address if provided (assuming address is stored in clinic)
+            if ($request->has('address') && $doctor->clinic) {
+                $user->address = $request->address;
+                $user->save();
+            }
+
+            // Update bio if provided
+            if ($request->has('bio')) {
+                $doctor->bio = $request->bio;
+                $doctor->save();
+            }
+
+            // Handle profile picture upload if provided
+            if ($request->hasFile('profile_picture')) {
+                $uploaded = $user->uploadFile($request->file('profile_picture'), 'profile_picture');
+                if (!$uploaded) {
+                    throw new \Exception('Failed to upload profile picture');
+                }
+            }
+        });
+
+        // Refresh the models to get updated data
+        $user->refresh();
+        $doctor->refresh();
+
+        // Format working days
+        $schedule = $doctor->schedules->map(function ($schedule) {
+            return [
+                'day' => ucfirst($schedule->day),
+              
+            ];
+        });
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+                'personal_information' => [
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'phone_number' => $user->phone,
+                'email' => $user->email,
+                'gender' => $user->gender ?? 'Not specified',
+                'address' => $user->address ?? 'Not specified',
+                'specialty' => $doctor->specialty,
+                'consultation_fee' => number_format($doctor->consultation_fee, 0),
+                'start_working_date' => $doctor->experience_start_date
+                    ? Carbon::parse($doctor->experience_start_date)->format('Y-m-d')
+                    : 'Not specified',
+                'experience_years' => $doctor->getExperienceYearsAttribute(),
+                'rating' => round($doctor->rating, 1),
+                'rating_count' => $doctor->reviews->count(),
+                'bio' => $doctor->bio ?? 'No bio available',
+                'profile_picture_url' => $user->getProfilePictureUrl(),
+                'clinic' => $doctor->clinic->name ,
+                'working_days' => $schedule
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to update profile',
+            'message' => $e->getMessage()
+        ], 500);
     }
-
-    $user->update($validator->except(['profile_picture']));
-
-    return response()->json([
-        'message' => 'Profile updated successfully',
-        'user' => [
-            'first_name' => $user->first_name,
-            'last_name' => $user->last_name,
-            'email' => $user->email,
-            'phone_number' => $user->phone_number,
-            'address' => $user->address,
-            'date_of_birth' => $user->date_of_birth,
-            'gender' => $user->gender,
-            'profile_picture_url' => $user->getProfilePictureUrl()
-        ]
-    ]);
 }
 
 
@@ -438,6 +503,58 @@ public function submitMedicalReport(Request $request, $appointmentId)
         ]);
     });
 }
+
+
+
+
+
+
+
+
+
+
+// In your AppointmentController or similar
+
+public function markAsAbsent(Appointment $appointment)
+{
+    // Verify the authenticated user is the doctor for this appointment
+    if (Auth::user()->doctor->id !== $appointment->doctor_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    // Check if appointment can be marked as absent
+    if (!in_array($appointment->status, ['pending', 'confirmed'])) {
+        return response()->json(['message' => 'Appointment cannot be marked as absent in its current state'], 400);
+    }
+try {
+        DB::transaction(function () use ($appointment) {
+            $appointment->update([
+                'status' => 'absent',
+                'cancelled_at' => now()
+            ]);
+
+            $patient = $appointment->patient;
+            $absentCount = $patient->appointments()->where('status', 'absent')->count();
+
+            // Notify patient if they're approaching the limit
+            if ($absentCount >= 2) {
+                $remaining = 3 - $absentCount;
+                $message = $remaining > 0
+                    ? "You have missed $absentCount appointments. After $remaining more absences, your account will be blocked."
+                    : "Your account has been blocked due to multiple missed appointments. Please contact the clinic center.";
+
+            }
+        });
+
+        return response()->json(['message' => 'Appointment marked as absent successfully']);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Failed to update appointment status'], 500);
+    }
+}
+
+
+
+
 }
 
 

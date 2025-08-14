@@ -64,7 +64,7 @@ return [
     | is set to "UTC" by default as it is suitable for most use cases.
     |
     */
-
+'absent_appointment_threshold' => 3,
 'timezone' => 'Asia/Damascus',
     /*
     |--------------------------------------------------------------------------

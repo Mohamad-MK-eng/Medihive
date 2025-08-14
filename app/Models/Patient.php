@@ -277,4 +277,29 @@ public function deposit($amount, $notes = null, $secretaryId = null)
             return $transaction;
         });
     }
+
+
+    public function isBlockedDueToAbsences()
+{
+    $absentThreshold = config('app.absent_appointment_threshold', 3);
+    return $this->appointments()->where('status', 'absent')->count() >= $absentThreshold;
+}
+
+
+
+
+
+
+
+public function hasTooManyAbsences()
+{
+    return $this->appointments()
+        ->where('status', 'absent')
+        ->where('cancelled_at', '>=', now()->subMonths(6)) // Only count last 6 months
+        ->count() >= config('app.absent_appointment_threshold', 3);
+}
+
+
+
+
 }
