@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Appointment;
 use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
@@ -20,12 +19,17 @@ use Carbon\Carbon;
 use DB;
 use Hash;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Storage;
 use Str;
 use Validator;
 
 class AdminController extends Controller
 {
+    public function authUser(){
+        return Auth::user();
+    }
+    
  protected $profilePictureConfig = [
         'directory' => 'admin_profile_pictures',
         'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
@@ -117,6 +121,7 @@ class AdminController extends Controller
         $clinic = Clinic::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
             'location' => 'sometimes|string|max:255',
             'description' => 'sometimes|string|nullable',
             'opening_time' => 'sometimes|date_format:H:i',
@@ -211,9 +216,163 @@ class AdminController extends Controller
 
 
 
+//     public function createDoctor(Request $request)
+//     {
+//         // Validate the request
+//         $validator = Validator::make($request->all(), [
+//             // User data
+//             'first_name' => 'required|string|max:255',
+//             'last_name' => 'required|string|max:255',
+//             'email' => 'required|email|unique:users,email',
+//             'phone_number' => 'required|string|max:20',
+
+//             // Doctor data
+//             'specialty' => 'required|string|max:255',
+//             'bio' => 'nullable|string',
+//             'consultation_fee' => 'required|numeric|min:0',
+//             'experience_years' => 'required|integer|min:0',
+//             'clinic_id' => 'required|exists:clinics,id',
+
+//             // Schedule data
+//             'schedules' => 'required|array|min:1',
+//             'schedules.*.day' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+//             'schedules.*.start_time' => 'required|date_format:H:i',
+//             'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
+
+//             // Time slot configuration
+//             'slot_duration' => 'required|integer|in:30,60',
+//             'generate_slots_for_days' => 'required|integer|min:1|max:365',
+//         ]);
+
+//         if ($validator->fails()) {
+//             return response()->json(['errors' => $validator->errors()], 422);
+//         }
+
+//         try {
+//             // Start transaction
+//             return DB::transaction(function () use ($request) {
+//                 // Get the doctor role
+//                 $doctorRole = Role::where('name', 'doctor')->first();
+//                 if (!$doctorRole) {
+//                     throw new \Exception('Doctor role not found in database');
+//                 }
+
+//                 // Get a secretary for salary assignment
+//                 $secretary = Secretary::first();
+//                 if (!$secretary) {
+//                     throw new \Exception('No secretary found in database');
+//                 }
+
+//                 // Verify clinic exists
+//                 $clinic = Clinic::find($request->clinic_id);
+//                 if (!$clinic) {
+//                     throw new \Exception('Specified clinic not found');
+//                 }
+
+//                 // Create salary settings and salary record
+//                 $salarySettings = SalarySetting::firstOrCreate([]);
+//                 $salary = Salary::create([
+//                     'secretary_id' => $secretary->id,
+//                     'base_amount' => 100,
+//                     'bonus_amount' => 0.5,
+//                     'total_amount' => 100.5,
+//                     'salary_setting_id' => $salarySettings->id,
+//                     'status' => 'pending'
+//                 ]);
+
+//                 // Create user account
+//                 $user = User::create([
+//                     'first_name' => $request->first_name,
+//                     'last_name' => $request->last_name,
+//                     'email' => $request->email,
+//                     'password' => Hash::make('temporary_password'),
+//                     'role_id' => $doctorRole->id,
+//                     'gender'=>$request->gender,
+//                 ]);
+
+//                 // Create doctor profile
+//                 $doctor = Doctor::create([
+//                     'user_id' => $user->id,
+//                     'clinic_id' => $request->clinic_id,
+//                     'specialty' => $request->specialty,
+//                     'bio' => $request->bio ?? "Lorem ipsum is simply dummy text of the printing and typesetting industry...",
+//                     'consultation_fee' => $request->consultation_fee,
+//                     'experience_years' => $request->experience_years,
+//                     'salary_id' => $salary->id,
+//                     'workdays' => collect($request->schedules)->pluck('day')->toArray()
+//                 ]);
+
+//                 // Create schedules
+//                 foreach ($request->schedules as $scheduleData) {
+//                     DoctorSchedule::create([
+//                         'doctor_id' => $doctor->id,
+//                         'day' => $scheduleData['day'],
+//                         'start_time' => $scheduleData['start_time'],
+//                         'end_time' => $scheduleData['end_time']
+//                     ]);
+//                 }
+//  $this->generateTimeSlotsForDoctor(
+//                 $doctor,
+//                 $request->generate_slots_for_days,
+//                 $request->slot_duration
+//             );
+//                 // Generate time slots
+//               /*   $timeSlots = [];
+//                 $slotDuration = $request->slot_duration;
+
+//                 for ($i = 1; $i <= $request->generate_slots_for_days; $i++) {
+//                     $date = now()->addDays($i)->format('Y-m-d');
+//                     $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
+
+//                     $schedule = $doctor->schedules()->where('day', $dayOfWeek)->first();
+//                     if (!$schedule) continue;
+
+//                     $start = Carbon::parse($schedule->start_time);
+//                     $end = Carbon::parse($schedule->end_time);
+
+//                     $current = $start->copy();
+//                     while ($current->addMinutes($slotDuration)->lte($end)) {
+//                         $slotStart = $current->copy()->subMinutes($slotDuration);
+//                         $slotEnd = $current->copy();
+
+//                         $timeSlots[] = [
+//                             'doctor_id' => $doctor->id,
+//                             'date' => $date,
+//                             'start_time' => $slotStart->format('H:i:s'),
+//                             'end_time' => $slotEnd->format('H:i:s'),
+//                             'is_booked' => false,
+//                             'created_at' => now(),
+//                             'updated_at' => now()
+//                         ];
+//                     }
+//                 } */
+
+//                 // Insert time slots if any were generated
+//                 if (!empty($timeSlots)) {
+//                     TimeSlot::insert($timeSlots);
+//                 }
+
+//                 // Refresh the doctor model with relationships
+//                 $doctor = $doctor->fresh(['user', 'clinic', 'schedules']);
+
+//                 return response()->json([
+//                     'message' => 'Doctor created successfully',
+//                     'doctor' => $doctor,
+//                     'login_credentials' => [
+//                         'email' => $user->email,
+//                     ]
+//                 ], 201);
+//             });
+//         } catch (\Exception $e) {
+//             return response()->json([
+//                 'message' => 'Failed to create doctor',
+//                 'error' => $e->getMessage()
+//             ], 500);
+//         }
+//     }
 
 
-public function createSecretary(Request $request)
+public function createDoctor(Request $request)
 {
     // Validate the request
     $validator = Validator::make($request->all(), [
@@ -222,11 +381,24 @@ public function createSecretary(Request $request)
         'last_name' => 'required|string|max:255',
         'email' => 'required|email|unique:users,email',
         'phone_number' => 'required|string|max:20',
-        'gender' => 'required|in:male,female,other',
+        'gender' => 'required|in:male,female',
 
-        // Secretary data
-        'workdays' => 'required|array|min:1',
-        'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+        // Doctor data
+        'specialty' => 'required|string|max:255',
+        'bio' => 'nullable|string',
+        'consultation_fee' => 'required|numeric|min:0',
+        'experience_years' => 'required|integer|min:0',
+        'clinic_id' => 'required|exists:clinics,id',
+
+        // Schedule data
+        'schedules' => 'required|array|min:1',
+        'schedules.*.day' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+        'schedules.*.start_time' => 'required|date_format:H:i',
+        'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
+
+        // Time slot configuration
+        'slot_duration' => 'required|integer|in:30,60',
+        'generate_slots_for_days' => 'required|integer|min:1|max:365',
     ]);
 
     if ($validator->fails()) {
@@ -236,267 +408,231 @@ public function createSecretary(Request $request)
     try {
         // Start transaction
         return DB::transaction(function () use ($request) {
-            // Get the secretary role
-            $secretaryRole = Role::where('name', 'secretary')->first();
-            if (!$secretaryRole) {
-                throw new \Exception('Secretary role not found in database');
+            // Get the doctor role
+            $doctorRole = Role::where('name', 'doctor')->first();
+            if (!$doctorRole) {
+                throw new \Exception('Doctor role not found in database');
             }
 
-            // Create user account
+            // Get a secretary for salary assignment
+            $secretary = Secretary::first();
+            if (!$secretary) {
+                throw new \Exception('No secretary found in database');
+            }
+
+            // Verify clinic exists
+            $clinic = Clinic::find($request->clinic_id);
+            if (!$clinic) {
+                throw new \Exception('Specified clinic not found');
+            }
+
+            // Create salary settings and salary record
+            $salarySettings = SalarySetting::firstOrCreate([]);
+            $salary = Salary::create([
+                'secretary_id' => $secretary->id,
+                'base_amount' => 100,
+                'bonus_amount' => 0.5,
+                'total_amount' => 100.5,
+                'salary_setting_id' => $salarySettings->id,
+                'status' => 'pending'
+            ]);
+
+            // Create user account - تحويل phone_number إلى phone
             $user = User::create([
                 'first_name' => $request->first_name,
                 'last_name' => $request->last_name,
                 'email' => $request->email,
-                'phone_number' => $request->phone_number,
                 'password' => Hash::make('temporary_password'),
-                'role_id' => $secretaryRole->id,
+                'role_id' => $doctorRole->id,
+                'phone' => $request->phone_number, // تحويل phone_number إلى phone
                 'gender' => $request->gender,
             ]);
 
-            // Create secretary profile
-            $secretary = Secretary::create([
+            // Create doctor profile
+            $doctor = Doctor::create([
                 'user_id' => $user->id,
-                'workdays' => $request->workdays,
-
+                'clinic_id' => $request->clinic_id,
+                'specialty' => $request->specialty,
+                'bio' => $request->bio ?? "Lorem ipsum is simply dummy text of the printing and typesetting industry...",
+                'consultation_fee' => $request->consultation_fee,
+                'experience_years' => $request->experience_years,
+                'salary_id' => $salary->id,
+                'workdays' => collect($request->schedules)->pluck('day')->toArray()
             ]);
 
-            return response()->json([
-                'message' => 'Secretary created successfully',
-                'secretary' => $secretary->load('user'),
-
-            ], 201);
-        });
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Failed to create secretary',
-            'error' => $e->getMessage(),
-            'trace' => config('app.debug') ? $e->getTrace() : null
-        ], 500);
-    }
-}
-
-
-
-
-
-public function updateSecretary(Request $request,Secretary $secretary){
-$validator = Validator::make($request->all(),[
-
- 'email' => [
-                'sometimes',
-                'email',
-                'unique:users,email,' . $secretary->user_id
-            ],
-
-            'phone_number' => 'sometimes|string|max:20',
-        'gender' => 'sometimes|in:male,female,other',
-        'workdays' => 'sometimes|array|min:1',
-        'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-        ]);
-
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $validated = $validator->validated();
-
-        return DB::transaction(function () use ($request, $secretary, $validated) {
-            // Update user data if present
-            if (
-                isset($validated['email']) || isset($validated['phone_number'])
-            ) {
-
-                $userData = [
-                  'email' => $validated['email'] ?? $secretary->user->email,
-                    'phone_number' => $validated['phone_number'] ?? $secretary->user->phone_number,
-                ];
-
-                $secretary->user->update($userData);
+            // Create schedules
+            foreach ($request->schedules as $scheduleData) {
+                DoctorSchedule::create([
+                    'doctor_id' => $doctor->id,
+                    'day' => $scheduleData['day'],
+                    'start_time' => $scheduleData['start_time'],
+                    'end_time' => $scheduleData['end_time']
+                ]);
             }
 
-            // Update doctor data
-            $SecData = collect($validated)
-                ->except(['first_name', 'last_name', 'email', 'phone_number'])
-                ->toArray();
-
-            $secretary->update($SecData);
-
-            return response()->json([
-                'message' => 'Secretary updated successfully',
-                'secretary' => $secretary->fresh()]);
-
-        });
-    }
-
-
-
-    public function createDoctor(Request $request)
-    {
-        // Validate the request
-        $validator = Validator::make($request->all(), [
-            // User data
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'phone_number' => 'required|string|max:20',
-
-            // Doctor data
-            'specialty' => 'required|string|max:255',
-            'bio' => 'nullable|string',
-            'consultation_fee' => 'required|numeric|min:0',
-            'experience_years' => 'required|integer|min:0',
-            'clinic_id' => 'required|exists:clinics,id',
-
-            // Schedule data
-            'schedules' => 'required|array|min:1',
-            'schedules.*.day' => 'required|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-            'schedules.*.start_time' => 'required|date_format:H:i',
-            'schedules.*.end_time' => 'required|date_format:H:i|after:schedules.*.start_time',
-
-            // Time slot configuration
-            'slot_duration' => 'required|integer|in:30,60',
-            'generate_slots_for_days' => 'required|integer|min:1|max:365',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        try {
-            // Start transaction
-            return DB::transaction(function () use ($request) {
-                // Get the doctor role
-                $doctorRole = Role::where('name', 'doctor')->first();
-                if (!$doctorRole) {
-                    throw new \Exception('Doctor role not found in database');
-                }
-
-                // Get a secretary for salary assignment
-                $secretary = Secretary::first();
-                if (!$secretary) {
-                    throw new \Exception('No secretary found in database');
-                }
-
-                // Verify clinic exists
-                $clinic = Clinic::find($request->clinic_id);
-                if (!$clinic) {
-                    throw new \Exception('Specified clinic not found');
-                }
-
-                // Create salary settings and salary record
-                $salarySettings = SalarySetting::firstOrCreate([]);
-                $salary = Salary::create([
-                    'secretary_id' => $secretary->id,
-                    'base_amount' => 100,
-                    'bonus_amount' => 0.5,
-                    'total_amount' => 100.5,
-                    'salary_setting_id' => $salarySettings->id,
-                    'status' => 'pending'
-                ]);
-
-                // Create user account
-                $user = User::create([
-                    'first_name' => $request->first_name,
-                    'last_name' => $request->last_name,
-                    'email' => $request->email,
-                    'password' => Hash::make('temporary_password'),
-                    'role_id' => $doctorRole->id,
-                    'gender'=>$request->gender,
-                ]);
-
-                // Create doctor profile
-                $doctor = Doctor::create([
-                    'user_id' => $user->id,
-                    'clinic_id' => $request->clinic_id,
-                    'specialty' => $request->specialty,
-                    'bio' => $request->bio ?? "Lorem ipsum is simply dummy text of the printing and typesetting industry...",
-                    'consultation_fee' => $request->consultation_fee,
-                    'experience_years' => $request->experience_years,
-                    'salary_id' => $salary->id,
-                    'workdays' => collect($request->schedules)->pluck('day')->toArray()
-                ]);
-
-                // Create schedules
-                foreach ($request->schedules as $scheduleData) {
-                    DoctorSchedule::create([
-                        'doctor_id' => $doctor->id,
-                        'day' => $scheduleData['day'],
-                        'start_time' => $scheduleData['start_time'],
-                        'end_time' => $scheduleData['end_time']
-                    ]);
-                }
- $this->generateTimeSlotsForDoctor(
+            // Generate time slots
+            $this->generateTimeSlotsForDoctor(
                 $doctor,
                 $request->generate_slots_for_days,
                 $request->slot_duration
             );
-                // Generate time slots
-              /*   $timeSlots = [];
-                $slotDuration = $request->slot_duration;
 
-                for ($i = 1; $i <= $request->generate_slots_for_days; $i++) {
-                    $date = now()->addDays($i)->format('Y-m-d');
-                    $dayOfWeek = strtolower(Carbon::parse($date)->englishDayOfWeek);
+            // Refresh the doctor model with relationships
+            $doctor = $doctor->fresh(['user', 'clinic', 'schedules']);
 
-                    $schedule = $doctor->schedules()->where('day', $dayOfWeek)->first();
-                    if (!$schedule) continue;
-
-                    $start = Carbon::parse($schedule->start_time);
-                    $end = Carbon::parse($schedule->end_time);
-
-                    $current = $start->copy();
-                    while ($current->addMinutes($slotDuration)->lte($end)) {
-                        $slotStart = $current->copy()->subMinutes($slotDuration);
-                        $slotEnd = $current->copy();
-
-                        $timeSlots[] = [
-                            'doctor_id' => $doctor->id,
-                            'date' => $date,
-                            'start_time' => $slotStart->format('H:i:s'),
-                            'end_time' => $slotEnd->format('H:i:s'),
-                            'is_booked' => false,
-                            'created_at' => now(),
-                            'updated_at' => now()
-                        ];
-                    }
-                } */
-
-                // Insert time slots if any were generated
-                if (!empty($timeSlots)) {
-                    TimeSlot::insert($timeSlots);
-                }
-
-                // Refresh the doctor model with relationships
-                $doctor = $doctor->fresh(['user', 'clinic', 'schedules']);
-
-                return response()->json([
-                    'message' => 'Doctor created successfully',
-                    'doctor' => $doctor,
-                    'login_credentials' => [
-                        'email' => $user->email,
-                    ]
-                ], 201);
-            });
-        } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to create doctor',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+                'message' => 'Doctor created successfully',
+                'doctor' => $doctor,
+                'login_credentials' => [
+                    'email' => $user->email,
+                ]
+            ], 201);
+        });
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to create doctor',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function editDoctor(Request $request, $doctorId){
+    // البحث عن الطبيب أولاً
+    $doctor = Doctor::with('user')->find($doctorId);
+    if (!$doctor) {
+        return response()->json(['message' => 'Doctor not found'], 404);
     }
 
+    // طباعة البيانات المستلمة للتشخيص
+    \Log::info('Edit Doctor Request Data:', $request->all());
 
-    public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
-{
+    $validator = Validator::make($request->all(), [
+        // User data
+        'first_name' => 'sometimes|string|max:255',
+        'last_name' => 'sometimes|string|max:255',
+        'email' => [
+            'sometimes',
+            'email',
+            'unique:users,email,' . $doctor->user_id
+        ],
+        'phone_number' => 'sometimes|string|max:20',
+        'gender' => 'sometimes|in:male,female',
+
+        // Doctor data
+        'specialty' => 'sometimes|string|max:255',
+        'bio' => 'nullable|string',
+        'consultation_fee' => 'sometimes|numeric|min:0',
+        'experience_years' => 'sometimes|integer|min:0',
+        'clinic_id' => 'sometimes|exists:clinics,id',
+
+        // جدول المواعيد
+        'schedules' => 'sometimes|array|min:1',
+        'schedules.*.day' => 'required_with:schedules|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+        'schedules.*.start_time' => 'required_with:schedules|date_format:H:i',
+        'schedules.*.end_time' => 'required_with:schedules|date_format:H:i',
+
+        // إعدادات المواعيد
+        'slot_duration' => 'sometimes|integer|in:30,60',
+        'generate_slots_for_days' => 'sometimes|integer|min:1|max:365',
+
+        // Status control
+        'is_active' => 'sometimes|boolean'
+    ]);
+
+    if ($validator->fails()) {
+        \Log::error('Validation failed for edit doctor:', $validator->errors()->toArray());
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $validated = $validator->validated();
+
+    try {
+        return DB::transaction(function () use ($request, $doctor, $validated) {
+            // تحديث بيانات المستخدم
+            if (isset($validated['first_name']) || 
+                isset($validated['last_name']) || 
+                isset($validated['email']) || 
+                isset($validated['phone_number']) ||
+                isset($validated['gender'])) {
+                
+                $userData = [];
+                if (isset($validated['first_name'])) $userData['first_name'] = $validated['first_name'];
+                if (isset($validated['last_name'])) $userData['last_name'] = $validated['last_name'];
+                if (isset($validated['email'])) $userData['email'] = $validated['email'];
+                if (isset($validated['phone_number'])) $userData['phone'] = $validated['phone_number']; // تحويل إلى phone
+                if (isset($validated['gender'])) $userData['gender'] = $validated['gender'];
+                
+                \Log::info('Updating user data:', $userData);
+                $doctor->user->update($userData);
+            }
+
+            // تحديث بيانات الطبيب
+            $doctorData = collect($validated)
+                ->except(['first_name', 'last_name', 'email', 'phone_number', 'gender', 'schedules'])
+                ->toArray();
+            
+            // تحديث workdays إذا تم تحديث schedules
+            if (isset($validated['schedules'])) {
+                $doctorData['workdays'] = collect($validated['schedules'])->pluck('day')->toArray();
+            }
+            
+            if (!empty($doctorData)) {
+                \Log::info('Updating doctor data:', $doctorData);
+                $doctor->update($doctorData);
+            }
+
+            // تحديث جدول المواعيد
+            if (isset($validated['schedules'])) {
+                \Log::info('Updating schedules:', $validated['schedules']);
+                
+                // حذف الجداول القديمة
+                $doctor->schedules()->delete();
+
+                // إدخال الجداول الجديدة
+                foreach ($validated['schedules'] as $schedule) {
+                    $doctor->schedules()->create([
+                        'day' => $schedule['day'],
+                        'start_time' => $schedule['start_time'],
+                        'end_time' => $schedule['end_time'],
+                    ]);
+                }
+
+                // حذف المواعيد الزمنية المستقبلية القديمة
+                $doctor->timeSlots()->where('date', '>=', now()->format('Y-m-d'))->delete();
+
+                // إعادة توليد المواعيد الزمنية
+                $slotDuration = $validated['slot_duration'] ?? 60;
+                $generateDays = $validated['generate_slots_for_days'] ?? 30;
+                
+                $this->generateTimeSlotsForDoctor($doctor, $generateDays, $slotDuration);
+            }
+
+            return response()->json([
+                'message' => 'Doctor updated successfully',
+                'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+            ]);
+        });
+    } catch (\Exception $e) {
+        \Log::error('Error updating doctor: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Failed to update doctor',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+// تحديث دالة generateTimeSlotsForDoctor
+public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration){
     $timeSlots = [];
     $now = Carbon::now();
-    $startDate = $now->copy()->startOfDay();
-
-    \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days");
+    
+    \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days with {$slotDuration} minute slots");
 
     for ($i = 0; $i < $daysToGenerate; $i++) {
-        $date = $startDate->copy()->addDays($i);
+        $date = $now->copy()->addDays($i)->startOfDay();
         $dayName = strtolower($date->englishDayOfWeek);
 
         $schedule = $doctor->schedules()->where('day', $dayName)->first();
@@ -506,28 +642,28 @@ $validator = Validator::make($request->all(),[
         }
 
         $dateStr = $date->format('Y-m-d');
-        $start = Carbon::parse($schedule->start_time);
-        $end = Carbon::parse($schedule->end_time);
+        $start = Carbon::parse($date->format('Y-m-d') . ' ' . $schedule->start_time);
+        $end = Carbon::parse($date->format('Y-m-d') . ' ' . $schedule->end_time);
 
-        // Adjust for today: only generate future slots
-        if ($date->isToday()) {
-            $currentTime = $now->copy();
-            // Only adjust if current time is within working hours
-            if ($currentTime->between($start, $end)) {
-                $start = $currentTime;
-            }
+        // للأيام المستقبلية، ابدأ من وقت البداية المحدد
+        // لليوم الحالي، ابدأ من الوقت الحالي إذا كان ضمن ساعات العمل
+        if ($date->isToday() && $now->between($start, $end)) {
+            // قرب الوقت الحالي إلى أقرب slot
+            $minutesToAdd = $slotDuration - ($now->minute % $slotDuration);
+            $start = $now->copy()->addMinutes($minutesToAdd)->startOfMinute();
         }
 
         // Generate slots
         $current = $start->copy();
         $slotsCount = 0;
 
-        while ($current->addMinutes($slotDuration)->lte($end)) {
-    $slotStart = $current->copy()->subMinutes($slotDuration);
-    $slotEnd = $current->copy();
+        while ($current->copy()->addMinutes($slotDuration)->lte($end)) {
+            $slotStart = $current->copy();
+            $slotEnd = $current->copy()->addMinutes($slotDuration);
 
-            // Skip past slots for today
-            if ($date->isToday() && $slotEnd->lte($now)) {
+            // تأكد من أن الموعد في المستقبل
+            if ($slotEnd->lt($now)) {
+                $current->addMinutes($slotDuration);
                 continue;
             }
 
@@ -540,7 +676,9 @@ $validator = Validator::make($request->all(),[
                 'created_at' => now(),
                 'updated_at' => now()
             ];
+            
             $slotsCount++;
+            $current->addMinutes($slotDuration);
         }
 
         \Log::info("Generated {$slotsCount} slots for {$dateStr} ({$dayName})");
@@ -560,65 +698,178 @@ $validator = Validator::make($request->all(),[
     \Log::warning("No slots generated for doctor {$doctor->id}");
     return 0;
 }
-    public function updateDoctor(Request $request, Doctor $doctor)
-    {
-        $validator = Validator::make($request->all(), [
 
-            'email' => [
-                'sometimes',
-                'email',
-                'unique:users,email,' . $doctor->user_id
-            ],
-            'phone_number' => 'sometimes|string|max:20',
 
-            'specialty' => 'sometimes|string|max:255',
-            'bio' => 'nullable|string',
-            'consultation_fee' => 'sometimes|numeric|min:120',
-            'experience_years' => 'sometimes|integer|min:1',
-            'clinic_id' => 'sometimes|exists:clinics,id',
-            'workdays' => 'sometimes|array',
-            'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+//     public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
+// {
+//     $timeSlots = [];
+//     $now = Carbon::now();
+//     $startDate = $now->copy()->startOfDay();
 
-            'is_active' => 'sometimes|boolean'
-        ]);
+//     \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days");
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+//     for ($i = 0; $i < $daysToGenerate; $i++) {
+//         $date = $startDate->copy()->addDays($i);
+//         $dayName = strtolower($date->englishDayOfWeek);
 
-        $validated = $validator->validated();
+//         $schedule = $doctor->schedules()->where('day', $dayName)->first();
+//         if (!$schedule) {
+//             \Log::info("No schedule for {$dayName} on {$date->format('Y-m-d')}");
+//             continue;
+//         }
 
-        return DB::transaction(function () use ($request, $doctor, $validated) {
-            // Update user data if present
-            if (
-                isset($validated['email']) || isset($validated['phone_number'])
-            ) {
+//         $dateStr = $date->format('Y-m-d');
+//         $start = Carbon::parse($schedule->start_time);
+//         $end = Carbon::parse($schedule->end_time);
 
-                $userData = [
-                  'email' => $validated['email'] ?? $doctor->user->email,
-                    'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
-                ];
+//         // Adjust for today: only generate future slots
+//         if ($date->isToday()) {
+//             $currentTime = $now->copy();
+//             // Only adjust if current time is within working hours
+//             if ($currentTime->between($start, $end)) {
+//                 $start = $currentTime;
+//             }
+//         }
 
-                $doctor->user->update($userData);
-            }
+//         // Generate slots
+//         $current = $start->copy();
+//         $slotsCount = 0;
 
-            // Update doctor data
-            $doctorData = collect($validated)
-                ->except(['first_name', 'last_name', 'email', 'phone_number'])
-                ->toArray();
+//         while ($current->addMinutes($slotDuration)->lte($end)) {
+//     $slotStart = $current->copy()->subMinutes($slotDuration);
+//     $slotEnd = $current->copy();
 
-            $doctor->update($doctorData);
+//             // Skip past slots for today
+//             if ($date->isToday() && $slotEnd->lte($now)) {
+//                 continue;
+//             }
 
-            return response()->json([
-                'message' => 'Doctor updated successfully',
-                'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
-            ]);
-        });
-    }
+//             $timeSlots[] = [
+//                 'doctor_id' => $doctor->id,
+//                 'date' => $dateStr,
+//                 'start_time' => $slotStart->format('H:i:s'),
+//                 'end_time' => $slotEnd->format('H:i:s'),
+//                 'is_booked' => false,
+//                 'created_at' => now(),
+//                 'updated_at' => now()
+//             ];
+//             $slotsCount++;
+//         }
+
+//         \Log::info("Generated {$slotsCount} slots for {$dateStr} ({$dayName})");
+//     }
+
+//     if (!empty($timeSlots)) {
+//         try {
+//             \Log::info("Inserting ".count($timeSlots)." slots for doctor {$doctor->id}");
+//             TimeSlot::insert($timeSlots);
+//             return count($timeSlots);
+//         } catch (\Exception $e) {
+//             \Log::error("Failed to insert slots: ".$e->getMessage());
+//             return 0;
+//         }
+//     }
+
+//     \Log::warning("No slots generated for doctor {$doctor->id}");
+//     return 0;
+// }
+
+
+
+//     public function updateDoctor(Request $request, Doctor $doctor)
+//     {
+//         $validator = Validator::make($request->all(), [
+
+//             'email' => [
+//                 'sometimes',
+//                 'email',
+//                 'unique:users,email,' . $doctor->user_id
+//             ],
+//             'phone_number' => 'sometimes|string|max:20',
+
+//             // Doctor data
+//             'specialty' => 'sometimes|string|max:255',
+//             'bio' => 'nullable|string',
+//             'consultation_fee' => 'sometimes|numeric|min:120',
+//             'experience_years' => 'sometimes|integer|min:1',
+//             'clinic_id' => 'sometimes|exists:clinics,id',
+//             'workdays' => 'sometimes|array',
+//             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+
+//             // Status control
+//             'is_active' => 'sometimes|boolean'
+//         ]);
+
+//         if ($validator->fails()) {
+//             return response()->json(['errors' => $validator->errors()], 422);
+//         }
+
+//         $validated = $validator->validated();
+
+//         return DB::transaction(function () use ($request, $doctor, $validated) {
+//             // Update user data if present
+//             if (
+//                 isset($validated['email']) || isset($validated['phone_number'])
+//             ) {
+
+//                 $userData = [
+//                   'email' => $validated['email'] ?? $doctor->user->email,
+//                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
+//                 ];
+
+//                 $doctor->user->update($userData);
+//             }
+
+//             // Update doctor data
+//             $doctorData = collect($validated)
+//                 ->except(['first_name', 'last_name', 'email', 'phone_number'])
+//                 ->toArray();
+
+//             $doctor->update($doctorData);
+
+//             return response()->json([
+//                 'message' => 'Doctor updated successfully',
+//                 'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+//             ]);
+//         });
+//     }
     /**
      * Delete a doctor (admin only)
      */
+    public function deleteDoctor(Doctor $doctor)
+    {
+        // Check for upcoming appointments
+        $hasUpcomingAppointments = $doctor->appointments()
+            ->where('appointment_date', '>=', now())
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->exists();
 
+        if ($hasUpcomingAppointments) {
+            return response()->json([
+                'message' => 'Cannot delete doctor with upcoming appointments',
+                'upcoming_appointments' => $doctor->appointments()
+                    ->where('appointment_date', '>=', now())
+                    ->count()
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($doctor) {
+            // Archive or soft delete if implemented
+            if (method_exists($doctor, 'trashed')) {
+                $doctor->delete();
+                $doctor->user()->delete();
+            } else {
+                // Permanent deletion
+                $doctor->user()->delete();
+                $doctor->delete();
+            }
+
+            return response()->json([
+                'message' => 'Doctor deleted successfully',
+                'deleted_at' => now()->toDateTimeString()
+            ]);
+        });
+    }
 
 
 
@@ -658,68 +909,67 @@ public function changePassword(Request $request)
 /**
  * Update admin information (excluding profile picture)
  */
-public function updateAdminInfo(Request $request)
-{
-    $user = Auth::user();
+// public function updateAdminInfo(Request $request){
+//     $user = Auth::user();
 
-    // Check if user is authenticated
-    if (!$user) {
-        return response()->json([
-            'message' => 'Unauthenticated'
-        ], 401);
-    }
+//     // Check if user is authenticated
+//     if (!$user) {
+//         return response()->json([
+//             'message' => 'Unauthenticated'
+//         ], 401);
+//     }
 
-    // Check if user has admin role
-    if (!$user->hasRole('admin')) {
-        return response()->json([
-            'message' => 'User is not an admin'
-        ], 403);
-    }
+//     // Check if user has admin role
+//     if (!$user->hasRole('admin')) {
+//         return response()->json([
+//             'message' => 'User is not an admin'
+//         ], 403);
+//     }
 
-    $validator = Validator::make($request->all(), [
-        'first_name' => 'sometimes|string|max:255',
-        'last_name' => 'sometimes|string|max:255',
-        'email' => [
-            'sometimes',
-            'email',
-            'unique:users,email,' . $user->id
-        ],
-        'phone_number' => 'sometimes|string|max:20',
-        'date_of_birth' => 'sometimes|date',
-        'address' => 'sometimes|string|max:500',
-        'gender' => 'sometimes|in:male,female,other',
-        'additional_notes' => 'nullable|string'
-    ]);
+//     $validator = Validator::make($request->all(), [
+//         'first_name' => 'sometimes|string|max:255',
+//         'last_name' => 'sometimes|string|max:255',
+//         'email' => [
+//             'sometimes',
+//             'email',
+//             'unique:users,email,' . $user->id
+//         ],
+//         'phone_number' => 'sometimes|string|max:20',
+//         'date_of_birth' => 'sometimes|date',
+//         'address' => 'sometimes|string|max:500',
+//         'gender' => 'sometimes|in:male,female,other',
+//         'additional_notes' => 'nullable|string'
+//     ]);
 
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
+//     if ($validator->fails()) {
+//         return response()->json(['errors' => $validator->errors()], 422);
+//     }
 
-    $validated = $validator->validated();
+//     $validated = $validator->validated();
 
-    try {
-        $user->update([
-            'first_name' => $validated['first_name'] ?? $user->first_name,
-            'last_name' => $validated['last_name'] ?? $user->last_name,
-            'email' => $validated['email'] ?? $user->email,
-            'phone_number' => $validated['phone_number'] ?? $user->phone_number,
-            'date_of_birth' => $validated['date_of_birth'] ?? $user->date_of_birth,
-            'address' => $validated['address'] ?? $user->address,
-            'gender' => $validated['gender'] ?? $user->gender,
-            'additional_notes' => $validated['additional_notes'] ?? $user->additional_notes,
-        ]);
+//     try {
+//         $user->update([
+//             'first_name' => $validated['first_name'] ?? $user->first_name,
+//             'last_name' => $validated['last_name'] ?? $user->last_name,
+//             'email' => $validated['email'] ?? $user->email,
+//             'phone_number' => $validated['phone_number'] ?? $user->phone_number,
+//             'date_of_birth' => $validated['date_of_birth'] ?? $user->date_of_birth,
+//             'address' => $validated['address'] ?? $user->address,
+//             'gender' => $validated['gender'] ?? $user->gender,
+//             'additional_notes' => $validated['additional_notes'] ?? $user->additional_notes,
+//         ]);
 
-        return response()->json([
-            'message' => 'Admin information updated successfully',
-            'admin' => $user->fresh()
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Failed to update admin information',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
+//         return response()->json([
+//             'message' => 'Admin information updated successfully',
+//             'admin' => $user->fresh()
+//         ]);
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'message' => 'Failed to update admin information',
+//             'error' => $e->getMessage()
+//         ], 500);
+//     }
+// }
 
 
 
@@ -813,8 +1063,7 @@ public function updateAdminInfo(Request $request)
 
 
 
-        public function deleteProfilePicture()
-    {
+        public function deleteProfilePicture(){
         $user = Auth::user();
 
         try {
@@ -840,8 +1089,7 @@ public function updateAdminInfo(Request $request)
     }
 
 
-    public function getProfilePictureFile()
-{
+    public function getProfilePictureFile(){
     $user = Auth::user();
 
     if (!$user->profile_picture) {
@@ -859,8 +1107,7 @@ public function updateAdminInfo(Request $request)
 
 
 
-  private function getProfilePictureUrl(User $user)
-{
+  private function getProfilePictureUrl(User $user){
     if (!$user->profile_picture) {
         return null;
     }
@@ -897,46 +1144,445 @@ private function deleteProfilePictureFile(User $user)
 
 
 
-public function deleteDoctor(Doctor $doctor)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///////////////////////////////////////////////////////////routs by me ////////////////////////////////////////////////////////////////
+public function addClinic(Request $request)
 {
-    // No need to check for upcoming appointments since we're keeping them
+    // التحقق من المدخلات
+    $attr = $request->validate([
+        'name' => 'required|string',
+        'specialty' => 'nullable|string',
+        'location' => 'nullable|string',
+        'description' => 'nullable|string',
+        'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,bmp|max:4096',
+    ]);
 
-    DB::transaction(function () use ($doctor) {
-        // Delete the doctor record
-        $doctor->delete();
+    // رفع الصورة إذا كانت موجودة
+    if ($request->hasFile('image')) {
+        $path = $request->file('image')->store('uploads', 'public');
+        $imageUrl = asset('storage/' . $path);
+    } else {
+        $imageUrl = null;
+    }
+    
 
-        // Optionally delete the associated user account if needed
-        // $doctor->user()->delete();
-    });
-    $doctor->update(['is_active' => false]);
+    // إنشاء العيادة
+    $clinic = Clinic::create([
+        'name' => $attr['name'],
+        'specialty' => $attr['specialty'] ?? null,
+        'location' => $attr['location'] ?? null,
+        'description' => $attr['description'] ?? null,
+        'image_path' => $imageUrl,
+    ]);
 
     return response()->json([
-        'message' => 'Doctor deleted successfully. Existing appointments remain intact.',
-        'deleted_at' => now()->toDateTimeString()
+        'message' => 'The clinic and image were created successfully',
+        'clinic' => $clinic,
+    ], 200);
+}
+
+public function editClinic(Request $request, $clinic_id)
+{
+    $clinic = Clinic::findOrFail($clinic_id);
+
+    $attr = $request->validate([
+        'name' => 'required|string',
+        'specialty' => 'nullable|string',
+        'location' => 'nullable|string',
+        'description' => 'nullable|string',
+        'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,bmp|max:4096',
+    ]);
+    
+
+    if ($request->hasFile('image')) {
+        if ($clinic->image_path) {
+            $oldPath = str_replace('/storage/', '', parse_url($clinic->image_path, PHP_URL_PATH));
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $path = $request->file('image')->store('uploads', 'public');
+        $imageUrl = asset('storage/' . $path);
+    } else {
+        $imageUrl = $clinic->image_path;
+    }
+
+    $clinic->update([
+        'name' => $attr['name'],
+        'specialty' => $attr['specialty'] ?? $clinic->specialty,
+        'location' => $attr['location'] ?? $clinic->location,
+        'description' => $attr['description'] ?? $clinic->description,
+        'image_path' => $imageUrl,
+    ]);
+
+    return response()->json([
+        'message' => 'The clinic was updated successfully',
+        'clinic' => $clinic,
+    ], 200);
+}
+
+    public function deleteClinic($clinic_id)
+    {
+        $Clinic = Clinic::find($clinic_id);
+        if (!$Clinic) {
+            return response()->json(['message' => 'Clinic is not found'], 404);
+        }
+        $Clinic->delete();
+
+        return response()->json(['message' => ' deleted successfully'], 200);
+    }
+    public function allClinics(Request $request){
+    $limit = $request->get('limit', 5); // ← القيمة الافتراضية 5
+    $clinics = Clinic::paginate($limit); // ← استخدام paginate بدل all()
+
+    if ($clinics->isEmpty()) {
+        return response()->json(['message' => 'No clinics found'], 404);
+    }
+
+    return response()->json([
+        'clinics' => $clinics->items(), // ← فقط العناصر الحالية في الصفحة
+        'total' => $clinics->total(),   // ← العدد الكلي لكل العيادات
+        'current_page' => $clinics->currentPage(), // ← اختياري إذا أردت تتبعه من الواجهة
+        'last_page' => $clinics->lastPage(),       // ← اختياري
+    ], 200);
+}
+
+    public function gitClinicById($clinic_id)
+    {
+        $Clinic = Clinic::find($clinic_id);
+        if (!$Clinic) {
+            return response()->json(['message' => 'Clinic is not found'], 404);
+        }
+        
+
+        return response()->json(["clinic" => $Clinic], 200);
+    }
+
+
+                //////////////////////////    doctors          ///////////////////////////////
+    public function allDoctors(Request $request){
+    $limit = $request->get('limit', 5);
+
+    $doctors = Doctor::with([
+        'user',     // معلومات المستخدم
+        'clinic',   // معلومات العيادة
+        'salary'    // معلومات الراتب (إذا عندك علاقة salary)
+    ])->paginate($limit);
+
+    if ($doctors->isEmpty()) {
+        return response()->json(['message' => 'No doctors found'], 404);
+    }
+
+    return response()->json([
+        'doctors' => $doctors->items(),  // البيانات مع العلاقات
+        'total' => $doctors->total(),
+        'current_page' => $doctors->currentPage(),
+        'last_page' => $doctors->lastPage(),
+    ], 200);
+}
+
+public function DoctorInfo($doctor_id){
+    $doctor = Doctor::with([
+        'user',       // معلومات المستخدم
+        'clinic',     // معلومات العيادة
+        'salary',     // معلومات الراتب
+        'schedules',  // جدول مواعيد الطبيب
+        'timeSlots'   // المواعيد الزمنية (إذا عندك علاقة باسم timeSlots)
+    ])->where('id', $doctor_id)->first();
+
+    if (!$doctor) {
+        return response()->json(['message' => 'No doctor found'], 404);
+    }
+
+    return response()->json([
+        'doctor' => $doctor
+    ], 200);
+}
+
+
+// public function editDoctor1(Request $request, Doctor $doctor)
+// {
+//     $validator = Validator::make($request->all(), [
+//         // User data
+//         'first_name' => 'sometimes|string|max:255',
+//         'last_name' => 'sometimes|string|max:255',
+//         'email' => [
+//             'sometimes',
+//             'email',
+//             'unique:users,email,' . $doctor->user_id
+//         ],
+//         'phone_number' => 'sometimes|string|max:20',
+
+//         // Doctor data
+//         'specialty' => 'sometimes|string|max:255',
+//         'bio' => 'nullable|string',
+//         'consultation_fee' => 'sometimes|numeric|min:0',
+//         'experience_years' => 'sometimes|integer|min:0',
+//         'clinic_id' => 'sometimes|exists:clinics,id',
+
+//         // جدول المواعيد
+//         'schedules' => 'sometimes|array',
+//         'schedules.*.day' => 'required_with:schedules|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+//         'schedules.*.start_time' => 'required_with:schedules|date_format:H:i',
+//         'schedules.*.end_time' => 'required_with:schedules|date_format:H:i',
+
+//         // إعدادات المواعيد
+//         'slot_duration' => 'sometimes|integer|min:5',
+//         'generate_slots_for_days' => 'sometimes|integer|min:1',
+
+//         // Status control
+//         'is_active' => 'sometimes|boolean'
+//     ]);
+
+//     if ($validator->fails()) {
+//         return response()->json(['errors' => $validator->errors()], 422);
+//     }
+
+//     $validated = $validator->validated();
+
+//     return DB::transaction(function () use ($request, $doctor, $validated) {
+//         // تحديث بيانات المستخدم
+//         if (isset($validated['first_name']) || isset($validated['last_name']) || isset($validated['email']) || isset($validated['phone_number'])) {
+//             $userData = [
+//                 'first_name' => $validated['first_name'] ?? $doctor->user->first_name,
+//                 'last_name' => $validated['last_name'] ?? $doctor->user->last_name,
+//                 'email' => $validated['email'] ?? $doctor->user->email,
+//                 'phone' => $validated['phone_number'] ?? $doctor->user->phone, // إذا العمود اسمه phone أو phone_number حسب الجدول
+//             ];
+//             $doctor->user->update($userData);
+//         }
+
+//         // تحديث بيانات الطبيب
+//         $doctorData = collect($validated)
+//             ->except(['first_name', 'last_name', 'email', 'phone_number', 'schedules'])
+//             ->toArray();
+//         $doctor->update($doctorData);
+
+//         // تحديث جدول المواعيد
+//         if (isset($validated['schedules'])) {
+//             // حذف الجداول القديمة
+//             $doctor->schedules()->delete();
+
+//             // إدخال الجداول الجديدة
+//             foreach ($validated['schedules'] as $schedule) {
+//                 $doctor->schedules()->create([
+//                     'day' => $schedule['day'],
+//                     'start_time' => $schedule['start_time'],
+//                     'end_time' => $schedule['end_time'],
+//                 ]);
+//             }
+//         }
+
+//         return response()->json([
+//             'message' => 'Doctor updated successfully',
+//             'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+//         ]);
+//     });
+// }
+
+
+public function createSecretary(Request $request)
+{
+    // Validate input
+    $validator = Validator::make($request->all(), [
+        'first_name'   => 'required|string|max:255',
+        'last_name'    => 'required|string|max:255',
+        'email'        => 'required|email|unique:users,email',
+        'phone_number' => 'required|string|max:20',
+        'gender'       => 'required|in:male,female',
+        'workdays'     => 'required|array',
+        'workdays.*'   => 'string',
+        'salary'       => 'nullable|numeric|min:0',
+        'password' => 'required|string|min:8',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors'  => $validator->errors()
+        ], 422);
+    }
+
+    try {
+        // Create User record
+        $user = User::create([
+            'first_name' => $request->first_name,
+            'last_name'  => $request->last_name,
+            'email'      => $request->email,
+            'phone'      => $request->phone_number,
+            'gender'     => $request->gender,
+            'role_id'    => 3, 
+            'password' => Hash::make($request->password),
+
+        ]);
+
+        // Create Secretary record
+        $secretary = Secretary::create([
+            'user_id'             => $user->id,
+            'salary'              => $request->salary,
+            'workdays'            => json_encode($request->workdays),
+            'emergency_absences'  => json_encode([]),
+            'performance_metrics' => json_encode([]),
+        ]);
+
+        return response()->json([
+            'message'           => 'Secretary created successfully',
+            'secretary'         => $secretary,
+            'login_credentials' => [
+                'email'    => $user->email,
+                'password' => $user->password
+            ]
+        ], 201);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to create secretary',
+            'error'   => $e->getMessage()
+        ], 500);
+    }
+}
+public function updateSecretary(Request $request, $id)
+{
+    $secretary = Secretary::with('user')->find($id);
+
+    if (!$secretary) {
+        return response()->json(['success' => false, 'message' => 'السكرتيرة غير موجودة'], 404);
+    }
+
+    $validated = $request->validate([
+        'first_name'       => 'required|string|max:255',
+        'last_name'        => 'nullable|string|max:255',
+        'email'            => 'required|email|unique:users,email,' . $secretary->user->id,
+        'workdays'         => 'nullable|string',
+        'profile_picture'  => 'nullable|image|mimes:jpeg,png,jpg,gif|max:4096'
+    ]);
+
+    // تحديث جدول users
+    $secretary->user->first_name = $validated['first_name'];
+    $secretary->user->last_name  = $validated['last_name'] ?? null;
+    $secretary->user->email      = $validated['email'];
+
+    if ($request->hasFile('profile_picture')) {
+        $path = $request->file('profile_picture')->store('uploads/secretaries', 'public');
+        $secretary->user->profile_picture = '/storage/' . $path;
+    }
+    $secretary->user->save();
+
+    // تحديث جدول secretaries
+    $secretary->workdays = $validated['workdays'] ?? $secretary->workdays;
+    $secretary->save();
+
+    return response()->json(['success' => true, 'message' => 'تم تحديث بيانات السكرتيرة بنجاح']);
+}
+
+
+// داخل SecretaryController
+public function getSecretaryById($id)
+{
+    $secretary = Secretary::with('user')->where('id',$id)->first();
+
+    if (!$secretary) {
+        return response()->json([
+            'success' => false,
+            'message' => 'السكرتيرة غير موجودة'
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $secretary
     ]);
 }
 
-
-
-
-
-
-
-public function restoreDoctor($id)
+///////////////////////////////profile/////
+public function updateAdminInfo(Request $request)
 {
-    return DB::transaction(function () use ($id) {
-        $doctor = Doctor::withTrashed()->findOrFail($id);
-        $doctor->restore();
-        $doctor->user()->restore();
+    $user = Auth::user();
+
+    if (!$user) {
+        return response()->json([
+            'message' => 'Unauthenticated'
+        ], 401);
+    }
+
+    if (!$user->hasRole('admin')) {
+        return response()->json([
+            'message' => 'User is not an admin'
+        ], 403);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'sometimes|string|max:255',
+        'last_name' => 'sometimes|string|max:255',
+        'email' => [
+            'sometimes',
+            'email',
+            'unique:users,email,' . $user->id
+        ],
+        'phone' => 'sometimes|string|max:20',
+        'date_of_birth' => 'sometimes|date',
+        'address' => 'sometimes|string|max:500',
+        'gender' => 'sometimes|in:male,female,other',
+        'additional_notes' => 'nullable|string',
+        'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:4096'
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    $validated = $validator->validated();
+
+    // Handle image upload
+    if ($request->hasFile('profile_picture')) {
+        $path = $request->file('profile_picture')->store('uploads', 'public');
+        $imageUrl = asset('storage/' . $path);
+    } else {
+        $imageUrl = $user->profile_picture; // Keep old picture if not updated
+    }
+
+    try {
+        $user->update([
+            'first_name'       => $validated['first_name'] ?? $user->first_name,
+            'last_name'        => $validated['last_name'] ?? $user->last_name,
+            'email'            => $validated['email'] ?? $user->email,
+            'phone'            => $validated['phone'] ?? $user->phone,
+            'date_of_birth'    => $validated['date_of_birth'] ?? $user->date_of_birth,
+            'address'          => $validated['address'] ?? $user->address,
+            'gender'           => $validated['gender'] ?? $user->gender,
+            'additional_notes' => $validated['additional_notes'] ?? $user->additional_notes,
+            'profile_picture'  => $imageUrl,
+        ]);
 
         return response()->json([
-            'message' => 'Doctor restored successfully',
-            'doctor' => $doctor->load('user')
+            'message' => 'Admin information updated successfully',
+            'admin'   => $user->fresh()
         ]);
-    });
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to update admin information',
+            'error'   => $e->getMessage()
+        ], 500);
+    }
 }
 
 
-
 }
-

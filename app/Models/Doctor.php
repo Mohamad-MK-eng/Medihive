@@ -52,6 +52,7 @@ class Doctor extends Model
 protected $dates =['deleted_at'];
 
 
+
     protected $casts = [
         'clinic_id',
         'workdays' => 'array',
@@ -84,13 +85,18 @@ protected $dates =['deleted_at'];
 
     public function clinic()
     {
-        return $this->belongsTo(Clinic::class);
+        return $this->belongsTo(Clinic::class,"clinic_id");
     }
 
     public function timeSlots()
     {
         return $this->hasMany(TimeSlot::class);
     }
+    public function salary()
+{
+    return $this->belongsTo(Salary::class);
+}
+
 
 
     // Helper methods
@@ -172,7 +178,6 @@ public function updateRating()
     $this->rating = $this->averageRating();
     $this->save();
 }
-
 
 
 

@@ -3,22 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
-use App\Models\ClinicWallet;
-use App\Models\ClinicWalletTransaction;
-use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\Secretary;
-use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
-use App\Notifications\AppointmentBooked;
-use App\Notifications\DoctorAppointmentBooked;
-use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Log;
-use Notification;
 
 class SecretaryController extends Controller
 {
@@ -27,103 +18,8 @@ class SecretaryController extends Controller
 
 
 
-public function secretaryBookAppointment(Request $request)
-{
-    // Authorization check
-    if (!Auth::user()->secretary) {
-        return response()->json(['error' => 'Unauthorized'], 403);
-    }
 
-    // Validation
-    $validated = $request->validate([
-        'doctor_id' => 'required|exists:doctors,id',
-        'slot_id' => 'required|exists:time_slots,id',
-        'patient_id' => 'required|exists:patients,id',
-        'amount' => 'required|numeric|min:0',
-        'notes' => 'nullable|string',
-    ]);
 
-    return DB::transaction(function () use ($validated) {
-        try {
-            // Check slot availability
-            $slot = TimeSlot::where('id', $validated['slot_id'])
-                ->where('doctor_id', $validated['doctor_id'])
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ($slot->is_booked) {
-                return response()->json(['error' => 'Slot already booked'], 409);
-            }
-
-            // Get related models
-            $doctor = Doctor::findOrFail($validated['doctor_id']);
-            $patient = Patient::findOrFail($validated['patient_id']);
-
-            // Fix: Properly format the appointment date
-            $appointmentDate = Carbon::createFromFormat(
-                'Y-m-d H:i:s',
-                // Use only the date part from $slot->date and time from $slot->start_time
-                Carbon::parse($slot->date)->format('Y-m-d') . ' ' . $slot->start_time
-            );
-
-            // Create appointment
-            $appointment = Appointment::create([
-                'patient_id' => $patient->id,
-                'doctor_id' => $doctor->id,
-                'clinic_id' => $doctor->clinic_id,
-                'time_slot_id' => $slot->id,
-                'appointment_date' => $appointmentDate,
-                'status' => 'confirmed',
-                'payment_status' => 'paid',
-                'price' => $validated['amount'],
-                'notes' => $validated['notes'] ?? null,
-                'booked_by_secretary' => true,
-            ]);
-
-            // Mark slot as booked
-            $slot->update(['is_booked' => true]);
-
-            // Record payment
-            $payment = Payment::create([
-                'appointment_id' => $appointment->id,
-                'patient_id' => $patient->id,
-                'amount' => $validated['amount'],
-                'method' => 'cash',
-                'status' => 'paid',
-                'secretary_id' => Auth::id(),
-                'transaction_id' => 'CASH-' . now()->timestamp,
-            ]);
-
-            // Update clinic wallet
-            $clinicWallet = ClinicWallet::firstOrCreate(['clinic_id' => $doctor->clinic_id]);
-            $clinicWallet->increment('balance', $validated['amount']);
-
-            ClinicWalletTransaction::create([
-                'clinic_wallet_id' => $clinicWallet->id,
-                'amount' => $validated['amount'],
-                'type' => 'cash_payment',
-                'reference' => 'APT-' . $appointment->id,
-                'balance_before' => $clinicWallet->balance - $validated['amount'],
-                'balance_after' => $clinicWallet->balance,
-                'notes' => 'Secretary cash booking for appointment #' . $appointment->id,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'appointment_id' => $appointment->id,
-                'payment_id' => $payment->id,
-                'appointment_date' => $appointmentDate->format('Y-m-d H:i:s'),
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Booking failed',
-                'internal_error' => $e->getMessage(),
-                'trace' => env('APP_DEBUG') ? $e->getTraceAsString() : null
-            ], 500);
-        }
-    });
-}
 
 
     // the cash payment
