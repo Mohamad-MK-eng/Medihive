@@ -16,36 +16,46 @@ use App\Http\Controllers\SecretaryController;
 use App\Http\Middleware\ApiAuthMiddleware;
 use App\Models\Doctor;
 use App\Models\TimeSlot;
-//107 in postman collection
 
-// 8 middelware
-
-
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "api" middleware group. Make something great!
+|
+*/
 
 // Public Routes (No Authentication Required)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot_password', [\App\Http\Controllers\Auth\PasswordResetController::class, 'sendResetLink']);
-Route::post('/reset_password', [\App\Http\Controllers\Auth\PasswordResetController::class, 'resetPassword']); // not in postMAN COLLECTION YET
+Route::post('/reset_password', [\App\Http\Controllers\Auth\PasswordResetController::class, 'resetPassword']);
 
 
+
+
+
+
+
+
+
+// Authenticated Routes (All logged-in users)
 Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     Route::post('/change_password', [AuthController::class, 'changePassword']);
+
+    Route::get('/user', [AdminController::class, 'authUser']);
+
     Route::post('/logout', [AuthController::class, 'logout']);
 
 
 
+    // In your routes/api.php
 
-
-
-
-    //home
     Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
     Route::get('/doctors/{doctor}', [DoctorController::class, 'show']);
-
-
-
-
 
 
 
@@ -57,43 +67,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     // Admin-only routes
     Route::middleware('role:admin')->group(function () {
         Route::put('/doctors/{doctor}/admin_update', [DoctorController::class, 'adminUpdate']);
-        Route::delete('/doctors/{doctor}', [DoctorController::class, 'destroy']); // not in postman
-
-        // Clinics
-        Route::post('/clinics', [AdminController::class, 'createClinic']);
-        Route::put('/clinics/{clinic}', [AdminController::class, 'updateclinic']);
-        Route::post('/clinics/{clinic}/upload_icon', [AdminController::class, 'uploadClinicIcon']);
-
-        Route::get('/search/secretaries', [SearchController::class, 'searchSecretaries']);
-
-
-
-        Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlotsForDoctor']);
-        Route::delete('/doctors/{doctor}/delete', [AdminController::class, 'deleteDoctor']);
-
-        // Wallet Reports
-        Route::prefix('admin/wallet')->group(function () {
-            Route::get('/transactions', [AdminController::class, 'getWalletTransactions']);
-            Route::get('/income_report', [AdminController::class, 'getClinicIncomeReport']);
-        });
-
-
-
-        Route::prefix('admin/profile')->group(function () {
-            Route::put('/', [AdminController::class, 'updateAdminInfo']);  // done
-
-            //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
-            Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
-            Route::delete('/picture', [AdminController::class, 'deleteProfilePicture']);
-        });
-
-
-        Route::get('/picture', [AdminController::class, 'getProfilePictureFile']);
-        // Doctors
-        Route::post('/admin/create_doctor', [AdminController::class, 'createDoctor']);
-        Route::post('/admin/create_secretary', [AdminController::class, 'createSecretary']);
+        Route::delete('/doctors/{doctor}', [DoctorController::class, 'destroy']);
     });
-
 
     // Doctor profile updates (by doctor or admin)
     Route::put('/doctors/{doctor}', [DoctorController::class, 'update']);
@@ -106,28 +81,17 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
     // Schedule & Appointments
     Route::get('/schedule', [DoctorController::class, 'getSchedule']);
-
-
-
-    // Correct (new version)
-    Route::middleware(['auth:api', 'role:doctor'])->get('/doctor/appointments', [DoctorController::class, 'getAppointments']);
+    Route::get('/appointments', [DoctorController::class, 'getAppointments']);
     Route::get('/time_slots', [DoctorController::class, 'getTimeSlots']);
 
 
-    Route::get('clinics/{clinic}/wallet', [ClinicController::class, 'getWalletBalance']); // tamam
-    Route::get('clinics/{clinic}/wallet/transactions', [ClinicController::class, 'getWalletTransactions']); //tamam
-    Route::post('clinics/{clinic}/wallet/withdraw', [ClinicController::class, 'withdrawFromWallet']); // tamam
-
-    // Updated refund route
-    Route::post('appointments/{appointment}/refund', [AppointmentController::class, 'processRefund']); // tamam
-
-    Route::get('/patient_transactions/{patient}', [WalletController::class, 'getTransactions']);
 
 
+    //try this multiple role access
 
-
-
+    // Role-based route groups
     Route::middleware(['role:patient,secretary,admin'])->group(function () {
+        // Patient profile management
 
 
         Route::get('/search/clinics', [SearchController::class, 'searchClinics']);
@@ -151,6 +115,10 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
         //times done
+
+
+        Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
+
 
         Route::get('doctors/{doctor}/available_times/{date}', [AppointmentController::class, 'getAvailableTimes']);
 
@@ -177,22 +145,43 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         //  Route::get('/clinics/{clinic}/doctors', [AppointmentController::class, 'getClinicDoctors']);
         Route::get('/clinics/{clinic}/doctors-with-slots', [AppointmentController::class, 'getClinicDoctorsWithSlots']);
         Route::get('/doctors/{doctor}', [AppointmentController::class, 'getDoctorDetails']);
+
     });
 
 
-    // Appointments on secretary's side
+    Route::get('clinics/{clinic}/wallet', [ClinicController::class, 'getWalletBalance']); // tamam
+    Route::get('clinics/{clinic}/wallet/transactions', [ClinicController::class, 'getWalletTransactions']); //tamam
+    Route::post('clinics/{clinic}/wallet/withdraw', [ClinicController::class, 'withdrawFromWallet']); // tamam
+
+    // Updated refund route
+    Route::post('appointments/{appointment}/refund', [AppointmentController::class, 'processRefund']); // tamam
+
+
+
+
+
+
+
+
+
+
+    Route::get('/patient_transactions/{patient}', [WalletController::class, 'getTransactions']);
+
+
+
+
+
+
+
+
+
+    // Appointments
     Route::middleware(['role:secretary'])->group(function () {
 
         Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'rescheduleAppointment']);
         Route::post('/appointments/{appointment}/refund', [AppointmentController::class, 'processRefund']);
 
 
-        Route::post('appointments/Book', [SecretaryController::class, 'secretaryBookAppointment']);
-        //3/8/2025
-
-        Route::get('/secretary/blocked_patients', [SecretaryController::class, 'listBlockedPatients']);
-
-        Route::post('/secretary/unblock_patient', [SecretaryController::class, 'unblockPatient']);
 
         // Wallet Management
         Route::prefix('wallet')->group(function () {
@@ -204,17 +193,41 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::post('/payments', [SecretaryController::class, 'makePayment']);
     });
 
+
+
+
+
+
+
+
+
+
+
+
+
+    Route::post('/appointments/{appointment}/reports', [DoctorController::class, 'SubmitMedicalReport']);
+
+    Route::post('/reports/{report}/prescriptions', [DoctorController::class, 'addPrescriptions']);
+
+
+
+
+
+    //hereeeeeeeeeeeeeeeee
+    Route::get('/appointments/{appointment}/reports', [PatientController::class, 'getAppointmentReports']);
+
+
+
+
+
     Route::middleware('role:doctor,secretary')->group(function () {
         Route::get('/search/patients', [SearchController::class, 'searchPatients']);
-        Route::patch('/appointments/{appointment}/absent', [DoctorController::class, 'markAsAbsent']);
-        Route::patch('/appointments/{appointment}/complete', [DoctorController::class, 'markAsCompleted']);
     });
 
-    Route::middleware(['role:patient,doctor'])->group(function () {
 
-        //hereeeeeeeeeeeeeeeee
-        Route::get('/appointments/{appointment}/reports', [PatientController::class, 'getAppointmentReports']);
-    });
+
+
+
 
     Route::middleware(['role:secretary,patient'])->group(function () {
 
@@ -233,14 +246,22 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::get('/payments_info', [PaymentController::class, 'PaymentInfo']);
     });
 
+
+
+
+
+
+
+
+
+
+
+
     Route::middleware(['role:doctor'])->group(function () {
         Route::prefix('doctor')->group(function () {
             Route::get('/availability', [DoctorController::class, 'getAvailability']);
+            // Add more doctor-specific routes here
         });
-
-        Route::post('/appointments/{appointment}/reports', [DoctorController::class, 'SubmitMedicalReport']);
-
-        Route::post('/reports/{report}/prescriptions', [DoctorController::class, 'addPrescriptions']);
     });
 
 
@@ -254,12 +275,13 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+    Route::middleware(['role:admin'])->group(function () {
+        // Clinics
+        Route::post('/clinics', [AdminController::class, 'createClinic']);
+        Route::put('/clinics/{clinic}', [AdminController::class, 'updateclinic']);
+        Route::post('/clinics/{clinic}/upload_icon', [AdminController::class, 'uploadClinicIcon']);
 
-
-
-            Route::post('/updateAdminInfo', [AdminController::class, 'updateAdminInfo']);  // done
-
-
+        Route::get('/search/secretaries', [SearchController::class, 'searchSecretaries']);
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -283,17 +305,40 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+        Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlotsForDoctor']);
+
+        Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlots']);
+
+        // Wallet Reports
+        Route::prefix('admin/wallet')->group(function () {
+            Route::get('/transactions', [AdminController::class, 'getWalletTransactions']);
+            Route::get('/income_report', [AdminController::class, 'getClinicIncomeReport']);
+        });
 
 
 
-                    Route::get('/appointments', [PatientController::class, 'getPatientHistory']);
+        Route::prefix('admin/profile')->group(function () {
+            Route::post('/updateAdminInfo', [AdminController::class, 'updateAdminInfo']);  // done
+
+            //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
+            Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
+            Route::delete('/picture', [AdminController::class, 'deleteProfilePicture']);
+        });
+
+
+        Route::get('/picture', [AdminController::class, 'getProfilePictureFile']);
 
 
 
 
 
 
-                        Route::get('/user', [AdminController::class, 'authUser']);
+
+
+
+
+
+
 
 
 
@@ -310,4 +355,10 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     Route::post('/notifications/{id}/read', 'NotificationController@markAsRead');
 
     Route::post('/notifications/read-all', 'NotificationController@markAllAsRead');
+
+
+
+
+});
+
 });
