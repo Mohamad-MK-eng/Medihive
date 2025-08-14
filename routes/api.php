@@ -50,6 +50,10 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+
+
+
+
     // Admin-only routes
     Route::middleware('role:admin')->group(function () {
         Route::put('/doctors/{doctor}/admin_update', [DoctorController::class, 'adminUpdate']);
@@ -253,6 +257,43 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
+            Route::post('/updateAdminInfo', [AdminController::class, 'updateAdminInfo']);  // done
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        //////////////////////////    clinic          ///////////////////////////////
+        Route::post('/addClinic', [AdminController::class, 'addClinic']);
+        Route::get('/allClinics', [AdminController::class, 'allClinics']);
+        Route::get('/gitClinicById/{clinic_id}', [AdminController::class, 'gitClinicById']);
+        Route::post('/editClinic/{clinic_id}', [AdminController::class, 'editClinic']);
+        Route::post('/deleteClinic/{clinic_id}', [AdminController::class, 'deleteClinic']);
+
+        //////////////////////////    doctors          ///////////////////////////////
+        Route::get('/allDoctors', [AdminController::class, 'allDoctors']);
+        Route::get('/DoctorInfo/{doctor_id}', [AdminController::class, 'DoctorInfo']);
+        Route::post('/editDoctor/{doctor_id}', [AdminController::class, 'editDoctor']);
+
+        //////////////////////////    secretary          ///////////////////////////////
+        Route::post('/admin/create_secretary', [AdminController::class, 'createSecretary']);
+        Route::get('/getSecretaryById/{id}', [AdminController::class, 'getSecretaryById']);
+        Route::post('/secretaries/update/{id}', [AdminController::class, 'updateSecretary']);
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+                    Route::get('/appointments', [PatientController::class, 'getPatientHistory']);
+
+
+
+
+
+
+                        Route::get('/user', [AdminController::class, 'authUser']);
 
 
 
