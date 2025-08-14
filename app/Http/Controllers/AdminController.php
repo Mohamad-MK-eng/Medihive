@@ -29,7 +29,7 @@ class AdminController extends Controller
     public function authUser(){
         return Auth::user();
     }
-    
+
  protected $profilePictureConfig = [
         'directory' => 'admin_profile_pictures',
         'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
@@ -552,19 +552,19 @@ public function editDoctor(Request $request, $doctorId){
     try {
         return DB::transaction(function () use ($request, $doctor, $validated) {
             // تحديث بيانات المستخدم
-            if (isset($validated['first_name']) || 
-                isset($validated['last_name']) || 
-                isset($validated['email']) || 
+            if (isset($validated['first_name']) ||
+                isset($validated['last_name']) ||
+                isset($validated['email']) ||
                 isset($validated['phone_number']) ||
                 isset($validated['gender'])) {
-                
+
                 $userData = [];
                 if (isset($validated['first_name'])) $userData['first_name'] = $validated['first_name'];
                 if (isset($validated['last_name'])) $userData['last_name'] = $validated['last_name'];
                 if (isset($validated['email'])) $userData['email'] = $validated['email'];
                 if (isset($validated['phone_number'])) $userData['phone'] = $validated['phone_number']; // تحويل إلى phone
                 if (isset($validated['gender'])) $userData['gender'] = $validated['gender'];
-                
+
                 \Log::info('Updating user data:', $userData);
                 $doctor->user->update($userData);
             }
@@ -573,12 +573,12 @@ public function editDoctor(Request $request, $doctorId){
             $doctorData = collect($validated)
                 ->except(['first_name', 'last_name', 'email', 'phone_number', 'gender', 'schedules'])
                 ->toArray();
-            
+
             // تحديث workdays إذا تم تحديث schedules
             if (isset($validated['schedules'])) {
                 $doctorData['workdays'] = collect($validated['schedules'])->pluck('day')->toArray();
             }
-            
+
             if (!empty($doctorData)) {
                 \Log::info('Updating doctor data:', $doctorData);
                 $doctor->update($doctorData);
@@ -587,7 +587,7 @@ public function editDoctor(Request $request, $doctorId){
             // تحديث جدول المواعيد
             if (isset($validated['schedules'])) {
                 \Log::info('Updating schedules:', $validated['schedules']);
-                
+
                 // حذف الجداول القديمة
                 $doctor->schedules()->delete();
 
@@ -606,7 +606,7 @@ public function editDoctor(Request $request, $doctorId){
                 // إعادة توليد المواعيد الزمنية
                 $slotDuration = $validated['slot_duration'] ?? 60;
                 $generateDays = $validated['generate_slots_for_days'] ?? 30;
-                
+
                 $this->generateTimeSlotsForDoctor($doctor, $generateDays, $slotDuration);
             }
 
@@ -628,7 +628,7 @@ public function editDoctor(Request $request, $doctorId){
 public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration){
     $timeSlots = [];
     $now = Carbon::now();
-    
+
     \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days with {$slotDuration} minute slots");
 
     for ($i = 0; $i < $daysToGenerate; $i++) {
@@ -676,7 +676,7 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
                 'created_at' => now(),
                 'updated_at' => now()
             ];
-            
+
             $slotsCount++;
             $current->addMinutes($slotDuration);
         }
@@ -699,6 +699,66 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
     return 0;
 }
 
+
+
+public function generateSlots(Doctor $doctor, $daysToGenerate = 30, $slotDuration = 30)
+{
+    $timeSlots = [];
+    $now = Carbon::now();
+    $generatedDays = 0;
+
+    \Log::info("Starting generation for {$daysToGenerate} days with {$slotDuration}min slots");
+
+    for ($i = 0; $i < $daysToGenerate && $generatedDays < $daysToGenerate; $i++) {
+        $date = $now->copy()->addDays($i);
+        $dayName = strtolower($date->englishDayOfWeek);
+
+        // Skip if no schedule for this day
+        if (!$doctor->schedules->where('day', $dayName)->count()) {
+            \Log::info("Skipping {$date->format('Y-m-d')} ({$dayName}): No schedule");
+            continue;
+        }
+
+        $schedule = $doctor->schedules->where('day', $dayName)->first();
+        $start = Carbon::parse($schedule->start_time);
+        $end = Carbon::parse($schedule->end_time);
+
+        // Adjust for current time if today
+        if ($date->isToday()) {
+            $currentTime = $now->copy()->setTimezone('UTC');
+            if ($currentTime > $start) {
+                $start = $currentTime->addMinutes($slotDuration - ($currentTime->minute % $slotDuration));
+            }
+        }
+
+        // Generate slots
+        $current = $start->copy();
+        while ($current->addMinutes($slotDuration)->lte($end)) {
+            $slotStart = $current->copy()->subMinutes($slotDuration);
+            $slotEnd = $current->copy();
+
+            $timeSlots[] = [
+                'doctor_id' => $doctor->id,
+                'date' => $date->format('Y-m-d'),
+                'start_time' => $slotStart->format('H:i:s'),
+                'end_time' => $slotEnd->format('H:i:s'),
+                'is_booked' => false,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+        }
+
+        $generatedDays++;
+        \Log::info("Generated slots for {$date->format('Y-m-d')}: " . count($timeSlots));
+    }
+
+    if (!empty($timeSlots)) {
+        TimeSlot::insert($timeSlots);
+        return count($timeSlots);
+    }
+
+    return 0;
+}
 
 //     public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
 // {
@@ -1183,7 +1243,7 @@ public function addClinic(Request $request)
     } else {
         $imageUrl = null;
     }
-    
+
 
     // إنشاء العيادة
     $clinic = Clinic::create([
@@ -1211,7 +1271,7 @@ public function editClinic(Request $request, $clinic_id)
         'description' => 'nullable|string',
         'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,bmp|max:4096',
     ]);
-    
+
 
     if ($request->hasFile('image')) {
         if ($clinic->image_path) {
@@ -1271,7 +1331,7 @@ public function editClinic(Request $request, $clinic_id)
         if (!$Clinic) {
             return response()->json(['message' => 'Clinic is not found'], 404);
         }
-        
+
 
         return response()->json(["clinic" => $Clinic], 200);
     }
@@ -1429,7 +1489,7 @@ public function createSecretary(Request $request)
             'email'      => $request->email,
             'phone'      => $request->phone_number,
             'gender'     => $request->gender,
-            'role_id'    => 3, 
+            'role_id'    => 3,
             'password' => Hash::make($request->password),
 
         ]);

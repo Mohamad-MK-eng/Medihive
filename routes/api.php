@@ -296,7 +296,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::get('/allDoctors', [AdminController::class, 'allDoctors']);
         Route::get('/DoctorInfo/{doctor_id}', [AdminController::class, 'DoctorInfo']);
         Route::post('/editDoctor/{doctor_id}', [AdminController::class, 'editDoctor']);
-
+Route::post('admin/create_doctor',[AdminController::class,'createDoctor']);
         //////////////////////////    secretary          ///////////////////////////////
         Route::post('/admin/create_secretary', [AdminController::class, 'createSecretary']);
         Route::get('/getSecretaryById/{id}', [AdminController::class, 'getSecretaryById']);

@@ -119,7 +119,7 @@ return $this->hasOne(Report::class);
 
 
 
-/* public function markAsCompleted()
+public function markAsCompleted()
 {
     if (!$this->report) {
         throw new \Exception('Cannot complete appointment without a medical report');
@@ -129,7 +129,7 @@ return $this->hasOne(Report::class);
         'status' => 'completed',
         'completed_at' => now()
     ]);
-} */
+}
 
 /* protected static function boot()
 {
