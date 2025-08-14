@@ -18,7 +18,7 @@ class Clinic extends Model
         'image_path'
     ];
 
-
+// specialty addition
     protected $fileHandlingConfig = [
         'image_path' => [
             'directory' => 'clinic_images',

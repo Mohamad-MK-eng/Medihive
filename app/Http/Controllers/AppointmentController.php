@@ -40,6 +40,15 @@ class AppointmentController extends Controller
             return response()->json(['error' => 'Authenticated user is not a patient'], 403);
         }
 
+    $doctorExists = Doctor::withTrashed()->where('id', $request->doctor_id)->exists();
+
+    if (!$doctorExists) {
+        return response()->json([
+            'error' => 'doctor_not_found',
+            'message' => 'The selected doctor is not available for appointments'
+        ], 422);
+    }
+
 
            $absentCount = Appointment::where('patient_id', $patient->id)
         ->where('status', 'absent')
@@ -86,8 +95,14 @@ class AppointmentController extends Controller
             }
 
 
-                $doctor = Doctor::findOrFail($validated['doctor_id']);
+$doctor = Doctor::withTrashed()->findOrFail($validated['doctor_id']);
 
+if ($doctor->trashed() || !$doctor->is_active) {
+    return response()->json([
+        'error' => 'doctor_not_available',
+        'message' => 'The selected doctor is not currently available for appointments'
+    ], 422);
+}
 $status = 'confirmed'; // Default status
             $paymentStatus = 'pending';
 
@@ -98,6 +113,49 @@ $status = 'confirmed'; // Default status
     'Asia/Damascus'
 );
 
+
+
+
+
+
+            if ($validated['method'] === 'wallet') {
+                // Verify wallet is activated
+
+                if (!$patient->wallet_activated_at) {
+                    return response()->json([
+                        'success' => false,
+                        'error_code' => 'wallet_not_activated',
+                        'message' => 'Please activate your wallet before making payments',
+                    ], 400);
+                }
+
+
+      if ($validated['method'] === 'wallet') {
+                // Check if wallet is activated
+                if (!$patient->wallet_activated_at) {
+                    return response()->json([
+                        'success' => false,
+                        'error_code' => 'wallet_not_activated',
+                        'message' => 'Please activate your wallet before making payments',
+                    ], 400);
+                }
+            }
+
+                // Simple PIN verification without attempt tracking
+                if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
+                    return response()->json([
+                        'success' => false,
+                        'error_code' => 'invalid_pin',
+                        'message' => 'Incorrect PIN',
+                    ], 401);
+                }
+    if ($patient->wallet_balance < $doctor->consultation_fee) {
+                    return response()->json([
+                        'success' => false,
+                        'error_code' => 'insufficient_funds',
+                        'message' => 'Insufficient wallet balance',
+                    ], 400);
+                }
 
 
 
@@ -118,40 +176,12 @@ $status = 'confirmed'; // Default status
                 ]);
 
 
-            if ($validated['method'] === 'wallet') {
-                // Verify wallet is activated
-
-                if (!$patient->wallet_activated_at) {
-                    return response()->json([
-                        'success' => false,
-                        'error_code' => 'wallet_not_activated',
-                        'message' => 'Please activate your wallet before making payments',
-                    ], 400);
-                }
-
-
-   if ($validated['method'] === 'wallet') {
-                // Verify wallet and process payment
-                if (!$this->processWalletPayment($patient, $doctor->consultation_fee, $appointment)) {
-                    throw new \Exception('Wallet payment failed');
-                }
-                $paymentStatus = 'paid';
-            }
-
-                // Simple PIN verification without attempt tracking
-                if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
-                    return response()->json([
-                        'success' => false,
-                        'error_code' => 'invalid_pin',
-                        'message' => 'Incorrect PIN',
-                    ], 401);
-                }
-
 
                 $paymentResult = $this->processWalletPayment($patient, $doctor->consultation_fee, $appointment);
                 if ($paymentResult !== true) {
                     return $paymentResult; // Return error response if payment failed
                 }
+                $paymentStatus='paid';
             }
 
 
@@ -243,8 +273,10 @@ protected function processWalletPayment($patient, $amount, $appointment)
 
     public function getClinicDoctors($clinicId)
     {
-        $doctors = Doctor::where('clinic_id', $clinicId)
-
+$doctors = Doctor::where('clinic_id', $clinicId)
+        ->whereHas('user', function($q) {
+            $q->whereNull('deleted_at');
+        })
 
             ->with(['user:id,first_name,last_name,profile_picture'])
             ->get()
@@ -313,7 +345,9 @@ $averageRating = $doctor->reviews->avg('rating');
                 ->where('is_booked', false)
                 ->orderBy('start_time');
         }])
-            ->where('clinic_id', $clinicId)
+            ->where('clinic_id', $clinicId)->whereHas('user', function($q) {
+            $q->whereNull('deleted_at');
+        })
             ->get()
             ->map(function ($doctor) use ($date) {
                 return [
@@ -345,7 +379,17 @@ $averageRating = $doctor->reviews->avg('rating');
     public function getAvailableSlots($doctorId, $date)
 {
     try {
-        // Convert date to Carbon instance
+
+
+   $doctor = Doctor::withTrashed()->find($doctorId);
+
+        if (!$doctor || $doctor->trashed()) {
+            return response()->json([
+                'error' => 'doctor_unavailable',
+                'message' => 'The selected doctor is no longer available'
+            ], 404);
+        }
+
         $dateCarbon = Carbon::createFromFormat('Y-m-d', $date);
         $now = Carbon::now();
 
@@ -816,7 +860,11 @@ public function getAppointments(Request $request)
 
     $query = $patient->appointments()
         ->with([
-            'doctor.user:id,first_name,last_name,profile_picture',
+            'doctor' => function($query) {
+                $query->withTrashed()->with(['user' => function($query) {
+                    $query->withTrashed()->select('id', 'first_name', 'last_name', 'profile_picture');
+                }]);
+            },
             'clinic:id,name',
             'payments' => function($query) {
                 $query->whereIn('status', ['completed', 'paid']);

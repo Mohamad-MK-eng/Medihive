@@ -43,8 +43,7 @@ class Secretary extends Model
     protected $fillable = [
         'user_id',
         'workdays',
-        'emergency_absences',
-        'performance_metrics',
+
         'profile_picture'
 
 
@@ -52,7 +51,7 @@ class Secretary extends Model
 
 
     protected  $casts = [
-
+'workdays' => 'array',
         'user_id'
     ];
 

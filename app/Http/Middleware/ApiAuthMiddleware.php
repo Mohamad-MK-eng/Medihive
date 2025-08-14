@@ -28,11 +28,6 @@ class ApiAuthMiddleware
             return response()->json(['error' => 'Unauthorized', 'message' => 'Invalid Token'], 401);
         }
 
-        $user = Auth::guard('api')->user();
-
-        // connect the authenticated user to the request
-        $request->merge(['auth' => $user]);
-
         return $next($request);
     }
 }

@@ -8,7 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
 use App\Traits\HandlesFiles;
-
+use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  *
  *
@@ -57,7 +57,7 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, HasApiTokens, Notifiable;
     use HandlesFiles;
-
+    use SoftDeletes;
     /**
      * The attributes that are mass assignable.
      *
@@ -73,8 +73,8 @@ class User extends Authenticatable
     'gender',
     'profile_picture',
 ];
-
-
+// phone and address addition
+protected $dates =['deleted_at'];
 
 
     protected $fileHandlingConfig = [
@@ -201,7 +201,10 @@ public function payments()
     }
 
 
-
+public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new \App\Notifications\ResetPasswordNotification($token));
+    }
 
 }
 

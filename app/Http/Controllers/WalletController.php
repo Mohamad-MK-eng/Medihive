@@ -47,10 +47,20 @@ class WalletController extends Controller
         return DB::transaction(function () use ($validated) {
             $patient = Patient::find($validated['patient_id']);
 
+
+if (!$patient->wallet_activated_at) {
+            return response()->json([
+                'success' => false,
+                'error_code' => 'wallet_not_activated',
+                'message' => 'Cannot add funds - patient wallet is not activated'
+            ], 400);
+        }
+
+
             $transaction = $patient->deposit(
                 $validated['amount'],
                 $validated['notes'] ?? 'Added by staff',
-                
+
             );
 
             return response()->json([
@@ -93,7 +103,7 @@ class WalletController extends Controller
     {
         $validated = $request->validate([
             'pin' => 'required|digits:4',
-         // لا تحطو يا كحبة   'pin_confirmation' => 'required'
+         //   'pin_confirmation' => 'required'
         ]);
 
         $user = Auth::user();

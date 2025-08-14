@@ -1,7 +1,5 @@
 <?php
 
-
-
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -11,28 +9,41 @@ use Illuminate\Support\Str;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password as PasswordRule;
+use Illuminate\Support\Facades\DB;
 
 class PasswordResetController extends Controller
 {
-    /**
-     * Send password reset link
-     */
     public function sendResetLink(Request $request)
     {
         $request->validate(['email' => 'required|email']);
 
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
+        // For testing: Return a fake token (remove in production)
+        if (app()->environment('local')) {
+            $token = Str::random(64);
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $request->email],
+                ['token' => Hash::make($token), 'created_at' => now()]
+            );
 
-        return $status === Password::RESET_LINK_SENT
-            ? response()->json(['status' => __($status)])
-            : response()->json(['email' => __($status)], 422);
-    }
+            return response()->json([
+                'status' => 'Password reset token generated (TEST MODE)',
+                'token' => $token,
+                'email' => $request->email
+            ]);
+        }
+  $status = Password::sendResetLink(
+        $request->only('email'),
+        function ($user, $token) {
+            // Use the notification we created
+            $user->sendPasswordResetNotification($token);
+        }
+    );
 
-    /**
-     * Handle password reset
-     */
+    return $status === Password::RESET_LINK_SENT
+        ? response()->json(['status' => __($status)])
+        : response()->json(['email' => __($status)], 422);
+}
+
     public function resetPassword(Request $request)
     {
         $request->validate([
@@ -62,6 +73,6 @@ class PasswordResetController extends Controller
 
         return $status === Password::PASSWORD_RESET
             ? response()->json(['status' => __($status)])
-            : response()->json(['email' => __($status)], 422);
+            : response()->json(['email' => [__($status)]], 422);
     }
 }

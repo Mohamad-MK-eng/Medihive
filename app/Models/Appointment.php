@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
+use GPBMetadata\Google\Type\Datetime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Notifiable;
-
+use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @property int $id
  * @property int $patient_id
@@ -31,7 +32,6 @@ class Appointment extends Model
 
 
 
-
     protected $fillable = [
         'patient_id',
         'doctor_id',
@@ -45,6 +45,7 @@ class Appointment extends Model
         'price',
         'notes',
         'cancelled_at',
+        'completed_at',
         'previous_date',
         'rescheduled_by',
         'method'
@@ -59,6 +60,7 @@ class Appointment extends Model
         'appointment_date' => 'datetime',
         'end_time' => 'datetime:H:i:s',
         'cancelled_at' => 'datetime',
+        'completed_at' =>'datetime',
         'previous_date' => 'datetime',
         'price' => 'float',
         'rescheduled_by' => 'integer',

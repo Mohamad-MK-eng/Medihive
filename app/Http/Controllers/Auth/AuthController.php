@@ -63,54 +63,55 @@ class AuthController extends Controller
 
 
 
+ public function login(Request $request)
+{
+    $credentials = $request->validate([
+        'email' => 'required|email',
+        'password' => 'required|string'
+    ]);
 
-    public function login(Request $request)
-    {
-
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|string'
-        ]);
-
-        if (!Auth::attempt($credentials)) {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'Invalid credentials'
-            ], 401);
-        }
-
-        $user = Auth::user();
-        $user->tokens()->delete(); // for  previous tokens
-
-        $token = $user->createToken('Personal Access Token')->accessToken;
-
-        // in case patient
-        if ($user->role->name === 'patient' || $user->role->name === 'doctor') {
-
-            return response()->json([
-                'message' => 'Patient logged in successfully',
-                'user' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'email' => $user->email,
-                    'role_id' => $user->role_id,
-                    'profile_picture' => $user->getProfilePictureUrl(),
-                ],
-
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ]);
-        }
-        // بالنسبة للأي فاعل أخر نفس السيناربو بهمني role Id منشان التوجيه عندي بافلاتر
+    if (!Auth::attempt($credentials)) {
         return response()->json([
-            'user' => $user->load('role'),
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'role_name' => $user->role->name,
-        ]);
+            'error' => 'Unauthorized',
+            'message' => 'Invalid credentials'
+        ], 401);
     }
-    // to try
+
+    $user = Auth::user();
+    $user->tokens()->delete(); // Revoke previous tokens
+
+    // Create role-specific token
+    $tokenName = ucfirst($user->role->name) . ' Access Token';
+    $token = $user->createToken($tokenName)->accessToken;
+
+    $response = [
+        'message' => 'Logged in successfully',
+        'user' => [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'role_id' => $user->role_id,
+            'role_name' => $user->role->name,
+            'profile_picture' => $user->getProfilePictureUrl(),
+        ],
+        'access_token' => $token,
+        'token_type' => 'Bearer',
+    ];
+
+    // Add role-specific data if needed
+    if ($user->role->name === 'doctor' && $user->doctor) {
+        $response['user']['doctor_id'] = $user->doctor->id;
+    } elseif ($user->role->name === 'patient' && $user->patient) {
+        $response['user']['patient_id'] = $user->patient->id;
+    }
+
+    return response()->json($response);
+}
+
+
+
+
     public function sendPasswordResetLink(Request $request)
     {
         $request->validate(['email' => 'required|email']);

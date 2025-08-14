@@ -73,7 +73,7 @@ protected function validatePaymentRequest(Request $request)
 {
     return $request->validate([
         'appointment_id' => 'required|exists:appointments,id',
-        'method' => 'required|in:cash,wallet,card,insurance',
+        'method' => 'required|in:cash,wallet',
         'amount' => 'required|numeric|min:0',
         'wallet_pin' => 'required_if:method,wallet|digits:4',
         // For card payments (optional parameters)
@@ -209,110 +209,7 @@ protected function validatePaymentRequest(Request $request)
         });
     }
 
-    /*huge response :
-    return response()->json([
-    'success' => true,
-    'message' => 'Payment processed successfully',
-    'payment_id' => $payment->id,
-    'transaction' => [
-        'reference' => $transaction->reference,
-        'timestamp' => now()->toIso8601String(),
-        'amount' => [
-            'value' => $payment->amount,
-            'currency' => 'USD',
-            'formatted' => '$'.number_format($payment->amount, 2)
-        ],
-        'balance' => [
-            'previous' => [
-                'value' => $transaction->balance_before,
-                'formatted' => '$'.number_format($transaction->balance_before, 2)
-            ],
-            'current' => [
-                'value' => $transaction->balance_after,
-                'formatted' => '$'.number_format($transaction->balance_after, 2)
-            ]
-        ]
-    ],
-    'appointment' => [
-        'id' => $appointment->id,
-        'date' => $appointment->appointment_date->format('c'),
-        'doctor' => $appointment->doctor->user->name,
-        'clinic' => $appointment->clinic->name
-    ],
-    'receipt_url' => url('/receipts/'.$payment->id),
-    'next_steps' => [
-        'view_appointment' => url('/appointments/'.$appointment->id),
-        'download_receipt' => url('/receipts/'.$payment->id.'/pdf')
-    ]
-]);
 
-
-
-*/
-
-    protected function handleCardPayment(Appointment $appointment, array $data)
-    {
-        try {
-            Stripe::setApiKey(env('STRIPE_SECRET'));
-
-            $paymentIntent = PaymentIntent::create([
-                'amount' => $data['amount'] * 100,
-                'currency' => 'usd',
-                'payment_method_types' => ['card'],
-                'description' => 'Appointment #' . $appointment->id,
-            ]);
-
-            $payment = Payment::create([
-                'appointment_id' => $appointment->id,
-                'patient_id' => $appointment->patient_id,
-                'amount' => $data['amount'],
-                'method' => 'card',
-                'status' => 'requires_payment_method',
-                'transaction_id' => $paymentIntent->id,
-                'metadata' => [
-                    'client_secret' => $paymentIntent->client_secret
-                ]
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Payment intent created',
-                'payment' => $payment,
-                'client_secret' => $paymentIntent->client_secret,
-                'requires_action' => true
-            ]);
-        } catch (ApiErrorException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment processing failed: ' . $e->getMessage()
-            ], 400);
-        }
-    }
-
-    protected function handleInsurancePayment(Appointment $appointment, array $data)
-    {
-        if (!$appointment->patient->insurance_coverage) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Patient has no active insurance'
-            ], 400);
-        }
-
-        $payment = Payment::create([
-            'appointment_id' => $appointment->id,
-            'patient_id' => $appointment->patient_id,
-            'amount' => $data['amount'],
-            'method' => 'insurance',
-            'status' => 'pending',
-            'transaction_id' => 'INS-' . now()->format('YmdHis')
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Insurance claim submitted',
-            'payment' => $payment
-        ]);
-    }
 
 
 

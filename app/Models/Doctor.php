@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Traits\HandlesFiles;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  *
  *
@@ -35,6 +35,10 @@ use Illuminate\Database\Eloquent\Model;
 class Doctor extends Model
 {
     use HandlesFiles;
+    use SoftDeletes;
+
+
+
     protected $fillable = [
         'user_id',
         'clinic_id',
@@ -42,9 +46,10 @@ class Doctor extends Model
         'workdays',
         'salary_id',
         'consultation_fee',
+        'is_active'
     ];
 
-
+protected $dates =['deleted_at'];
 
 
     protected $casts = [
@@ -71,7 +76,7 @@ class Doctor extends Model
 
     public function prescriptions()
     {
-        return $this->hasManyThrough(Prescription::class, Appointment::class);
+        return $this->hasManyThrough(Prescription::class, Appointment::class)->withTrashed();
     }
 
 

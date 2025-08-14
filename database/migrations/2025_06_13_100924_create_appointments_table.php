@@ -26,6 +26,7 @@ $table->foreignId('time_slot_id')->references('id')->on('time_slots')->onDelete(
 $table->string('reason')->nullable();
 $table->date('cancelled_at')->nullable();
 $table->date(column: 'previous_date')->nullable();
+ $table->timestamp('completed_at')->nullable();
             $table->text('notes')->nullable();
 
             $table->timestamps();

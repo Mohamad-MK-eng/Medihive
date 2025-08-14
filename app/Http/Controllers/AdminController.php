@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
@@ -116,7 +117,6 @@ class AdminController extends Controller
         $clinic = Clinic::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
             'location' => 'sometimes|string|max:255',
             'description' => 'sometimes|string|nullable',
             'opening_time' => 'sometimes|date_format:H:i',
@@ -208,6 +208,126 @@ class AdminController extends Controller
 
 
 
+
+
+
+
+
+public function createSecretary(Request $request)
+{
+    // Validate the request
+    $validator = Validator::make($request->all(), [
+        // User data
+        'first_name' => 'required|string|max:255',
+        'last_name' => 'required|string|max:255',
+        'email' => 'required|email|unique:users,email',
+        'phone_number' => 'required|string|max:20',
+        'gender' => 'required|in:male,female,other',
+
+        // Secretary data
+        'workdays' => 'required|array|min:1',
+        'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    try {
+        // Start transaction
+        return DB::transaction(function () use ($request) {
+            // Get the secretary role
+            $secretaryRole = Role::where('name', 'secretary')->first();
+            if (!$secretaryRole) {
+                throw new \Exception('Secretary role not found in database');
+            }
+
+            // Create user account
+            $user = User::create([
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'email' => $request->email,
+                'phone_number' => $request->phone_number,
+                'password' => Hash::make('temporary_password'),
+                'role_id' => $secretaryRole->id,
+                'gender' => $request->gender,
+            ]);
+
+            // Create secretary profile
+            $secretary = Secretary::create([
+                'user_id' => $user->id,
+                'workdays' => $request->workdays,
+
+            ]);
+
+            return response()->json([
+                'message' => 'Secretary created successfully',
+                'secretary' => $secretary->load('user'),
+
+            ], 201);
+        });
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to create secretary',
+            'error' => $e->getMessage(),
+            'trace' => config('app.debug') ? $e->getTrace() : null
+        ], 500);
+    }
+}
+
+
+
+
+
+public function updateSecretary(Request $request,Secretary $secretary){
+$validator = Validator::make($request->all(),[
+
+ 'email' => [
+                'sometimes',
+                'email',
+                'unique:users,email,' . $secretary->user_id
+            ],
+
+            'phone_number' => 'sometimes|string|max:20',
+        'gender' => 'sometimes|in:male,female,other',
+        'workdays' => 'sometimes|array|min:1',
+        'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+        ]);
+
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+
+        return DB::transaction(function () use ($request, $secretary, $validated) {
+            // Update user data if present
+            if (
+                isset($validated['email']) || isset($validated['phone_number'])
+            ) {
+
+                $userData = [
+                  'email' => $validated['email'] ?? $secretary->user->email,
+                    'phone_number' => $validated['phone_number'] ?? $secretary->user->phone_number,
+                ];
+
+                $secretary->user->update($userData);
+            }
+
+            // Update doctor data
+            $SecData = collect($validated)
+                ->except(['first_name', 'last_name', 'email', 'phone_number'])
+                ->toArray();
+
+            $secretary->update($SecData);
+
+            return response()->json([
+                'message' => 'Secretary updated successfully',
+                'secretary' => $secretary->fresh()]);
+
+        });
+    }
 
 
 
@@ -440,9 +560,6 @@ class AdminController extends Controller
     \Log::warning("No slots generated for doctor {$doctor->id}");
     return 0;
 }
-
-
-
     public function updateDoctor(Request $request, Doctor $doctor)
     {
         $validator = Validator::make($request->all(), [
@@ -454,7 +571,6 @@ class AdminController extends Controller
             ],
             'phone_number' => 'sometimes|string|max:20',
 
-            // Doctor data
             'specialty' => 'sometimes|string|max:255',
             'bio' => 'nullable|string',
             'consultation_fee' => 'sometimes|numeric|min:120',
@@ -463,7 +579,6 @@ class AdminController extends Controller
             'workdays' => 'sometimes|array',
             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
 
-            // Status control
             'is_active' => 'sometimes|boolean'
         ]);
 
@@ -503,40 +618,7 @@ class AdminController extends Controller
     /**
      * Delete a doctor (admin only)
      */
-    public function deleteDoctor(Doctor $doctor)
-    {
-        // Check for upcoming appointments
-        $hasUpcomingAppointments = $doctor->appointments()
-            ->where('appointment_date', '>=', now())
-            ->whereIn('status', ['confirmed', 'pending'])
-            ->exists();
 
-        if ($hasUpcomingAppointments) {
-            return response()->json([
-                'message' => 'Cannot delete doctor with upcoming appointments',
-                'upcoming_appointments' => $doctor->appointments()
-                    ->where('appointment_date', '>=', now())
-                    ->count()
-            ], 422);
-        }
-
-        return DB::transaction(function () use ($doctor) {
-            // Archive or soft delete if implemented
-            if (method_exists($doctor, 'trashed')) {
-                $doctor->delete();
-                $doctor->user()->delete();
-            } else {
-                // Permanent deletion
-                $doctor->user()->delete();
-                $doctor->delete();
-            }
-
-            return response()->json([
-                'message' => 'Doctor deleted successfully',
-                'deleted_at' => now()->toDateTimeString()
-            ]);
-        });
-    }
 
 
 
@@ -814,4 +896,47 @@ private function deleteProfilePictureFile(User $user)
 
 
 
+
+public function deleteDoctor(Doctor $doctor)
+{
+    // No need to check for upcoming appointments since we're keeping them
+
+    DB::transaction(function () use ($doctor) {
+        // Delete the doctor record
+        $doctor->delete();
+
+        // Optionally delete the associated user account if needed
+        // $doctor->user()->delete();
+    });
+    $doctor->update(['is_active' => false]);
+
+    return response()->json([
+        'message' => 'Doctor deleted successfully. Existing appointments remain intact.',
+        'deleted_at' => now()->toDateTimeString()
+    ]);
 }
+
+
+
+
+
+
+
+public function restoreDoctor($id)
+{
+    return DB::transaction(function () use ($id) {
+        $doctor = Doctor::withTrashed()->findOrFail($id);
+        $doctor->restore();
+        $doctor->user()->restore();
+
+        return response()->json([
+            'message' => 'Doctor restored successfully',
+            'doctor' => $doctor->load('user')
+        ]);
+    });
+}
+
+
+
+}
+

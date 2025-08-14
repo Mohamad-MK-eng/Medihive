@@ -13,7 +13,7 @@ return new class extends Migration
     {
     Schema::create('wallet_transactions', function (Blueprint $table) {
     $table->id();
-    $table->foreignId('patient_id')->constrained('secretaries');
+    $table->foreignId('patient_id')->references('id')->on('patients')->onDelete('cascade');
     $table->decimal('amount', 10, 2);
 $table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal','fee']);
    $table->string('reference');
