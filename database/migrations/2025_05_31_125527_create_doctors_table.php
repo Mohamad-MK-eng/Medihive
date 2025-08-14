@@ -19,9 +19,7 @@ return new class extends Migration
             $table->string('specialty')->nullable(false);
             $table->text('bio')->nullable();
             $table->json('workdays')->nullable();
-            $table->boolean('is_active')->nullable();
             $table->float('rating')->default(0);
-            $table->softDeletes();
             $table->decimal('consultation_fee', 8, 2)->default(100);
             $table->integer('experience_years')->default(2);
             $table->date('experience_start_date')->nullable()->default(DB::raw('CURRENT_DATE'));

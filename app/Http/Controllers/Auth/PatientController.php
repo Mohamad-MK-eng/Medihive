@@ -552,18 +552,10 @@ public function getAppointmentReports(Appointment $appointment)
         })->toArray()
     ];
 
-
-
-    $response=[
+    return response()->json([
         'success' => true,
         'report' => $formattedReport
-    ];
-
-
-    if ($report->prescriptions->isEmpty()) {
-        $response['message'] = 'This report has no prescriptions';
-    }
-    return response()->json($response);
+    ]);
 }
 
 

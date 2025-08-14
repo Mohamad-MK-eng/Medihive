@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Appointment;
 use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
@@ -30,7 +29,7 @@ class AdminController extends Controller
     public function authUser(){
         return Auth::user();
     }
-
+    
  protected $profilePictureConfig = [
         'directory' => 'admin_profile_pictures',
         'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
@@ -122,6 +121,7 @@ class AdminController extends Controller
         $clinic = Clinic::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
             'location' => 'sometimes|string|max:255',
             'description' => 'sometimes|string|nullable',
             'opening_time' => 'sometimes|date_format:H:i',
@@ -216,127 +216,6 @@ class AdminController extends Controller
 
 
 
-
-
-/*
-public function createSecretary(Request $request)
-{
-    // Validate the request
-    $validator = Validator::make($request->all(), [
-        // User data
-        'first_name' => 'required|string|max:255',
-        'last_name' => 'required|string|max:255',
-        'email' => 'required|email|unique:users,email',
-        'phone_number' => 'required|string|max:20',
-        'gender' => 'required|in:male,female,other',
-
-        // Secretary data
-        'workdays' => 'required|array|min:1',
-        'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
-
-    try {
-        // Start transaction
-        return DB::transaction(function () use ($request) {
-            // Get the secretary role
-            $secretaryRole = Role::where('name', 'secretary')->first();
-            if (!$secretaryRole) {
-                throw new \Exception('Secretary role not found in database');
-            }
-
-            // Create user account
-            $user = User::create([
-                'first_name' => $request->first_name,
-                'last_name' => $request->last_name,
-                'email' => $request->email,
-                'phone_number' => $request->phone_number,
-                'password' => Hash::make('temporary_password'),
-                'role_id' => $secretaryRole->id,
-                'gender' => $request->gender,
-            ]);
-
-            // Create secretary profile
-            $secretary = Secretary::create([
-                'user_id' => $user->id,
-                'workdays' => $request->workdays,
-
-            ]);
-
-            return response()->json([
-                'message' => 'Secretary created successfully',
-                'secretary' => $secretary->load('user'),
-
-            ], 201);
-        });
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Failed to create secretary',
-            'error' => $e->getMessage(),
-            'trace' => config('app.debug') ? $e->getTrace() : null
-        ], 500);
-    }
-}
-*/
-
-
-/*
-
-public function updateSecretary(Request $request,Secretary $secretary){
-$validator = Validator::make($request->all(),[
-
- 'email' => [
-                'sometimes',
-                'email',
-                'unique:users,email,' . $secretary->user_id
-            ],
-
-            'phone_number' => 'sometimes|string|max:20',
-        'gender' => 'sometimes|in:male,female,other',
-        'workdays' => 'sometimes|array|min:1',
-        'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-        ]);
-
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $validated = $validator->validated();
-
-        return DB::transaction(function () use ($request, $secretary, $validated) {
-            // Update user data if present
-            if (
-                isset($validated['email']) || isset($validated['phone_number'])
-            ) {
-
-                $userData = [
-                  'email' => $validated['email'] ?? $secretary->user->email,
-                    'phone_number' => $validated['phone_number'] ?? $secretary->user->phone_number,
-                ];
-
-                $secretary->user->update($userData);
-            }
-
-            // Update doctor data
-            $SecData = collect($validated)
-                ->except(['first_name', 'last_name', 'email', 'phone_number'])
-                ->toArray();
-
-            $secretary->update($SecData);
-
-            return response()->json([
-                'message' => 'Secretary updated successfully',
-                'secretary' => $secretary->fresh()]);
-
-        });
-    }
-*/
-
-
 //     public function createDoctor(Request $request)
 //     {
 //         // Validate the request
@@ -346,7 +225,6 @@ $validator = Validator::make($request->all(),[
 //             'last_name' => 'required|string|max:255',
 //             'email' => 'required|email|unique:users,email',
 //             'phone_number' => 'required|string|max:20',
-
 
 //             // Doctor data
 //             'specialty' => 'required|string|max:255',
@@ -674,19 +552,19 @@ public function editDoctor(Request $request, $doctorId){
     try {
         return DB::transaction(function () use ($request, $doctor, $validated) {
             // تحديث بيانات المستخدم
-            if (isset($validated['first_name']) ||
-                isset($validated['last_name']) ||
-                isset($validated['email']) ||
+            if (isset($validated['first_name']) || 
+                isset($validated['last_name']) || 
+                isset($validated['email']) || 
                 isset($validated['phone_number']) ||
                 isset($validated['gender'])) {
-
+                
                 $userData = [];
                 if (isset($validated['first_name'])) $userData['first_name'] = $validated['first_name'];
                 if (isset($validated['last_name'])) $userData['last_name'] = $validated['last_name'];
                 if (isset($validated['email'])) $userData['email'] = $validated['email'];
                 if (isset($validated['phone_number'])) $userData['phone'] = $validated['phone_number']; // تحويل إلى phone
                 if (isset($validated['gender'])) $userData['gender'] = $validated['gender'];
-
+                
                 \Log::info('Updating user data:', $userData);
                 $doctor->user->update($userData);
             }
@@ -695,12 +573,12 @@ public function editDoctor(Request $request, $doctorId){
             $doctorData = collect($validated)
                 ->except(['first_name', 'last_name', 'email', 'phone_number', 'gender', 'schedules'])
                 ->toArray();
-
+            
             // تحديث workdays إذا تم تحديث schedules
             if (isset($validated['schedules'])) {
                 $doctorData['workdays'] = collect($validated['schedules'])->pluck('day')->toArray();
             }
-
+            
             if (!empty($doctorData)) {
                 \Log::info('Updating doctor data:', $doctorData);
                 $doctor->update($doctorData);
@@ -709,7 +587,7 @@ public function editDoctor(Request $request, $doctorId){
             // تحديث جدول المواعيد
             if (isset($validated['schedules'])) {
                 \Log::info('Updating schedules:', $validated['schedules']);
-
+                
                 // حذف الجداول القديمة
                 $doctor->schedules()->delete();
 
@@ -728,7 +606,7 @@ public function editDoctor(Request $request, $doctorId){
                 // إعادة توليد المواعيد الزمنية
                 $slotDuration = $validated['slot_duration'] ?? 60;
                 $generateDays = $validated['generate_slots_for_days'] ?? 30;
-
+                
                 $this->generateTimeSlotsForDoctor($doctor, $generateDays, $slotDuration);
             }
 
@@ -750,7 +628,7 @@ public function editDoctor(Request $request, $doctorId){
 public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration){
     $timeSlots = [];
     $now = Carbon::now();
-
+    
     \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days with {$slotDuration} minute slots");
 
     for ($i = 0; $i < $daysToGenerate; $i++) {
@@ -798,7 +676,7 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
                 'created_at' => now(),
                 'updated_at' => now()
             ];
-
+            
             $slotsCount++;
             $current->addMinutes($slotDuration);
         }
@@ -820,6 +698,183 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
     \Log::warning("No slots generated for doctor {$doctor->id}");
     return 0;
 }
+
+
+//     public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
+// {
+//     $timeSlots = [];
+//     $now = Carbon::now();
+//     $startDate = $now->copy()->startOfDay();
+
+//     \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days");
+
+//     for ($i = 0; $i < $daysToGenerate; $i++) {
+//         $date = $startDate->copy()->addDays($i);
+//         $dayName = strtolower($date->englishDayOfWeek);
+
+//         $schedule = $doctor->schedules()->where('day', $dayName)->first();
+//         if (!$schedule) {
+//             \Log::info("No schedule for {$dayName} on {$date->format('Y-m-d')}");
+//             continue;
+//         }
+
+//         $dateStr = $date->format('Y-m-d');
+//         $start = Carbon::parse($schedule->start_time);
+//         $end = Carbon::parse($schedule->end_time);
+
+//         // Adjust for today: only generate future slots
+//         if ($date->isToday()) {
+//             $currentTime = $now->copy();
+//             // Only adjust if current time is within working hours
+//             if ($currentTime->between($start, $end)) {
+//                 $start = $currentTime;
+//             }
+//         }
+
+//         // Generate slots
+//         $current = $start->copy();
+//         $slotsCount = 0;
+
+//         while ($current->addMinutes($slotDuration)->lte($end)) {
+//     $slotStart = $current->copy()->subMinutes($slotDuration);
+//     $slotEnd = $current->copy();
+
+//             // Skip past slots for today
+//             if ($date->isToday() && $slotEnd->lte($now)) {
+//                 continue;
+//             }
+
+//             $timeSlots[] = [
+//                 'doctor_id' => $doctor->id,
+//                 'date' => $dateStr,
+//                 'start_time' => $slotStart->format('H:i:s'),
+//                 'end_time' => $slotEnd->format('H:i:s'),
+//                 'is_booked' => false,
+//                 'created_at' => now(),
+//                 'updated_at' => now()
+//             ];
+//             $slotsCount++;
+//         }
+
+//         \Log::info("Generated {$slotsCount} slots for {$dateStr} ({$dayName})");
+//     }
+
+//     if (!empty($timeSlots)) {
+//         try {
+//             \Log::info("Inserting ".count($timeSlots)." slots for doctor {$doctor->id}");
+//             TimeSlot::insert($timeSlots);
+//             return count($timeSlots);
+//         } catch (\Exception $e) {
+//             \Log::error("Failed to insert slots: ".$e->getMessage());
+//             return 0;
+//         }
+//     }
+
+//     \Log::warning("No slots generated for doctor {$doctor->id}");
+//     return 0;
+// }
+
+
+
+//     public function updateDoctor(Request $request, Doctor $doctor)
+//     {
+//         $validator = Validator::make($request->all(), [
+
+//             'email' => [
+//                 'sometimes',
+//                 'email',
+//                 'unique:users,email,' . $doctor->user_id
+//             ],
+//             'phone_number' => 'sometimes|string|max:20',
+
+//             // Doctor data
+//             'specialty' => 'sometimes|string|max:255',
+//             'bio' => 'nullable|string',
+//             'consultation_fee' => 'sometimes|numeric|min:120',
+//             'experience_years' => 'sometimes|integer|min:1',
+//             'clinic_id' => 'sometimes|exists:clinics,id',
+//             'workdays' => 'sometimes|array',
+//             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+
+//             // Status control
+//             'is_active' => 'sometimes|boolean'
+//         ]);
+
+//         if ($validator->fails()) {
+//             return response()->json(['errors' => $validator->errors()], 422);
+//         }
+
+//         $validated = $validator->validated();
+
+//         return DB::transaction(function () use ($request, $doctor, $validated) {
+//             // Update user data if present
+//             if (
+//                 isset($validated['email']) || isset($validated['phone_number'])
+//             ) {
+
+//                 $userData = [
+//                   'email' => $validated['email'] ?? $doctor->user->email,
+//                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
+//                 ];
+
+//                 $doctor->user->update($userData);
+//             }
+
+//             // Update doctor data
+//             $doctorData = collect($validated)
+//                 ->except(['first_name', 'last_name', 'email', 'phone_number'])
+//                 ->toArray();
+
+//             $doctor->update($doctorData);
+
+//             return response()->json([
+//                 'message' => 'Doctor updated successfully',
+//                 'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+//             ]);
+//         });
+//     }
+    /**
+     * Delete a doctor (admin only)
+     */
+    public function deleteDoctor(Doctor $doctor)
+    {
+        // Check for upcoming appointments
+        $hasUpcomingAppointments = $doctor->appointments()
+            ->where('appointment_date', '>=', now())
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->exists();
+
+        if ($hasUpcomingAppointments) {
+            return response()->json([
+                'message' => 'Cannot delete doctor with upcoming appointments',
+                'upcoming_appointments' => $doctor->appointments()
+                    ->where('appointment_date', '>=', now())
+                    ->count()
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($doctor) {
+            // Archive or soft delete if implemented
+            if (method_exists($doctor, 'trashed')) {
+                $doctor->delete();
+                $doctor->user()->delete();
+            } else {
+                // Permanent deletion
+                $doctor->user()->delete();
+                $doctor->delete();
+            }
+
+            return response()->json([
+                'message' => 'Doctor deleted successfully',
+                'deleted_at' => now()->toDateTimeString()
+            ]);
+        });
+    }
+
+
+
+
+
 
 
 /**
@@ -1089,49 +1144,6 @@ private function deleteProfilePictureFile(User $user)
 
 
 
-public function deleteDoctor(Doctor $doctor)
-{
-    // No need to check for upcoming appointments since we're keeping them
-
-    DB::transaction(function () use ($doctor) {
-        // Delete the doctor record
-        $doctor->delete();
-
-        // Optionally delete the associated user account if needed
-        // $doctor->user()->delete();
-    });
-    $doctor->update(['is_active' => false]);
-
-    return response()->json([
-        'message' => 'Doctor deleted successfully. Existing appointments remain intact.',
-        'deleted_at' => now()->toDateTimeString()
-    ]);
-}
-
-
-
-
-
-
-
-public function restoreDoctor($id)
-{
-    return DB::transaction(function () use ($id) {
-        $doctor = Doctor::withTrashed()->findOrFail($id);
-        $doctor->restore();
-        $doctor->user()->restore();
-
-        return response()->json([
-            'message' => 'Doctor restored successfully',
-            'doctor' => $doctor->load('user')
-        ]);
-    });
-}
-
-
-
-
-
 
 
 
@@ -1171,7 +1183,7 @@ public function addClinic(Request $request)
     } else {
         $imageUrl = null;
     }
-
+    
 
     // إنشاء العيادة
     $clinic = Clinic::create([
@@ -1199,7 +1211,7 @@ public function editClinic(Request $request, $clinic_id)
         'description' => 'nullable|string',
         'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,bmp|max:4096',
     ]);
-
+    
 
     if ($request->hasFile('image')) {
         if ($clinic->image_path) {
@@ -1259,7 +1271,7 @@ public function editClinic(Request $request, $clinic_id)
         if (!$Clinic) {
             return response()->json(['message' => 'Clinic is not found'], 404);
         }
-
+        
 
         return response()->json(["clinic" => $Clinic], 200);
     }
@@ -1417,7 +1429,7 @@ public function createSecretary(Request $request)
             'email'      => $request->email,
             'phone'      => $request->phone_number,
             'gender'     => $request->gender,
-            'role_id'    => 3,
+            'role_id'    => 3, 
             'password' => Hash::make($request->password),
 
         ]);
@@ -1572,6 +1584,5 @@ public function updateAdminInfo(Request $request)
     }
 }
 
+
 }
-
-
