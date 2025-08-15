@@ -67,10 +67,27 @@ class AppointmentController extends Controller
 
         return DB::transaction(function () use ($validated, $patient) {
             try {
-                $slot = TimeSlot::where('id', $validated['slot_id'])
-                    ->where('doctor_id', $validated['doctor_id'])
-                    ->lockForUpdate()  // here is the magic
-                    ->firstOrFail();
+             \Log::info("Attempting to book slot_id: {$validated['slot_id']} for doctor_id: {$validated['doctor_id']}");
+
+    $slot = TimeSlot::where('id', $validated['slot_id'])
+        ->where('doctor_id', $validated['doctor_id'])
+        ->lockForUpdate()
+        ->first();
+
+    \Log::debug("Slot query result: ".json_encode($slot));
+
+    if (!$slot) {
+        $availableSlots = TimeSlot::where('doctor_id', $validated['doctor_id'])
+            ->where('date', '>=', now()->format('Y-m-d'))
+            ->get();
+
+        \Log::error("Slot not found. Available slots: ".json_encode($availableSlots));
+
+        return response()->json([
+            'error' => 'Time slot not found or does not belong to this doctor',
+            'available_slots' => $availableSlots
+        ], 404);
+    }
 
                 if ($slot->is_booked) {
                  $existingAppointment = Appointment::where('time_slot_id', $slot->id)

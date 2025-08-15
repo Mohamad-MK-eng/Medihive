@@ -260,8 +260,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     Route::middleware(['role:doctor'])->group(function () {
         Route::prefix('doctor')->group(function () {
             Route::get('/availability', [DoctorController::class, 'getAvailability']);
-            // Add more doctor-specific routes here
-        });
+            Route::patch('appointments/{appointment}/absent',[doctorController::class,'markAsAbsent']);
+            });
     });
 
 

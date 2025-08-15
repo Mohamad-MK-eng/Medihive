@@ -624,48 +624,51 @@ public function editDoctor(Request $request, $doctorId){
     }
 }
 
-// تحديث دالة generateTimeSlotsForDoctor
-public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration){
+public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
+{
     $timeSlots = [];
-    $now = Carbon::now();
+    $now = Carbon::now('Asia/Damascus'); // Use your timezone
 
-    \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days with {$slotDuration} minute slots");
+    \Log::info("Starting slot generation for doctor {$doctor->id}");
 
-    for ($i = 0; $i < $daysToGenerate; $i++) {
-        $date = $now->copy()->addDays($i)->startOfDay();
+    // Get all schedules for this doctor
+    $schedules = $doctor->schedules()->get();
+
+    if ($schedules->isEmpty()) {
+        \Log::error("No schedules found for doctor {$doctor->id}");
+        return 0;
+    }
+
+    for ($i = 1; $i <= $daysToGenerate; $i++) {
+        $date = $now->copy()->addDays($i);
         $dayName = strtolower($date->englishDayOfWeek);
 
-        $schedule = $doctor->schedules()->where('day', $dayName)->first();
+        // Find schedule for this day
+        $schedule = $schedules->firstWhere('day', $dayName);
         if (!$schedule) {
-            \Log::info("No schedule for {$dayName} on {$date->format('Y-m-d')}");
+            \Log::info("No schedule for {$dayName}, skipping");
             continue;
         }
 
         $dateStr = $date->format('Y-m-d');
-        $start = Carbon::parse($date->format('Y-m-d') . ' ' . $schedule->start_time);
-        $end = Carbon::parse($date->format('Y-m-d') . ' ' . $schedule->end_time);
+        $start = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            "{$dateStr} {$schedule->start_time}",
+            'Asia/Damascus'
+        );
+        $end = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            "{$dateStr} {$schedule->end_time}",
+            'Asia/Damascus'
+        );
 
-        // للأيام المستقبلية، ابدأ من وقت البداية المحدد
-        // لليوم الحالي، ابدأ من الوقت الحالي إذا كان ضمن ساعات العمل
-        if ($date->isToday() && $now->between($start, $end)) {
-            // قرب الوقت الحالي إلى أقرب slot
-            $minutesToAdd = $slotDuration - ($now->minute % $slotDuration);
-            $start = $now->copy()->addMinutes($minutesToAdd)->startOfMinute();
-        }
+        \Log::info("Processing {$dateStr} ({$dayName}) from {$start} to {$end}");
 
         // Generate slots
         $current = $start->copy();
-        $slotsCount = 0;
-
-        while ($current->copy()->addMinutes($slotDuration)->lte($end)) {
-            $slotStart = $current->copy();
-            $slotEnd = $current->copy()->addMinutes($slotDuration);
-
-            // تأكد من أن الموعد في المستقبل
-            if ($slotEnd->lt($now)) {
-                $current->addMinutes($slotDuration);
-                continue;
-            }
+        while ($current->addMinutes($slotDuration)->lte($end)) {
+            $slotStart = $current->copy()->subMinutes($slotDuration);
+            $slotEnd = $current->copy();
 
             $timeSlots[] = [
                 'doctor_id' => $doctor->id,
@@ -677,11 +680,8 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
                 'updated_at' => now()
             ];
 
-            $slotsCount++;
-            $current->addMinutes($slotDuration);
+            \Log::debug("Generated slot: {$slotStart->format('H:i')} - {$slotEnd->format('H:i')}");
         }
-
-        \Log::info("Generated {$slotsCount} slots for {$dateStr} ({$dayName})");
     }
 
     if (!empty($timeSlots)) {
@@ -701,7 +701,7 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
 
 
 
-public function generateSlots(Doctor $doctor, $daysToGenerate = 30, $slotDuration = 30)
+public function generateTimeSlots(Doctor $doctor, $daysToGenerate = 30, $slotDuration = 30)
 {
     $timeSlots = [];
     $now = Carbon::now();
