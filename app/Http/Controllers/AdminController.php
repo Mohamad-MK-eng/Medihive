@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
+use App\Models\MedicalCenterWallet;
 use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\Role;
@@ -1645,4 +1647,37 @@ public function updateAdminInfo(Request $request)
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+   public function statistics()
+    {
+        $now = Carbon::now();
+
+        return response()->json([
+            'total_patients' => Patient::count(),
+            'total_doctors' => Doctor::count(),
+            'total_appointments' => Appointment::count(),
+            'current_month_appointments' => Appointment::whereMonth('created_at', $now->month)
+                ->whereYear('created_at', $now->year)
+                ->count(),
+            'wallet_balance' => MedicalCenterWallet::first()->balance ?? 0,
+            'current_month_doctors' => Doctor::whereMonth('created_at', $now->month)
+                ->whereYear('created_at', $now->year)
+                ->count()
+        ]);
+    }
 }
+
+
+

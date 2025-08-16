@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\ClinicController;
 use App\Http\Controllers\DoctorController;
+use App\Http\Controllers\MedicalCenterWalletController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\RatingController;
@@ -83,7 +84,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     Route::get('/schedule', [DoctorController::class, 'getSchedule']);
     Route::get('/appointments', [DoctorController::class, 'getAppointments']);
     Route::get('/time_slots', [DoctorController::class, 'getTimeSlots']);
-
+    Route::post('/doctor/appointments/emergency_cancel', [DoctorController::class, 'emergencyCancelAppointments']);
 
 
 
@@ -107,7 +108,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
             // hereeeeeeeeeeeee
-            Route::get('/appointments', [PatientController::class, 'getPatientHistory']);
+            Route::get('/appointments/history', [PatientController::class, 'getPatientHistory']);
+         // repeated    Route::get('/appointments',[PatientController::class,'getAppointments']);
             Route::post('/ratings', [RatingController::class, 'store']);
         });
 
@@ -125,11 +127,12 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
         Route::prefix('appointments')->group(function () {
             //first route is for another time
-            Route::get('/', [AppointmentController::class, 'getAppointments']);
+  Route::get('/patient', [AppointmentController::class, 'getAppointments']);
             Route::post('/', [AppointmentController::class, 'bookAppointment']);
             Route::put('/{appointment}', [AppointmentController::class, 'updateAppointment']);
             Route::delete('/{appointment}', [AppointmentController::class, 'cancelAppointment']);
             // leave it for the secretary's side
+
 
 
 
@@ -181,6 +184,25 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'rescheduleAppointment']);
         Route::post('/appointments/{appointment}/refund', [AppointmentController::class, 'processRefund']);
 
+    Route::get('secretary/appointments', [SecretaryController::class, 'getAppointments']);
+
+        // Patients
+        Route::post('/patients', [SecretaryController::class, 'createPatient']);
+
+        // Appointments + Payments
+        Route::post('secbook/appointment', [SecretaryController::class, 'bookAppointment']);
+        Route::post('/appointments/{appointment}/cancel', [SecretaryController::class, 'cancelAppointment']);
+
+        // Wallet
+        Route::get('/patients/{patient}/wallet', [SecretaryController::class, 'getPatientWalletInfo']);
+        Route::post('/patients/{patient}/wallet/add', [SecretaryController::class, 'addToPatientWallet']);
+
+        // Blocked patients
+        Route::get('/patients/blocked', [SecretaryController::class, 'listBlockedPatients']);
+        Route::post('/patients/{patient}/unblock', [SecretaryController::class, 'unblockPatient']);
+
+
+
 
 
         // Wallet Management
@@ -189,6 +211,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         });
 
 
+            Route::get('/medical_center_wallet', [MedicalCenterWalletController::class, 'show']);
+    Route::get('/medical_center_wallet/transactions', [MedicalCenterWalletController::class, 'transactions']);
         // Payments
         Route::post('/payments', [SecretaryController::class, 'makePayment']);
     });
@@ -261,7 +285,17 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::prefix('doctor')->group(function () {
             Route::get('/availability', [DoctorController::class, 'getAvailability']);
             Route::patch('appointments/{appointment}/absent',[doctorController::class,'markAsAbsent']);
-            });
+            Route::patch('/appointments/{appointment}/complete', [DoctorController::class, 'markAsCompleted']);
+
+            Route::get('specific/patients',[DoctorController::class,'getDoctorSpecificPatients']);
+             Route::get('patients/{patient}/profile',[DoctorController::class,'getPatientDetails']);
+            Route::get('patients/{patient}/documents',[DoctorController::class,'getPatientDocuments']);
+            Route::get('documents/{document}/prescriptions',[DoctorController::class,'getPatientReport']);
+        });
+
+
+
+
     });
 
 
@@ -282,7 +316,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         Route::post('/clinics/{clinic}/upload_icon', [AdminController::class, 'uploadClinicIcon']);
 
         Route::get('/search/secretaries', [SearchController::class, 'searchSecretaries']);
-
+        Route::get('statistics',[AdminController::class,'statistics']);
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         //////////////////////////    clinic          ///////////////////////////////

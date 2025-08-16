@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
+use App\Models\Patient;
 use App\Models\Prescription;
 use App\Models\Report;
 use App\Models\TimeSlot;
@@ -40,7 +41,7 @@ public function getProfile()
         $schedule = $doctor->schedules->map(function ($schedule) {
             return [
                 'day' => ucfirst($schedule->day),
-              
+
             ];
         });
 
@@ -185,7 +186,7 @@ public function updateProfile(Request $request)
         $schedule = $doctor->schedules->map(function ($schedule) {
             return [
                 'day' => ucfirst($schedule->day),
-              
+
             ];
         });
 
@@ -238,33 +239,168 @@ public function updateProfile(Request $request)
         return response()->json($schedules);
     }
 
-    public function getAppointments(Request $request)
-    {
-        $doctor = Auth::user()->doctor;
+public function getAppointments(Request $request)
+{
+    $doctor = Auth::user()->doctor;
 
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
-        }
-
-        $status = $request->query('status', 'upcoming');
-
-        $query = Appointment::with(['patient.user', 'clinic'])
-            ->where('doctor_id', $doctor->id);
-
-        if ($status === 'upcoming') {
-            $query->where('appointment_date', '>=', now())
-                ->where('status', 'confirmed');
-        } elseif ($status === 'past') {
-            $query->where('appointment_date', '<', now());
-        } elseif ($status === 'cancelled') {
-            $query->where('status', 'cancelled');
-        }
-
-        $appointments = $query->orderBy('appointment_date', 'asc')
-            ->paginate(10);
-
-        return response()->json($appointments);
+    if (!$doctor) {
+        return response()->json(['message' => 'Doctor profile not found'], 404);
     }
+
+    $type = $request->query('type', 'upcoming');
+    $perPage = $request->query('per_page', 8);
+
+    date_default_timezone_set('Asia/Damascus');
+    $nowLocal = Carbon::now('Asia/Damascus');
+
+    $query = $doctor->appointments()
+        ->with([
+            'patient.user:id,first_name,last_name',
+            'patient:id,user_id,phone_number', // Include patient's phone number
+            'clinic:id,name',
+            'payments' => function($query) {
+                $query->whereIn('status', ['completed', 'paid']);
+            }
+        ])
+        ->orderBy('appointment_date', 'desc');
+
+    if ($type === 'upcoming') {
+        $appointments = $query->where('status', 'confirmed')
+            ->where('appointment_date', '>=', $nowLocal)
+            ->get()
+            ->map(function ($appointment) {
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'appointment_id' => $appointment->id,
+                    'patient_id' => $appointment->patient->id,
+                    'first_name' => $appointment->patient->user->first_name,
+                    'last_name' => $appointment->patient->user->last_name,
+                    'phone_number' => $appointment->patient->phone_number,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'clinic_name' => $appointment->clinic->name,
+                    'status' => 'upcoming',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
+        return response()->json(['data' => $appointments->values()]);
+    }
+    else if ($type === 'completed') {
+        $completedAppointments = $query->where(function($q) use ($nowLocal) {
+                $q->where('status', 'completed')
+                  ->orWhere(function($query) use ($nowLocal) {
+                      $query->where('status', 'confirmed')
+                            ->where('appointment_date', '<', $nowLocal);
+                  });
+            })
+            ->paginate($perPage)
+            ->through(function ($appointment) use ($nowLocal) {
+                // Auto-complete past appointments
+                if ($appointment->status === 'confirmed' &&
+                    $appointment->appointment_date < $nowLocal) {
+                    $appointment->update(['status' => 'completed']);
+                }
+
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'appointment_id' => $appointment->id,
+                    'patient_id' => $appointment->patient->id,
+                    'first_name' => $appointment->patient->user->first_name,
+                    'last_name' => $appointment->patient->user->last_name,
+                    'phone_number' => $appointment->patient->phone_number,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'clinic_name' => $appointment->clinic->name,
+                    'status' => 'completed',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason,
+                    'completed_at' => $appointment->completed_at?->format('Y-m-d H:i:s')
+                ];
+            });
+
+        return response()->json([
+            'data' => $completedAppointments->items(),
+            'meta' => [
+                'current_page' => $completedAppointments->currentPage(),
+                'last_page' => $completedAppointments->lastPage(),
+                'per_page' => $completedAppointments->perPage(),
+                'total' => $completedAppointments->total(),
+            ],
+        ]);
+    }
+    else if ($type === 'absent') {
+        $absentAppointments = $query->where('status', 'absent')
+            ->paginate($perPage)
+            ->through(function ($appointment) {
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'appointment_id' => $appointment->id,
+                    'patient_id' => $appointment->patient->id,
+                    'first_name' => $appointment->patient->user->first_name,
+                    'last_name' => $appointment->patient->user->last_name,
+                    'phone_number' => $appointment->patient->phone_number,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'clinic_name' => $appointment->clinic->name,
+                    'status' => 'absent',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason,
+                    'cancelled_at' => $appointment->cancelled_at?->format('Y-m-d H:i:s')
+                ];
+            });
+
+        return response()->json([
+            'data' => $absentAppointments->items(),
+            'meta' => [
+                'current_page' => $absentAppointments->currentPage(),
+                'last_page' => $absentAppointments->lastPage(),
+                'per_page' => $absentAppointments->perPage(),
+                'total' => $absentAppointments->total(),
+            ],
+        ]);
+    }
+    else if ($type === 'cancelled') {
+        $cancelledAppointments = $query->where('status', 'cancelled')
+            ->paginate($perPage)
+            ->through(function ($appointment) {
+                $localTime = Carbon::parse($appointment->appointment_date)
+                    ->setTimezone('Asia/Damascus');
+
+                return [
+                    'appointment_id' => $appointment->id,
+                    'patient_id' => $appointment->patient->id,
+                    'first_name' => $appointment->patient->user->first_name,
+                    'last_name' => $appointment->patient->user->last_name,
+                    'phone_number' => $appointment->patient->phone_number,
+                    'date' => $localTime->format('Y-m-d h:i A'),
+                    'clinic_name' => $appointment->clinic->name,
+                    'status' => 'cancelled',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason,
+                    'cancellation_reason' => $appointment->cancellation_reason,
+                    'cancelled_at' => $appointment->cancelled_at?->format('Y-m-d H:i:s'),
+                    'is_emergency_cancellation' => $appointment->is_emergency_cancellation
+                ];
+            });
+
+        return response()->json([
+            'data' => $cancelledAppointments->items(),
+            'meta' => [
+                'current_page' => $cancelledAppointments->currentPage(),
+                'last_page' => $cancelledAppointments->lastPage(),
+                'per_page' => $cancelledAppointments->perPage(),
+                'total' => $cancelledAppointments->total(),
+            ],
+        ]);
+    }
+
+    return response()->json(['message' => 'Invalid appointment type'], 400);
+}
 
     public function getTimeSlots(Request $request)
     {
@@ -553,7 +689,380 @@ try {
 }
 
 
+public function markAsCompleted(Appointment $appointment)
+{
+    // Verify the authenticated user is the doctor for this appointment
+    if (Auth::user()->doctor->id !== $appointment->doctor_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
 
+    // Check if appointment can be marked as completed
+    if (!in_array($appointment->status, ['confirmed'])) {
+        return response()->json([
+            'message' => 'Only confirmed appointments can be marked as completed'
+        ], 400);
+    }
+
+    try {
+        DB::transaction(function () use ($appointment) {
+            $appointment->update([
+                'status' => 'completed',
+                'completed_at' => now()
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Appointment marked as completed successfully',
+            'appointment' => $appointment->fresh()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Failed to complete appointment',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+public function getDoctorSpecificPatients(Request $request)
+{
+    try {
+        $doctor = Auth::user()->doctor;
+
+        if (!$doctor) {
+            return response()->json(['message' => 'Doctor profile not found'], 404);
+        }
+
+        // Get distinct patients who have appointments with this doctor
+        $patients = User::select([
+                'users.id as patient_id',
+                DB::raw("CONCAT(users.first_name, ' ', users.last_name) as patient_name"),
+                'users.phone',
+                'users.profile_picture',
+                DB::raw('MAX(appointments.appointment_date) as last_visit_at')
+            ])
+            ->join('patients', 'patients.user_id', '=', 'users.id')
+            ->join('appointments', 'appointments.patient_id', '=', 'patients.id')
+            ->where('appointments.doctor_id', $doctor->id)
+            ->groupBy('users.id', 'users.first_name', 'users.last_name', 'users.phone', 'users.profile_picture')
+            ->orderBy('last_visit_at', 'desc')
+            ->paginate($request->per_page ?? 10);
+
+        // Format the response
+        $formattedPatients = $patients->map(function ($patient) {
+            return [
+                'patient_id' => $patient->patient_id,
+                'patient_name' => $patient->patient_name,
+                'phone' => $patient->phone,
+                'last_visit_at' => $patient->last_visit_at ? Carbon::parse($patient->last_visit_at)->format('Y/m/d') : null,
+                'profile_picture_url' => $patient->getFileUrl('profile_picture')
+            ];
+        });
+
+        return response()->json([
+            'data' => $formattedPatients,
+            'meta' => [
+                'current_page' => $patients->currentPage(),
+                'per_page' => $patients->perPage(),
+                'total' => $patients->total(),
+                'last_page' => $patients->lastPage()
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to retrieve patients',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+ public function getPatientDetails($patientId)
+    {
+        // Verify the authenticated user is a doctor
+        $doctor = Auth::user()->doctor;
+
+        if (!$doctor) {
+            return response()->json(['message' => 'Doctor profile not found'], 404);
+        }
+
+        // Verify the patient exists and has had appointments with this doctor
+        $patient = Patient::whereHas('appointments', function($query) use ($doctor) {
+                $query->where('doctor_id', $doctor->id);
+            })
+            ->with(['user', 'appointments' => function($query) use ($doctor) {
+                $query->where('doctor_id', $doctor->id)
+                      ->orderBy('appointment_date', 'desc')
+                      ->limit(1);
+            }])
+            ->find($patientId);
+
+        if (!$patient) {
+            return response()->json([
+                'message' => 'Patient not found or not associated with this doctor',
+                'success' => false
+            ], 404);
+        }
+
+        // Calculate age from date of birth
+        $age = $patient->date_of_birth ? now()->diffInYears($patient->date_of_birth) : null;
+
+        // Format the response to match your interface
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'profile_header' => [
+                    'name' => $patient->user->first_name . ' ' . $patient->user->last_name,
+                    'phone' => $patient->phone_number,
+                    'profile_picture_url' => $patient->user->getProfilePictureUrl()
+                ],
+                'profile_details' => [
+                    'address' => $patient->address ?? 'Not specified',
+                    'age' => $age ?? 'Not specified',
+                    'gender' => $patient->gender ?? 'Not specified',
+                    'blood_type' => $patient->blood_type ?? 'Not specified',
+                    'chronic_conditions' => $patient->chronic_conditions ?? [],
+                    'last_visit' => $patient->appointments->first()
+                        ? $patient->appointments->first()->appointment_date->format('Y/m/d')
+                        : 'Never'
+                ]
+            ]
+        ]);
+    }
+
+
+
+
+
+
+public function getPatientDocuments(Request $request, $patientId)
+{
+    try {
+        $doctor = Auth::user()->doctor;
+
+        if (!$doctor) {
+            return response()->json(['message' => 'Doctor profile not found'], 404);
+        }
+
+        // Verify the patient has had appointments with this doctor
+        $hasAppointments = Appointment::where('doctor_id', $doctor->id)
+            ->where('patient_id', $patientId)
+            ->exists();
+
+        if (!$hasAppointments) {
+            return response()->json([
+                'message' => 'Patient not found or no appointments with this doctor'
+            ], 404);
+        }
+
+        // Get the patient details
+        $patient = Patient::with('user')->findOrFail($patientId);
+
+        // Get current year and month
+        $currentYear = Carbon::now()->year;
+        $currentMonth = Carbon::now()->month;
+
+        // Get all reports for this patient with this doctor
+        $reports = Report::select('reports.id', 'reports.title', 'appointments.appointment_date')
+            ->join('appointments', 'appointments.id', '=', 'reports.appointment_id')
+            ->where('appointments.doctor_id', $doctor->id)
+            ->where('appointments.patient_id', $patientId)
+            ->orderBy('appointments.appointment_date', 'desc')
+            ->get();
+
+        // Format the reports data
+        $formattedReports = $reports->map(function ($report) {
+            return [
+                'id' => $report->id,
+                'date' => Carbon::parse($report->appointment_date)->format('Y/m/d h:i A'),
+                'title' => $report->title
+            ];
+        });
+
+        return response()->json([
+            'patient_name' => $patient->user->first_name . ' ' . $patient->user->last_name,
+            'year' => (string)$currentYear,
+            'month' => (string)$currentMonth,
+            'data' => $formattedReports
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Failed to retrieve patient documents',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+public function getPatientReport($reportId)
+{
+    try {
+        $doctor = Auth::user()->doctor;
+
+        if (!$doctor) {
+            return response()->json(['message' => 'Doctor profile not found'], 404);
+        }
+
+        // Get the report with its appointment and prescriptions
+        $report = Report::with(['appointment.patient.user', 'prescriptions'])
+            ->whereHas('appointment', function($query) use ($doctor) {
+                $query->where('doctor_id', $doctor->id);
+            })
+            ->findOrFail($reportId);
+
+        // Format the response
+        return response()->json([
+            'success' => true,
+            'patient_name' => $report->appointment->patient->user->first_name . ' ' .
+                             $report->appointment->patient->user->last_name,
+            'date' => Carbon::parse($report->appointment->appointment_date)->format('Y/m/d'),
+            'time' => Carbon::parse($report->appointment->appointment_date)->format('h:i A'),
+            'report_title' => $report->title,
+            'prescriptions' => $report->prescriptions->map(function($prescription) {
+                return [
+                    'medication' => $prescription->medication,
+                    'dosage' => $prescription->dosage,
+                    'frequency' => $prescription->frequency,
+                    'duration' => $prescription->instructions
+                ];
+            })
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Failed to retrieve report',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+public function emergencyCancelAppointments(Request $request)
+{
+    $doctor = Auth::user()->doctor;
+
+    if (!$doctor) {
+        return response()->json(['message' => 'Doctor profile not found'], 404);
+    }
+
+    $validated = $request->validate([
+        'appointment_ids' => 'required|array',
+        'appointment_ids.*' => 'exists:appointments,id',
+        'reason' => 'required|string|max:500',
+        'is_emergency' => 'required|boolean'
+    ]);
+
+    date_default_timezone_set('Asia/Damascus');
+    $nowLocal = Carbon::now('Asia/Damascus');
+
+    return DB::transaction(function () use ($doctor, $validated, $nowLocal) {
+        $results = [
+            'cancelled' => [],
+            'already_cancelled' => [],
+            'not_eligible' => []
+        ];
+
+        foreach ($validated['appointment_ids'] as $appointmentId) {
+            try {
+                $appointment = Appointment::find($appointmentId);
+
+                // Basic validation
+                if (!$appointment) {
+                    $results['not_eligible'][] = [
+                        'id' => $appointmentId,
+                        'reason' => 'Appointment not found'
+                    ];
+                    continue;
+                }
+
+                if ($appointment->doctor_id != $doctor->id) {
+                    $results['not_eligible'][] = [
+                        'id' => $appointmentId,
+                        'reason' => 'Does not belong to this doctor'
+                    ];
+                    continue;
+                }
+
+                // Handle different statuses
+                if ($appointment->status === 'cancelled') {
+                    $results['already_cancelled'][] = [
+                        'id' => $appointment->id,
+                        'patient_name' => $appointment->patient->user->name,
+                        'original_date' => $appointment->appointment_date->format('Y-m-d h:i A'),
+                        'cancelled_at' => $appointment->cancelled_at->format('Y-m-d h:i A')
+                    ];
+                    continue;
+                }
+
+                if ($appointment->status !== 'confirmed') {
+                    $results['not_eligible'][] = [
+                        'id' => $appointment->id,
+                        'reason' => 'Cannot cancel '.$appointment->status.' appointment'
+                    ];
+                    continue;
+                }
+
+                if ($appointment->appointment_date < $nowLocal) {
+                    $results['not_eligible'][] = [
+                        'id' => $appointment->id,
+                        'reason' => 'Cannot cancel past appointment'
+                    ];
+                    continue;
+                }
+
+                // Proceed with cancellation
+                $appointment->update([
+                    'status' => 'cancelled',
+                    'cancelled_at' => $nowLocal,
+                    'cancellation_reason' => $validated['reason'],
+                    'is_emergency_cancellation' => $validated['is_emergency']
+                ]);
+
+
+                $results['cancelled'][] = [
+                    'id' => $appointment->id,
+                    'patient_name' => $appointment->patient->user->name,
+                    'original_date' => $appointment->appointment_date->format('Y-m-d h:i A'),
+                    'new_status' => 'cancelled'
+                ];
+
+            } catch (\Exception $e) {
+                $results['not_eligible'][] = [
+                    'id' => $appointmentId,
+                    'reason' => 'Error: '.$e->getMessage()
+                ];
+            }
+        }
+
+        return response()->json([
+            'message' => 'Cancellation processed',
+            'results' => $results,
+            'summary' => [
+                'successfully_cancelled' => count($results['cancelled']),
+                'previously_cancelled' => count($results['already_cancelled']),
+                'not_eligible' => count($results['not_eligible'])
+            ]
+        ]);
+    });
+}
 
 }
 

@@ -108,46 +108,53 @@ class SearchController extends Controller
     }
 
 
+public function searchPatients(Request $request)
+{
+    $query = Patient::with(['user', 'appointments' => function($q) {
+        $q->orderBy('appointment_date', 'desc')->limit(1); // Get most recent appointment
+    }]);
 
-    // هون ما عدلت عليه شي بعدين
-
-    // Global patient search
-    public function searchPatients(Request $request)
-    {
-        $query = Patient::with('user');
-
-        if ($request->has('name')) {
-            $query->whereHas('user', function ($q) use ($request) {
-                $q->where('first_name', 'like', '%' . $request->name . '%')
-                    ->orWhere('last_name', 'like', '%' . $request->name . '%');
-            });
-        }
-
-        if ($request->has('phone')) {
-            $query->where('phone_number', 'like', '%' . $request->phone . '%');
-        }
-
-        $results = $query->get();
-
-        if ($results->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No patients found matching your search criteria'
-            ], 404);
-        }
-        return response()->json([
-            'success' => true,
-            'data' => $results->map(function ($patient) {
-                return [
-                    'id' => $patient->id,
-                    'name' => $patient->user->full_name,
-                    'phone' => $patient->phone_number,
-                    'email' => $patient->user->email,
-                    'profile_picture' => $patient->user->getFileUrl('profile_picture')
-                ];
-            })
-        ]);
+    if ($request->has('name')) {
+        $query->whereHas('user', function ($q) use ($request) {
+            $q->where('first_name', 'like', '%' . $request->name . '%')
+                ->orWhere('last_name', 'like', '%' . $request->name . '%');
+        });
     }
+
+    if ($request->has('phone')) {
+        $query->where('phone_number', 'like', '%' . $request->phone . '%');
+    }
+
+    $results = $query->get();
+
+    if ($results->isEmpty()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'No patients found matching your search criteria'
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $results->map(function ($patient) {
+            $lastVisit = $patient->appointments->first(); // Get most recent appointment
+
+            return [
+                'id' => $patient->id,
+                'name' => $patient->user->full_name,
+                'phone' => $patient->phone_number,
+                'email' => $patient->user->email,
+                'profile_picture' => $patient->user->getFileUrl('profile_picture'),
+                'last_visit' => $lastVisit ? [
+                    'date' => $lastVisit->appointment_date,
+                    'status' => $lastVisit->status,
+                    'doctor' => $lastVisit->doctor->user->full_name ?? null,
+                    'clinic' => $lastVisit->clinic->name ?? null
+                ] : null
+            ];
+        })
+    ]);
+}
 
 
     // Global secretary search

@@ -27,7 +27,7 @@ $table->string('reason')->nullable();
 $table->date('cancelled_at')->nullable();
 $table->date(column: 'previous_date')->nullable();
             $table->text('notes')->nullable();
-
+            $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
     }

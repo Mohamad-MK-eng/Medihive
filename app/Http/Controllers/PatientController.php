@@ -213,7 +213,8 @@ class PatientController extends Controller
 
 
 
-    // 2. Get doctors for a clinic with profile pictures
+
+
 
 
 

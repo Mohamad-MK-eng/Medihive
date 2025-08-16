@@ -96,4 +96,14 @@ public function walletTransaction()
     {
         return $this->method;
     }
+
+
+
+
+public function medicalCenterWalletTransaction()
+{
+    return $this->hasOne(MedicalCenterWalletTransaction::class, 'reference', 'transaction_id')
+        ->where('reference', 'like', 'MCW-%');
+}
+
 }

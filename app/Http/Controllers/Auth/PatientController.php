@@ -497,6 +497,94 @@ public function getPatientHistory(Request $request)
 
 
 
+/*
+public function getAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
+
+    // Determine the type of appointments requested
+    $type = $request->input('type');
+
+    if ($type === 'upcoming') {
+        // Get upcoming appointments (not paginated)
+        $appointments = $patient->appointments()
+            ->with([
+                'doctor.user:id,first_name,last_name',
+                'clinic:id,name',
+                'payments' => function($query) {
+                    $query->where('status', 'completed')
+                          ->orWhere('status', 'paid');
+                }
+            ])
+            ->where('status', 'confirmed')
+            ->where('appointment_date', '>=', now())
+            ->orderBy('appointment_date', 'asc') // Show nearest first
+            ->get()
+            ->map(function ($appointment) {
+                $paymentMethod = $appointment->payments->isNotEmpty()
+                    ? $appointment->payments->first()->method
+                    : null;
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date->format('Y-m-d H:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentMethod === 'wallet' ? 'confirmed' : 'pending',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments
+        ]);
+    }
+    else {
+        // Default to completed appointments (paginated)
+        $appointments = $patient->appointments()
+            ->with([
+                'doctor.user:id,first_name,last_name',
+                'clinic:id,name',
+                'payments' => function($query) {
+                    $query->where('status', 'completed')
+                          ->orWhere('status', 'paid');
+                }
+            ])
+            ->where('status', 'completed')
+            ->orderBy('appointment_date', 'desc')
+            ->paginate(10)
+            ->through(function ($appointment) {
+                $paymentMethod = $appointment->payments->isNotEmpty()
+                    ? $appointment->payments->first()->method
+                    : null;
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date->format('Y-m-d H:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => 'completed',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments->items(),
+            'meta' => [
+                'current_page' => $appointments->currentPage(),
+                'last_page' => $appointments->lastPage(),
+                'per_page' => $appointments->perPage(),
+                'total' => $appointments->total(),
+            ]
+        ]);
+    }
+}
+
+*/
+
+
 
 public function getAppointmentReports(Appointment $appointment)
 {
