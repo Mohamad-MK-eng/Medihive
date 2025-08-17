@@ -898,41 +898,20 @@ public function generateTimeSlots(Doctor $doctor, $daysToGenerate = 30, $slotDur
     /**
      * Delete a doctor (admin only)
      */
-    public function deleteDoctor(Doctor $doctor)
-    {
-        // Check for upcoming appointments
-        $hasUpcomingAppointments = $doctor->appointments()
-            ->where('appointment_date', '>=', now())
-            ->whereIn('status', ['confirmed', 'pending'])
-            ->exists();
+public function deleteDoctor(Doctor $doctor)
+{
 
-        if ($hasUpcomingAppointments) {
-            return response()->json([
-                'message' => 'Cannot delete doctor with upcoming appointments',
-                'upcoming_appointments' => $doctor->appointments()
-                    ->where('appointment_date', '>=', now())
-                    ->count()
-            ], 422);
-        }
+    DB::transaction(function () use ($doctor) {
+        $doctor->delete();
 
-        return DB::transaction(function () use ($doctor) {
-            // Archive or soft delete if implemented
-            if (method_exists($doctor, 'trashed')) {
-                $doctor->delete();
-                $doctor->user()->delete();
-            } else {
-                // Permanent deletion
-                $doctor->user()->delete();
-                $doctor->delete();
-            }
 
-            return response()->json([
-                'message' => 'Doctor deleted successfully',
-                'deleted_at' => now()->toDateTimeString()
-            ]);
-        });
-    }
+    });
 
+    return response()->json([
+        'message' => 'Doctor deleted successfully. Existing appointments remain intact.',
+        'deleted_at' => now()->toDateTimeString()
+    ]);
+}
 
 
 

@@ -68,7 +68,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     // Admin-only routes
     Route::middleware('role:admin')->group(function () {
         Route::put('/doctors/{doctor}/admin_update', [DoctorController::class, 'adminUpdate']);
-        Route::delete('/doctors/{doctor}', [DoctorController::class, 'destroy']);
+        Route::delete('/doctors/{doctor}', [AdminController::class, 'deleteDoctor']);
     });
 
     // Doctor profile updates (by doctor or admin)

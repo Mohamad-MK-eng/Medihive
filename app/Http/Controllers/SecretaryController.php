@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\ClinicWallet;
 use App\Models\ClinicWalletTransaction;
+use App\Models\Doctor;
 use App\Models\MedicalCenterWallet;
 use App\Models\MedicalCenterWalletTransaction;
 use App\Models\Patient;
@@ -232,8 +233,7 @@ public function listBlockedPatients()
 
 
 
-
-    public function getAppointments(Request $request)
+public function getAppointments(Request $request)
 {
     // Verify secretary
     if (!Auth::user()->secretary) {
@@ -247,7 +247,11 @@ public function listBlockedPatients()
 
     $query = Appointment::with([
         'patient.user:id,first_name,last_name',
-        'doctor.user:id,first_name,last_name',
+        'doctor' => function($query) {
+            $query->withTrashed()->with(['user' => function($q) {
+                $q->withTrashed()->select('id', 'first_name', 'last_name');
+            }]);
+        },
         'clinic:id,name',
         'payments'
     ]);
@@ -291,7 +295,6 @@ public function listBlockedPatients()
         ]
     ]);
 }
-
 
 
 
@@ -414,6 +417,17 @@ public function bookAppointment(Request $request)
             }
         }
 
+
+ $doctorExists = Doctor::withTrashed()->where('id', $request->doctor_id)->exists();
+
+    if (!$doctorExists) {
+        return response()->json([
+            'error' => 'doctor_not_found',
+            'message' => 'The selected doctor is not available for appointments'
+        ], 422);
+    }
+
+
         // Create appointment
         $appointment = Appointment::create([
             'patient_id' => $validated['patient_id'],
@@ -507,7 +521,6 @@ public function bookAppointment(Request $request)
 
 
 
-
 public function cancelAppointment(Request $request, $appointmentId)
 {
     if (!Auth::user()->secretary) {
@@ -519,14 +532,6 @@ public function cancelAppointment(Request $request, $appointmentId)
     // Check if already cancelled
     if ($appointment->status === 'cancelled') {
         return response()->json(['message' => 'Appointment already cancelled'], 400);
-    }
-
-    // Check if completed or past appointment time
-    $now = now();
-    $appointmentTime = Carbon::parse($appointment->appointment_date);
-
-    if ($appointment->status === 'completed' || $appointmentTime->isPast()) {
-        return response()->json(['message' => 'Cannot cancel completed or past appointments'], 400);
     }
 
     try {
@@ -545,30 +550,70 @@ public function cancelAppointment(Request $request, $appointmentId)
         $appointment->update([
             'status' => 'cancelled',
             'cancelled_by' => Auth::id(),
-            'cancelled_at' => $now,
+            'cancelled_at' => now(),
         ]);
 
-        // Handle refund based on payment method
-        $refundAmount = 0;
-        $payment = $appointment->payments->first();
+        // Process refund if needed
+        $refundResult = $this->processRefundForCancellation($appointment);
 
-        if ($payment && $payment->status === 'paid') {
-            $createdAt = $appointment->created_at;
-            $hoursSinceBooking = $createdAt->diffInHours($now);
+        DB::commit();
 
-            // Calculate refund amount (full within 24 hours, 70% after)
-            if ($hoursSinceBooking <= 24) {
-                $refundAmount = $appointment->price;
-            } else {
-                $refundAmount = $appointment->price * 0.7;
-            }
+        return response()->json([
+            'message' => 'Appointment cancelled successfully',
+            'refund_details' => $refundResult,
+            'appointment' => $appointment
+        ]);
 
-            // Process refund differently based on payment method
-            if ($payment->method === 'wallet') {
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'message' => 'Failed to cancel appointment',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+protected function processRefundForCancellation(Appointment $appointment)
+{
+    $payment = $appointment->payments->first();
+    if (!$payment || $payment->status !== 'completed') {
+        return null;
+    }
+
+    $now = now();
+    $createdAt = $appointment->created_at;
+    $hoursSinceBooking = $createdAt->diffInHours($now);
+
+    // Calculate refund amount (full within 24 hours, 70% after)
+    $refundAmount = $hoursSinceBooking <= 24
+        ? $appointment->price
+        : $appointment->price * 0.7;
+
+    if ($payment->method === 'wallet') {
+        try {
+            DB::transaction(function () use ($appointment, $payment, $refundAmount) {
+                // Lock and get the medical center wallet
+                $medicalCenterWallet = MedicalCenterWallet::lockForUpdate()
+                    ->firstOrCreate([], ['balance' => 0]);
+
                 // Refund to patient's wallet
                 $appointment->patient->increment('wallet_balance', $refundAmount);
 
-                // Create wallet transaction
+                // Verify medical center wallet has sufficient funds
+                if ($medicalCenterWallet->balance < $refundAmount) {
+                    throw new \Exception('Medical center wallet has insufficient funds');
+                }
+
+                // Deduct from medical center wallet with verification
+                $updated = MedicalCenterWallet::where('id', $medicalCenterWallet->id)
+                    ->where('balance', '>=', $refundAmount)
+                    ->decrement('balance', $refundAmount);
+
+                if (!$updated) {
+                    throw new \Exception('Failed to deduct from medical center wallet');
+                }
+
+                // Record transactions
                 WalletTransaction::create([
                     'patient_id' => $appointment->patient->id,
                     'amount' => $refundAmount,
@@ -577,10 +622,6 @@ public function cancelAppointment(Request $request, $appointmentId)
                     'balance_before' => $appointment->patient->wallet_balance - $refundAmount,
                     'balance_after' => $appointment->patient->wallet_balance,
                 ]);
-
-                // Deduct from medical center wallet
-                $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
-                $medicalCenterWallet->decrement('balance', $refundAmount);
 
                 MedicalCenterWalletTransaction::create([
                     'medical_center_wallet_id' => $medicalCenterWallet->id,
@@ -591,35 +632,42 @@ public function cancelAppointment(Request $request, $appointmentId)
                     'balance_before' => $medicalCenterWallet->balance + $refundAmount,
                     'balance_after' => $medicalCenterWallet->balance,
                 ]);
-            } else {
-                // For cash/card payments, create a refund record
-                Payment::create([
-                    'appointment_id' => $appointment->id,
-                    'patient_id' => $appointment->patient->id,
-                    'amount' => -$refundAmount,
-                    'method' => 'refund',
-                    'status' => 'completed',
-                    'secretary_id' => Auth::user()->secretary->id,
-                    'medical_center_wallet' => true,
+
+                $payment->update([
+                    'status' => 'refunded',
+                    'refunded_at' => now(),
+                    'refund_amount' => $refundAmount
                 ]);
-            }
+            });
+
+            return [
+                'amount' => $refundAmount,
+                'method' => 'wallet',
+                'original_payment_id' => $payment->id
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("Refund failed for appointment {$appointment->id}: " . $e->getMessage());
+            throw $e;
         }
-
-        DB::commit();
-
-        return response()->json([
-            'message' => 'Appointment cancelled successfully',
-            'refund_amount' => $refundAmount,
-            'refund_method' => $payment ? $payment->method : null,
-            'appointment' => $appointment
+    } else {
+        // For cash/card payments, create a refund record
+        $refundPayment = Payment::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $appointment->patient->id,
+            'amount' => -$refundAmount,
+            'method' => 'refund',
+            'status' => 'completed',
+            'secretary_id' => Auth::user()->secretary->id,
+            'medical_center_wallet' => true,
         ]);
 
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'message' => 'Failed to cancel appointment',
-            'error' => $e->getMessage()
-        ], 500);
+        return [
+            'amount' => $refundAmount,
+            'method' => $payment->method,
+            'original_payment_id' => $payment->id,
+            'refund_payment_id' => $refundPayment->id
+        ];
     }
 }
 
