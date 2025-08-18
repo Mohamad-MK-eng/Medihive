@@ -571,7 +571,7 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     }, $days);
 
     return response()->json([
-        'message' => '',
+        'message' => 'available_days',
         'earliest_date' => $earliestDateInfo,
         'days' => $formattedDays
     ]);
@@ -1240,7 +1240,7 @@ public function cancelAppointment(Request $request, $id)
     });
 }
 
-protected function processWalletRefund(Appointment $appointment, Payment $payment)
+public function processWalletRefund(Appointment $appointment, Payment $payment)
 {
     $refundAmount = $appointment->price;
     $patient = $appointment->patient;

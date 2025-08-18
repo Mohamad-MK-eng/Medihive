@@ -9,6 +9,12 @@ use Illuminate\Http\Request;
 
 class MedicalCenterWalletController extends Controller
 {
+
+
+
+
+
+// get wallet balance 'the central wallet ' for medical center
     public function show()
     {
         $wallet = MedicalCenterWallet::firstOrCreate([]);
@@ -22,20 +28,27 @@ class MedicalCenterWalletController extends Controller
         ]);
     }
 
+
     public function transactions(Request $request)
-    {
-        $query = MedicalCenterWalletTransaction::with('clinic')
-            ->latest();
+{
+    $query = MedicalCenterWalletTransaction::with('clinic')->latest();
 
-        // Add filters if needed
-        if ($request->has('clinic_id')) {
-            $query->where('clinic_id', $request->clinic_id);
-        }
-
-        if ($request->has('type')) {
+    // Filter by transaction type (e.g., 'refund', 'appointment_payment', 'wallet_payment')
+    if ($request->has('type')) {
+        $validTypes = ['refund', 'appointment_payment', 'wallet_payment']; // Define allowed types
+        if (in_array($request->type, $validTypes)) {
             $query->where('type', $request->type);
         }
-
-        return response()->json($query->paginate(10));
     }
+
+    // Optionally, keep clinic filtering if needed (but not required)
+    if ($request->has('clinic_id')) {
+        $query->where('clinic_id', $request->clinic_id);
+    }
+
+    return response()->json($query->paginate(10));
+}
+
+
+
 }

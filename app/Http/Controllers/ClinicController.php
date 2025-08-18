@@ -183,69 +183,6 @@ class ClinicController extends Controller
 
 
 
-public function getWalletBalance($clinicId)
-{
-    $clinic = Clinic::findOrFail($clinicId);
-    $wallet = $clinic->wallet()->firstOrCreate(['clinic_id' => $clinicId]);
-
-    return response()->json([
-        'clinic_id' => $clinic->id,
-        'clinic_name' => $clinic->name,
-        'balance' => $wallet->balance,
-        'last_updated' => $wallet->updated_at
-    ]);
-}
-
-public function getWalletTransactions($clinicId)
-{
-    $wallet = ClinicWallet::with('transactions')
-        ->where('clinic_id', $clinicId)
-        ->firstOrFail();
-
-    return response()->json([
-        'clinic_id' => $wallet->clinic_id,
-        'balance' => $wallet->balance,
-        'transactions' => $wallet->transactions()->orderBy('created_at', 'desc')->paginate(10)
-    ]);
-}
-
-public function withdrawFromWallet(Request $request, $clinicId)
-{
-    $validated = $request->validate([
-        'amount' => 'required|numeric|min:0.01',
-        'notes' => 'sometimes|string|max:255'
-    ]);
-
-    $wallet = ClinicWallet::where('clinic_id', $clinicId)->firstOrFail();
-
-    if ($wallet->balance < $validated['amount']) {
-        return response()->json([
-            'message' => 'Insufficient balance',
-            'current_balance' => $wallet->balance
-        ], 400);
-    }
-
-    return DB::transaction(function () use ($wallet, $validated) {
-        $wallet->decrement('balance', $validated['amount']);
-
-        ClinicWalletTransaction::create([
-            'clinic_wallet_id' => $wallet->id,
-            'amount' => $validated['amount'],
-            'type' => 'withdrawal',
-            'reference' => 'WDR-' . now()->format('YmdHis'),
-            'balance_before' => $wallet->balance + $validated['amount'],
-            'balance_after' => $wallet->balance,
-            'notes' => $validated['notes'] ?? 'Cash withdrawal'
-        ]);
-
-        return response()->json([
-            'message' => 'Withdrawal successful',
-            'new_balance' => $wallet->balance,
-            'withdrawal_amount' => $validated['amount']
-        ]);
-    });
-}
-
 
 
 

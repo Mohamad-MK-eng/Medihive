@@ -50,7 +50,7 @@ class WalletController extends Controller
             $transaction = $patient->deposit(
                 $validated['amount'],
                 $validated['notes'] ?? 'Added by staff',
-                
+
             );
 
             return response()->json([
@@ -126,7 +126,7 @@ class WalletController extends Controller
 
 
 
-    //
+    // later
     public function transferToClinic(Request $request)
     {
         $validated = $request->validate([

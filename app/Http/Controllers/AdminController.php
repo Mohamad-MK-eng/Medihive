@@ -59,7 +59,7 @@ class AdminController extends Controller
         $report = $query->selectRaw('
             method,
             SUM(amount) as total_amount,
-            COUNT(*) as transaction_count
+            COUNT(*) as transaction_no
         ')
             ->groupBy('method')
             ->get();
@@ -838,66 +838,63 @@ public function generateTimeSlots(Doctor $doctor, $daysToGenerate = 30, $slotDur
 
 
 
-//     public function updateDoctor(Request $request, Doctor $doctor)
-//     {
-//         $validator = Validator::make($request->all(), [
+    public function updateDoctor(Request $request, Doctor $doctor)
+     {
+         $validator = Validator::make($request->all(), [
 
-//             'email' => [
-//                 'sometimes',
-//                 'email',
-//                 'unique:users,email,' . $doctor->user_id
-//             ],
-//             'phone_number' => 'sometimes|string|max:20',
+             'email' => [
+                 'sometimes',
+                 'email',
+                 'unique:users,email,' . $doctor->user_id
+             ],
+             'phone_number' => 'sometimes|string|max:20',
 
-//             // Doctor data
-//             'specialty' => 'sometimes|string|max:255',
-//             'bio' => 'nullable|string',
-//             'consultation_fee' => 'sometimes|numeric|min:120',
-//             'experience_years' => 'sometimes|integer|min:1',
-//             'clinic_id' => 'sometimes|exists:clinics,id',
-//             'workdays' => 'sometimes|array',
-//             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+             // Doctor data
+            'specialty' => 'sometimes|string|max:255',
+             'bio' => 'nullable|string',
+             'consultation_fee' => 'sometimes|numeric|min:120',
+             'experience_years' => 'sometimes|integer|min:1',
+            'clinic_id' => 'sometimes|exists:clinics,id',             'workdays' => 'sometimes|array',
+             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
 
-//             // Status control
-//             'is_active' => 'sometimes|boolean'
-//         ]);
+             // Status control
+             'is_active' => 'sometimes|boolean'
+         ]);
 
-//         if ($validator->fails()) {
-//             return response()->json(['errors' => $validator->errors()], 422);
-//         }
+         if ($validator->fails()) {
+             return response()->json(['errors' => $validator->errors()], 422);
+         }
 
-//         $validated = $validator->validated();
+         $validated = $validator->validated();
 
-//         return DB::transaction(function () use ($request, $doctor, $validated) {
-//             // Update user data if present
-//             if (
-//                 isset($validated['email']) || isset($validated['phone_number'])
-//             ) {
+         return DB::transaction(function () use ($request, $doctor, $validated) {
+             // Update user data if present
+             if (
+                 isset($validated['email']) || isset($validated['phone_number'])
+             ) {
 
-//                 $userData = [
-//                   'email' => $validated['email'] ?? $doctor->user->email,
-//                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
-//                 ];
+                 $userData = [
+                   'email' => $validated['email'] ?? $doctor->user->email,
+                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
+                 ];
 
-//                 $doctor->user->update($userData);
-//             }
+                 $doctor->user->update($userData);
+             }
 
-//             // Update doctor data
-//             $doctorData = collect($validated)
-//                 ->except(['first_name', 'last_name', 'email', 'phone_number'])
-//                 ->toArray();
+             // Update doctor data
+             $doctorData = collect($validated)
+                 ->except(['first_name', 'last_name', 'email', 'phone_number'])
+                 ->toArray();
 
-//             $doctor->update($doctorData);
+             $doctor->update($doctorData);
 
-//             return response()->json([
-//                 'message' => 'Doctor updated successfully',
-//                 'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
-//             ]);
-//         });
-//     }
-    /**
-     * Delete a doctor (admin only)
-     */
+             return response()->json([
+                'message' => 'Doctor updated successfully',
+                 'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+             ]);
+         });
+    }
+
 public function deleteDoctor(Doctor $doctor)
 {
 

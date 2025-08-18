@@ -77,7 +77,7 @@ class PatientController extends Controller
             'address' => 'sometimes|string|nullable',
             'date_of_birth' => 'sometimes|date',
             'gender' => 'sometimes|string|in:Male,Female,other',
-            'blood_type' => 'sometimes|in:A +,A -,B +,B -,AB +,AB -,O +,O -',
+            'blood_type' => 'sometimes|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
             'chronic_conditions' => 'nullable|String',
             'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
         ]);
@@ -260,7 +260,7 @@ public function getPatientHistory(Request $request)
 
     // Custom validation for date (accepts both YYYY-M and YYYY-M-D)
     $validator = Validator::make($request->all(), [
-        'date' => 'sometimes', 'regex:/^\d{4}-\d{1,2}(-\d{1,2})?$/',
+        'date' => 'sometimes|regex:/^\d{4}-\d{1,2}(-\d{1,2})?$/',
         'clinic_id' => 'sometimes|exists:clinics,id',
         'per_page' => 'sometimes|integer|min:1|max:100',
         'page' => 'sometimes|integer|min:1'
@@ -277,11 +277,13 @@ public function getPatientHistory(Request $request)
 
     $query = Appointment::with([
             'clinic:id,name',
-            'doctor.user:id,first_name,last_name,profile_picture'
+            'doctor.user:id,first_name,last_name,profile_picture',
+            'doctor:id,user_id,specialty' // Ensure doctor is loaded
         ])
         ->where('patient_id', $patient->id)
         ->orderBy('appointment_date', 'desc');
 
+    // Date filtering
     if ($request->has('date')) {
         $dateInput = $validated['date'];
         $dateParts = explode('-', $dateInput);
@@ -327,8 +329,7 @@ public function getPatientHistory(Request $request)
     $perPage = $validated['per_page'] ?? 10;
     $appointments = $query->paginate($perPage);
 
-
-      if ($appointments->isEmpty()) {
+    if ($appointments->isEmpty()) {
         return response()->json([
             'message' => 'No appointments found for the given criteria',
             'data' => [],
@@ -338,24 +339,25 @@ public function getPatientHistory(Request $request)
                 'total' => $appointments->total(),
                 'last_page' => $appointments->lastPage(),
             ]
-        ],404);
+        ], 404);
     }
-    // Format response to match your interface
+
+    // Format response with proper null checks
     $formattedAppointments = $appointments->map(function ($appointment) {
-        $doctorUser = $appointment->doctor->user;
-        $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
+        $doctor = $appointment->doctor;
+        $doctorUser = $doctor->user ?? null;
+        $clinic = $appointment->clinic ?? null;
 
         return [
             'id' => $appointment->id,
             'date' => $appointment->appointment_date->format('Y-n-j h:i A'),
-            'clinic_name' => $appointment->clinic->name,
-            'doctor_id'=>$appointment->doctor->id,
-            'first_name'=>$doctorUser->first_name,
-            'last_name'=>$doctorUser->last_name,
-       //     'doctor' => $doctorUser ? 'Dr. ' . $doctorUser->first_name . ' ' . $doctorUser->last_name : null,
-            'specialty' => $appointment->doctor->specialty,
-            'profile_picture_url' => $profilePictureUrl
-                ];
+            'clinic_name' => $clinic ? $clinic->name : null,
+            'doctor_id' => $doctor ? $doctor->id : null,
+            'first_name' => $doctorUser ? $doctorUser->first_name : null,
+            'last_name' => $doctorUser ? $doctorUser->last_name : null,
+            'specialty' => $doctor ? $doctor->specialty : null,
+            'profile_picture_url' => $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null
+        ];
     });
 
     return response()->json([
@@ -371,40 +373,7 @@ public function getPatientHistory(Request $request)
 
     // tested successfully
 
-    public function getMedicalHistory(Request $request)
-    {
-        $patient = Auth::user()->patient;
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
 
-
-         $history = $request->user()->patient->appointments()
-        ->with(['prescription', 'medicalNotes', 'doctor.user', 'clinic'])
-        ->where('appointment_date', '<=', now())
-        ->orderBy('appointment_date', 'desc')
-        ->get();
-
-    if ($history->isEmpty()) {
-        return response()->json([
-            'message' => 'No medical history found',
-            'data' => []
-        ]);
-    }
-
-
-      return $history->map(function ($appointment) {
-        return [
-            'id' => $appointment->id,
-            'date' => $appointment->appointment_date,
-            'clinic' => $appointment->clinic->name,
-            'doctor' => $appointment->doctor->user->name,
-            'diagnosis' => $appointment->diagnosis,
-            'notes' => $appointment->notes,
-            'prescription' => $appointment->prescription,
-        ];
-    });
-}
 
 
 
@@ -497,7 +466,7 @@ public function getPatientHistory(Request $request)
 
 
 
-/*
+/* exist in appointment controller hajjiii
 public function getAppointments(Request $request)
 {
     $patient = Auth::user()->patient;
