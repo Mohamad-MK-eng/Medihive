@@ -323,7 +323,7 @@ public function createPatient(Request $request)
         'gender' => 'required|in:male,female,other',
         'date_of_birth' => 'required|date',
         'address' => 'nullable|string',
-        'blood_type' => 'nullable|string|max:3',
+        '_type' => 'nullable|string|max:3',
     ]);
 
     try {

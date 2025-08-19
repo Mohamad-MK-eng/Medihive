@@ -139,6 +139,7 @@ class ClinicController extends Controller
             'date' => 'required|date_format:Y-m-d'
         ]);
 
+
         $doctors = $clinic->doctors()
             ->with(['user', 'schedules', 'timeSlots' => function ($query) use ($request) {
                 $query->where('date', $request->date)
@@ -190,12 +191,9 @@ class ClinicController extends Controller
 
 
 
+
+
+
+
+
 }
-
-
-
-
-
-
-
-

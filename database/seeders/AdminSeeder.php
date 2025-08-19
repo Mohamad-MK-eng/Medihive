@@ -82,7 +82,7 @@ class AdminSeeder extends Seeder
             'date_of_birth' => '1990-01-01',
             'address' => '123 Test St',
             'gender' => 'male',
-            'blood_type' => 'O+',
+            'blood_type' => 'O +',
             'emergency_contact' => '9876543210'
         ]);
 

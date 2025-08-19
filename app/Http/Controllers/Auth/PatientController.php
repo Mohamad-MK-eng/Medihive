@@ -77,7 +77,7 @@ class PatientController extends Controller
             'address' => 'sometimes|string|nullable',
             'date_of_birth' => 'sometimes|date',
             'gender' => 'sometimes|string|in:Male,Female,other',
-            'blood_type' => 'sometimes|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
+            'blood_type' => 'sometimes|in:A +,A -,B +,B -,AB +,AB -,O +,O -',
             'chronic_conditions' => 'nullable|String',
             'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
         ]);
@@ -139,41 +139,7 @@ class PatientController extends Controller
     }
 
 
-    public function getProfilePicture()
-    {
-        $patient = Auth::user()->patient;
 
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
-
-        if (!$patient->user->profile_picture) {
-            return response()->json(['message' => 'No profile picture set'], 404);
-        }
-
-        try {
-            // Get the stored path
-            $path = $patient->user->profile_picture;
-
-            // Remove any 'storage/' prefix if present
-            $path = str_replace('storage/', '', $path);
-
-            // Check if file exists
-            if (!Storage::disk('public')->exists($path)) {
-                return response()->json(['message' => 'Profile picture file not found'], 404);
-            }-
-
-            // Get the full filesystem path
-            $fullPath = Storage::disk('public')->path($path);
-
-            return response()->file($fullPath);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving profile picture',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
 
 
 

@@ -6,6 +6,7 @@ use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Secretary;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
@@ -111,18 +112,27 @@ class SearchController extends Controller
 public function searchPatients(Request $request)
 {
     $query = Patient::with(['user', 'appointments' => function($q) {
-        $q->orderBy('appointment_date', 'desc')->limit(1); // Get most recent appointment
+        $q->orderBy('appointment_date', 'desc')->limit(1);
     }]);
 
-    if ($request->has('name')) {
-        $query->whereHas('user', function ($q) use ($request) {
-            $q->where('first_name', 'like', '%' . $request->name . '%')
-                ->orWhere('last_name', 'like', '%' . $request->name . '%');
-        });
-    }
+    if ($request->filled('keyword')) {
+        $keyword = $request->keyword;
 
-    if ($request->has('phone')) {
-        $query->where('phone_number', 'like', '%' . $request->phone . '%');
+        $query->where(function ($q) use ($keyword) {
+            $q->whereHas('user', function ($uq) use ($keyword) {
+                $uq->where('first_name', 'like', "%$keyword%")
+                   ->orWhere('last_name', 'like', "%$keyword%");
+            })
+            ->orWhere('phone_number', 'like', "%$keyword%")
+            ->orWhereHas('user', function ($uq) use ($keyword) {
+                $uq->where('email', 'like', "%$keyword%");
+            });
+        });
+    } else {
+        return response()->json([
+            'success' => false,
+            'message' => 'Please provide a valid keyword to search.'
+        ], 400);
     }
 
     $results = $query->get();
@@ -130,30 +140,25 @@ public function searchPatients(Request $request)
     if ($results->isEmpty()) {
         return response()->json([
             'success' => false,
-            'message' => 'No patients found matching your search criteria'
+            'message' => 'No patients found matching your search keyword'
         ], 404);
     }
 
     return response()->json([
         'success' => true,
         'data' => $results->map(function ($patient) {
-            $lastVisit = $patient->appointments->first(); // Get most recent appointment
+            $lastVisit = $patient->appointments->first();
 
             return [
-                'id' => $patient->id,
-                'name' => $patient->user->full_name,
+                'patient_id' => $patient->id,
+                'patient_name' => $patient->user->first_name . ' '. $patient->user->last_name, // FIXED: Added ->user->
                 'phone' => $patient->phone_number,
                 'email' => $patient->user->email,
-                'profile_picture' => $patient->user->getFileUrl('profile_picture'),
-                'last_visit' => $lastVisit ? [
-                    'date' => $lastVisit->appointment_date,
-                    'status' => $lastVisit->status,
-                    'doctor' => $lastVisit->doctor->user->full_name ?? null,
-                    'clinic' => $lastVisit->clinic->name ?? null
-                ] : null
+                'profile_picture_url' => $patient->user->getProfilePictureUrl(),
+                'last_visit_at' => $lastVisit ? $lastVisit->appointment_date->format('Y-m-d') : 'Never'
             ];
         })
-    ]);
+    ], 200);
 }
 
 

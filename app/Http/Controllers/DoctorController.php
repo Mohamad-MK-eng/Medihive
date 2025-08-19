@@ -737,23 +737,23 @@ public function getDoctorSpecificPatients(Request $request)
         $patients = User::select([
                 'users.id as patient_id',
                 DB::raw("CONCAT(users.first_name, ' ', users.last_name) as patient_name"),
-                'users.phone',
+                'patients.phone_number as phone', // Changed from users.phone to patients.phone_number
                 'users.profile_picture',
                 DB::raw('MAX(appointments.appointment_date) as last_visit_at')
             ])
             ->join('patients', 'patients.user_id', '=', 'users.id')
             ->join('appointments', 'appointments.patient_id', '=', 'patients.id')
             ->where('appointments.doctor_id', $doctor->id)
-            ->groupBy('users.id', 'users.first_name', 'users.last_name', 'users.phone', 'users.profile_picture')
+            ->groupBy('users.id', 'users.first_name', 'users.last_name', 'patients.phone_number', 'users.profile_picture') // Added patients.phone_number
             ->orderBy('last_visit_at', 'desc')
             ->paginate($request->per_page ?? 10);
 
-        // Format the response
+        // Format the response - FIXED: use $patient->phone instead of $patient->phone_number
         $formattedPatients = $patients->map(function ($patient) {
             return [
                 'patient_id' => $patient->patient_id,
                 'patient_name' => $patient->patient_name,
-                'phone' => $patient->phone,
+                'phone' => $patient->phone, // Changed from phone_number to phone
                 'last_visit_at' => $patient->last_visit_at ? Carbon::parse($patient->last_visit_at)->format('Y/m/d') : null,
                 'profile_picture_url' => $patient->getFileUrl('profile_picture')
             ];
@@ -781,122 +781,77 @@ public function getDoctorSpecificPatients(Request $request)
 
 
 
- public function getPatientDetails($patientId)
-    {
-        // Verify the authenticated user is a doctor
-        $doctor = Auth::user()->doctor;
-
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
-        }
-
-        // Verify the patient exists and has had appointments with this doctor
-        $patient = Patient::whereHas('appointments', function($query) use ($doctor) {
-                $query->where('doctor_id', $doctor->id);
-            })
-            ->with(['user', 'appointments' => function($query) use ($doctor) {
-                $query->where('doctor_id', $doctor->id)
-                      ->orderBy('appointment_date', 'desc')
-                      ->limit(1);
-            }])
-            ->find($patientId);
-
-        if (!$patient) {
-            return response()->json([
-                'message' => 'Patient not found or not associated with this doctor',
-                'success' => false
-            ], 404);
-        }
-
-        // Calculate age from date of birth
-        $age = $patient->date_of_birth ? now()->diffInYears($patient->date_of_birth) : null;
-
-        // Format the response to match your interface
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'profile_header' => [
-                    'name' => $patient->user->first_name . ' ' . $patient->user->last_name,
-                    'phone' => $patient->phone_number,
-                    'profile_picture_url' => $patient->user->getProfilePictureUrl()
-                ],
-                'profile_details' => [
-                    'address' => $patient->address ?? 'Not specified',
-                    'age' => $age ?? 'Not specified',
-                    'gender' => $patient->gender ?? 'Not specified',
-                    'blood_type' => $patient->blood_type ?? 'Not specified',
-                    'chronic_conditions' => $patient->chronic_conditions ?? [],
-                    'last_visit' => $patient->appointments->first()
-                        ? $patient->appointments->first()->appointment_date->format('Y/m/d')
-                        : 'Never'
-                ]
-            ]
-        ]);
-    }
 
 
 
-
-
-
-public function getPatientDocuments(Request $request, $patientId)
+public function getPatientDetails($userId)
 {
-    try {
-        $doctor = Auth::user()->doctor;
+    // Verify the authenticated user is a doctor
+    $doctor = Auth::user()->doctor;
 
-        if (!$doctor) {
-            return response()->json(['message' => 'Doctor profile not found'], 404);
-        }
-
-        // Verify the patient has had appointments with this doctor
-        $hasAppointments = Appointment::where('doctor_id', $doctor->id)
-            ->where('patient_id', $patientId)
-            ->exists();
-
-        if (!$hasAppointments) {
-            return response()->json([
-                'message' => 'Patient not found or no appointments with this doctor'
-            ], 404);
-        }
-
-        // Get the patient details
-        $patient = Patient::with('user')->findOrFail($patientId);
-
-        // Get current year and month
-        $currentYear = Carbon::now()->year;
-        $currentMonth = Carbon::now()->month;
-
-        // Get all reports for this patient with this doctor
-        $reports = Report::select('reports.id', 'reports.title', 'appointments.appointment_date')
-            ->join('appointments', 'appointments.id', '=', 'reports.appointment_id')
-            ->where('appointments.doctor_id', $doctor->id)
-            ->where('appointments.patient_id', $patientId)
-            ->orderBy('appointments.appointment_date', 'desc')
-            ->get();
-
-        // Format the reports data
-        $formattedReports = $reports->map(function ($report) {
-            return [
-                'id' => $report->id,
-                'date' => Carbon::parse($report->appointment_date)->format('Y/m/d h:i A'),
-                'title' => $report->title
-            ];
-        });
-
-        return response()->json([
-            'patient_name' => $patient->user->first_name . ' ' . $patient->user->last_name,
-            'year' => (string)$currentYear,
-            'month' => (string)$currentMonth,
-            'data' => $formattedReports
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Failed to retrieve patient documents',
-            'message' => $e->getMessage()
-        ], 500);
+    if (!$doctor) {
+        return response()->json(['message' => 'Doctor profile not found'], 404);
     }
+
+    // FIXED: Changed from patient_id to user_id
+    $patient = Patient::where('user_id', $userId) // Changed this line
+        ->whereHas('appointments', function($query) use ($doctor) {
+            $query->where('doctor_id', $doctor->id);
+        })
+        ->with(['user', 'appointments' => function($query) use ($doctor) {
+            $query->where('doctor_id', $doctor->id)
+                  ->orderBy('appointment_date', 'desc')
+                  ->limit(1);
+        }])
+        ->first();
+
+    if (!$patient) {
+        return response()->json([
+            'message' => 'Patient not found or not associated with this doctor',
+            'success' => false
+        ], 404);
+    }
+
+    // Simple manual age calculation
+    $age = null;
+    if ($patient->date_of_birth) {
+        try {
+            // Parse the date manually
+            $dob = date_create($patient->date_of_birth);
+            $now = date_create();
+
+            if ($dob && $now && $dob <= $now) {
+                $diff = date_diff($dob, $now);
+                $age = $diff->y; // Get years from the difference
+            }
+        } catch (\Exception $e) {
+            $age = null;
+        }
+    }
+
+    $lastVisit = $patient->appointments->first();
+
+    // Format the response
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'first_name' => $patient->user->first_name,
+            'last_name' => $patient->user->last_name,
+            'phone' => $patient->phone_number,
+            'profile_picture_url' => $patient->user->getProfilePictureUrl(),
+            'address' => $patient->address ?? 'Not specified',
+            'age' => $age ?? 'Not specified',
+            'gender' => $patient->gender ?? 'Not specified',
+            'blood_type' => $patient->blood_type ?? 'Not specified',
+            'chronic_conditions' => $patient->chronic_conditions ?? 'not specified',
+            'last_visit' => $lastVisit ? $lastVisit->appointment_date->format('Y/m/d') : 'Never' // Added null check
+        ]
+    ]);
 }
+
+
+
+
 
 
 
