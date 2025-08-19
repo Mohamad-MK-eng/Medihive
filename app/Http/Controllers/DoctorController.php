@@ -126,6 +126,10 @@ public function uploadProfilePicture(Request $request)
         ], 500);
     }
 }
+
+
+
+
 public function updateProfile(Request $request)
 {
     $user = Auth::user();
@@ -139,6 +143,8 @@ public function updateProfile(Request $request)
     }
 
     $validator = Validator::make($request->all(), [
+        'first_name' => 'sometimes|string|max:255',
+        'last_name' => 'sometimes|string|max:255',
         'phone_number' => 'sometimes|string|max:20',
         'address' => 'sometimes|string',
         'bio' => 'sometimes|string|max:1000',
@@ -150,20 +156,32 @@ public function updateProfile(Request $request)
     }
 
     try {
-        DB::transaction(function () use ($user, $doctor, $request, $validator) {
-            // Update phone number if provided
+        DB::transaction(function () use ($user, $doctor, $request) {
+            // Update user basic information
+            $userUpdates = [];
+
+            if ($request->has('first_name')) {
+                $userUpdates['first_name'] = $request->first_name;
+            }
+
+            if ($request->has('last_name')) {
+                $userUpdates['last_name'] = $request->last_name;
+            }
+
             if ($request->has('phone_number')) {
-                $user->phone = $request->phone_number;
-                $user->save();
+                $userUpdates['phone'] = $request->phone_number;
             }
 
-            // Update address if provided (assuming address is stored in clinic)
-            if ($request->has('address') && $doctor->clinic) {
-                $user->address = $request->address;
-                $user->save();
+            if ($request->has('address')) {
+                $userUpdates['address'] = $request->address;
             }
 
-            // Update bio if provided
+            // Update user fields if any changes
+            if (!empty($userUpdates)) {
+                $user->update($userUpdates);
+            }
+
+            // Update doctor bio if provided
             if ($request->has('bio')) {
                 $doctor->bio = $request->bio;
                 $doctor->save();
@@ -186,13 +204,13 @@ public function updateProfile(Request $request)
         $schedule = $doctor->schedules->map(function ($schedule) {
             return [
                 'day' => ucfirst($schedule->day),
-
+            // Add other schedule fields if needed
             ];
         });
 
         return response()->json([
             'message' => 'Profile updated successfully',
-                'personal_information' => [
+            'personal_information' => [
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'phone_number' => $user->phone,
@@ -209,7 +227,7 @@ public function updateProfile(Request $request)
                 'rating_count' => $doctor->reviews->count(),
                 'bio' => $doctor->bio ?? 'No bio available',
                 'profile_picture_url' => $user->getProfilePictureUrl(),
-                'clinic' => $doctor->clinic->name ,
+                'clinic' => $doctor->clinic->name,
                 'working_days' => $schedule
             ]
         ]);
