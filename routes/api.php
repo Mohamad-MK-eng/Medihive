@@ -33,7 +33,14 @@ Route::post('/reset_password', [\App\Http\Controllers\Auth\PasswordResetControll
 
 
 
-
+Route::get('/test-email-verification/{email}', function ($email) {
+    try {
+        event(new \App\Events\EmailVerification($email));
+        return 'Email verification event dispatched successfully! Check logs and database.';
+    } catch (\Exception $e) {
+        return 'Error: ' . $e->getMessage();
+    }
+});
 
 
 

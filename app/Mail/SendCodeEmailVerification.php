@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class SendCodeEmailVerification extends Mailable implements ShouldQueue
+class SendCodeEmailVerification extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -30,7 +30,8 @@ class SendCodeEmailVerification extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.send-code-email-verification', // Match the template name
+            markdown: 'emails.verification-code', // Make sure this matches your template
+            with: ['code' => $this->code] // Explicitly pass the code
         );
     }
 
