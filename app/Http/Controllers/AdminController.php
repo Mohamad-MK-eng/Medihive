@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\DoctorSchedule;
+use App\Models\MedicalCenterWallet;
+use App\Models\MedicalCenterWalletTransaction;
 use App\Models\Patient;
 use App\Models\Payment;
 use App\Models\Role;
@@ -57,7 +60,7 @@ class AdminController extends Controller
         $report = $query->selectRaw('
             method,
             SUM(amount) as total_amount,
-            COUNT(*) as transaction_count
+            COUNT(*) as transaction_no
         ')
             ->groupBy('method')
             ->get();
@@ -870,6 +873,7 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
             ]);
         });
     }
+    
 
 
 
@@ -1276,8 +1280,253 @@ public function editClinic(Request $request, $clinic_id)
         return response()->json(["clinic" => $Clinic], 200);
     }
 
+    public function searchClinicsA(Request $request)
+{
+     $limit = $request->get('limit', 5); // عدد النتائج في الصفحة
+    $query = Clinic::withCount('doctors'); // إضافة عدد الأطباء
 
-                //////////////////////////    doctors          ///////////////////////////////
+    if ($request->filled('keyword')) {
+        $keyword = $request->keyword;
+
+        $query->where(function ($q) use ($keyword) {
+            $q->where('name', 'like', "%$keyword%")
+              ->orWhere('description', 'like', "%$keyword%");
+        });
+    } else {
+        // لو ما أرسل keyword، رجّع مصفوفة فاضية
+        return response()->json([
+            'success' => true,
+            'clinics' => [],
+            'total' => 0,
+            'current_page' => 1,
+            'last_page' => 1
+        ], 200);
+    }
+
+    // الترقيم
+    $clinics = $query->paginate($limit);
+
+    if ($clinics->isEmpty()) {
+        return response()->json([
+            'success' => true,
+            'clinics' => [],
+            'total' => 0,
+            'current_page' => $clinics->currentPage(),
+            'last_page' => $clinics->lastPage()
+        ], 200);
+    }
+
+    // نفس شكل allClinics
+    return response()->json([
+        'success' => true,
+        'clinics' => $clinics->map(function ($clinic) {
+            return [
+                'id' => $clinic->id,
+                'name' => $clinic->name,
+                'image_path' => $clinic->getIconUrl(),
+                'doctors_count' => $clinic->doctors_count
+            ];
+        }),
+        'total' => $clinics->total(),
+        'current_page' => $clinics->currentPage(),
+        'last_page' => $clinics->lastPage()
+    ], 200);
+}
+
+
+/////////////////////////////////////////////////////////    patients          ///////////////////////////////
+public function allPatients(Request $request)
+{
+    $limit = $request->get('limit', 5);
+
+    // جلب المرضى مع بيانات المستخدم المرتبطة بهم
+    $patients = Patient::with('user')->paginate($limit);
+
+    if ($patients->isEmpty()) {
+        return response()->json(['message' => 'No patients found'], 404);
+    }
+
+    return response()->json([
+        'patients' => $patients->items(),
+        'total' => $patients->total(),
+        'current_page' => $patients->currentPage(),
+        'last_page' => $patients->lastPage(),
+    ], 200);
+}
+
+public function addPatient(Request $request)
+{
+    // التحقق من صحة البيانات المدخلة
+    $validator = Validator::make($request->all(), [
+        'first_name' => 'required|string|max:255',
+        'last_name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'password' => 'required|string|min:8',
+        'phone_number' => 'nullable|string',
+        'date_of_birth' => 'nullable|date',
+        'address' => 'nullable|string',
+        'gender' => 'required|in:male,female',
+        'blood_type' => 'nullable|string',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    // استخدام Transaction لضمان تنفيذ العمليتين معاً أو عدم تنفيذهماเลย
+    try {
+        DB::beginTransaction();
+
+        // 1. إنشاء المستخدم أولاً
+        $user = User::create([
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'email' => $request->email,
+            'phone' => $request->phone_number, // تأكد من اسم الحقل في جدول users
+            'password' => Hash::make($request->password),
+            'address' => $request->address,
+            'gender' => $request->gender,
+            'role_id' => 3, // <-- هام: تأكد من أن هذا هو الـ ID الصحيح لدور "Patient" في جدول roles
+        ]);
+
+        // 2. إنشاء المريض وربطه بالـ user_id
+        $patient = Patient::create([
+            'user_id' => $user->id,
+            'phone_number' => $request->phone_number,
+            'date_of_birth' => $request->date_of_birth,
+            'address' => $request->address,
+            'gender' => $request->gender,
+            'blood_type' => $request->blood_type,
+            // يمكنك إضافة أي حقول أخرى هنا
+        ]);
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Patient created successfully',
+            'patient' => $patient->load('user') // إرجاع المريض مع بيانات المستخدم
+        ], 201);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        // يمكنك تسجيل الخطأ هنا للمراجعة لاحقاً
+        // Log::error($e->getMessage());
+        return response()->json(['message' => 'An error occurred while creating the patient.'], 500);
+    }
+}
+
+public function searchPatients(Request $request)
+{
+    // ابدأ الاستعلام مع جلب العلاقة الأساسية 'user'
+    $query = Patient::with(['user']);
+
+    // تحقق مما إذا كانت هناك كلمة مفتاحية في الطلب
+    if ($request->filled('keyword')) {
+        $keyword = $request->keyword;
+
+        // قم بتجميع شروط البحث لتجنب التعارض مع أي شروط أخرى
+        $query->where(function ($q) use ($keyword) {
+            // أولاً: ابحث في بيانات المستخدم المرتبطة (الاسم والبريد الإلكتروني)
+            $q->whereHas('user', function ($userQuery) use ($keyword) {
+                $userQuery->where('first_name', 'like', "%$keyword%")
+                    ->orWhere('last_name', 'like', "%$keyword%")
+                    ->orWhere('email', 'like', "%$keyword%");
+            })
+            // ثانياً: ابحث في بيانات المريض نفسه (رقم الهاتف، فصيلة الدم)
+            ->orWhere('phone_number', 'like', "%$keyword%")
+            ->orWhere('blood_type', 'like', "%$keyword%");
+        });
+    } else {
+        // إذا لم يتم توفير كلمة بحث، أرجع مصفوفة فارغة
+        return response()->json([], 200);
+    }
+
+    // نفذ الاستعلام واحصل على النتائج
+    $results = $query->get();
+
+    // إذا لم يتم العثور على أي نتائج
+    if ($results->isEmpty()) {
+        return response()->json([], 404);
+    }
+
+    // أرجع النتائج مباشرة، حيث أن هيكلها متوافق مع تابع allPatients
+    return response()->json($results, 200);
+}
+public function getPatientById($id)
+{
+    $patient = Patient::with('user')->find($id);
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient not found'], 404);
+    }
+
+    return response()->json([
+        'patient' => $patient
+    ], 200);
+}
+public function updatePatient(Request $request, $id)
+{
+    $patient = Patient::with('user')->find($id);
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient not found'], 404);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'first_name'   => 'required|string|max:255',
+        'last_name'    => 'required|string|max:255',
+        'email'        => 'required|string|email|max:255|unique:users,email,' . $patient->user_id,
+        'password'     => 'nullable|string|min:8',
+        'phone_number' => 'nullable|string',
+        'date_of_birth'=> 'nullable|date',
+        'address'      => 'nullable|string',
+        'gender'       => 'required|in:male,female',
+        'blood_type'   => 'nullable|string',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    try {
+        DB::beginTransaction();
+
+        // تحديث بيانات الـ User
+        $patient->user->update([
+            'first_name' => $request->first_name,
+            'last_name'  => $request->last_name,
+            'email'      => $request->email,
+            'phone'      => $request->phone_number,
+            'address'    => $request->address,
+            'gender'     => $request->gender,
+            'password'   => $request->password ? Hash::make($request->password) : $patient->user->password,
+        ]);
+
+        // تحديث بيانات Patient
+        $patient->update([
+            'phone_number' => $request->phone_number,
+            'date_of_birth'=> $request->date_of_birth,
+            'address'      => $request->address,
+            'gender'       => $request->gender,
+            'blood_type'   => $request->blood_type,
+        ]);
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Patient updated successfully',
+            'patient' => $patient->load('user')
+        ], 200);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json(['message' => 'An error occurred while updating the patient.'], 500);
+    }
+}
+
+
+
+/////////////////////////////////////////////////////////    doctors          ///////////////////////////////
     public function allDoctors(Request $request){
     $limit = $request->get('limit', 5);
 
@@ -1316,6 +1565,82 @@ public function DoctorInfo($doctor_id){
         'doctor' => $doctor
     ], 200);
 }
+
+public function deleteDoctorA($doctor_id)
+{
+
+
+    $doctor = Doctor::findOrFail($doctor_id);
+
+    // Check for upcoming appointments
+    $hasUpcomingAppointments = $doctor->appointments()
+        ->where('appointment_date', '>=', now())
+        ->whereIn('status', ['confirmed', 'pending'])
+        ->exists();
+
+    if ($hasUpcomingAppointments) {
+        return response()->json([
+            'message' => 'Cannot delete doctor with upcoming appointments',
+            'upcoming_appointments' => $doctor->appointments()
+                ->where('appointment_date', '>=', now())
+                ->count()
+        ], 422);
+    }
+
+    return DB::transaction(function () use ($doctor) {
+        // Archive or soft delete if implemented
+        if (method_exists($doctor, 'trashed')) {
+            $doctor->delete();
+            $doctor->user()->delete();
+        } else {
+            // Permanent deletion
+            $doctor->user()->delete();
+            $doctor->delete();
+        }
+
+        return response()->json([
+            'message' => 'Doctor deleted successfully',
+            'deleted_at' => now()->toDateTimeString()
+        ]);
+    });
+}
+public function searchDoctorsA(Request $request)
+    {
+        $query = Doctor::with(['user', 'clinic', 'reviews', 'salary']); // تأكد من جلب كل العلاقات المطلوبة
+
+        if ($request->filled('keyword')) {
+            $keyword = $request->keyword;
+
+            $query->where(function ($q) use ($keyword) {
+                $q->whereHas('user', function ($uq) use ($keyword) {
+                    $uq->where('first_name', 'like', "%$keyword%")
+                        ->orWhere('last_name', 'like', "%$keyword%");
+                })
+                    ->orWhere('specialty', 'like', "%$keyword%")
+                    ->orWhereHas('clinic', function ($cq) use ($keyword) {
+                        $cq->where('name', 'like', "%$keyword%");
+                    });
+            });
+        } else {
+            // من الأفضل إرجاع مصفوفة فارغة بدلاً من خطأ إذا لم يتم توفير كلمة بحث
+            return response()->json([], 200);
+        }
+
+        $results = $query->get();
+
+        if ($results->isEmpty()) {
+            // أرجع مصفوفة فارغة إذا لم يتم العثور على نتائج
+            return response()->json([], 404);
+        }
+
+        // أرجع النتائج مباشرة بنفس هيكل allDoctors
+        return response()->json($results, 200);
+    }
+
+
+
+
+
 
 
 // public function editDoctor1(Request $request, Doctor $doctor)
@@ -1523,11 +1848,11 @@ public function updateAdminInfo(Request $request)
         ], 401);
     }
 
-    if (!$user->hasRole('admin')) {
-        return response()->json([
-            'message' => 'User is not an admin'
-        ], 403);
-    }
+    // if (!$user->hasRole('admin')) {
+    //     return response()->json([
+    //         'message' => 'User is not an admin'
+    //     ], 403);
+    // }
 
     $validator = Validator::make($request->all(), [
         'first_name' => 'sometimes|string|max:255',
@@ -1584,5 +1909,802 @@ public function updateAdminInfo(Request $request)
     }
 }
 
+///////////////////////////////////////////////////////////////////////statistics
+public function statistics(){
+    $now = Carbon::now();
+    
+        return response()->json([
+            'total_patients' => Patient::count(),
+            'total_doctors' => Doctor::count(),
+            'total_appointments' => Appointment::count(),
+            'current_month_appointments' => Appointment::whereMonth('created_at', $now->month)
+                ->whereYear('created_at', $now->year)
+                ->count(),
+            'wallet_balance' => MedicalCenterWallet::first()->balance ?? 0,
+            'current_month_doctors' => Doctor::whereMonth('created_at', $now->month)
+                ->whereYear('created_at', $now->year)
+                ->count()
+        ]);
+    }
+///////////////////////////////////////////////////////////////////////
+
+
+ public function makePayment(Request $request)
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        return response()->json(['message' => 'Unauthorized'], 401);
+    }
+
+    if (!$user->patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    $validated = $request->validate([
+        'appointment_id' => 'required|exists:appointments,id',
+        'amount' => 'required|numeric|min:0',
+        'method' => 'required|in:cash,card,insurance,transfer',
+        'transaction_reference' => 'sometimes|string|max:255'
+    ]);
+
+    try {
+        $appointment = $user->patient->appointments()
+            ->findOrFail($validated['appointment_id']);
+
+        $secretary = Secretary::first();
+
+        $paymentData = [
+            'appointment_id' => $appointment->id,
+            'amount' => $validated['amount'],
+            'method' => $validated['method'],
+            'status' => 'paid',
+            'patient_id' => $user->patient->id,
+            'secretary_id' => $secretary->id ?? null,
+            'transaction_reference' => $validated['transaction_reference'] ?? null,
+            'medical_center_wallet' => true // Mark as going to medical center
+        ];
+
+        $payment = Payment::create($paymentData);
+
+        // Add to medical center wallet for cash payments
+        if (in_array($validated['method'], ['cash', 'card', 'transfer'])) {
+            $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+            $medicalCenterWallet->increment('balance', $validated['amount']);
+
+            MedicalCenterWalletTransaction::create([
+                'medical_center_wallet_id' => $medicalCenterWallet->id,
+                'clinic_id' => $appointment->clinic_id,
+                'amount' => $validated['amount'],
+                'type' => 'payment',
+                'reference' => 'CASH-' . $payment->id,
+                'balance_before' => $medicalCenterWallet->balance - $validated['amount'],
+                'balance_after' => $medicalCenterWallet->balance,
+                'notes' => 'Cash payment for appointment #' . $appointment->id
+            ]);
+        }
+
+        $totalPaid = $appointment->payments()->sum('amount');
+        if ($appointment->price && $totalPaid >= $appointment->price) {
+            $appointment->update(['payment_status' => 'paid']);
+        }
+
+        return response()->json([
+            'payment' => $payment->load(['appointment']),
+            'message' => 'Payment processed successfully'
+        ], 201);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Payment failed',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function addToPatientWallet(Request $request)
+{
+    $validated = $request->validate([
+        'patient_id' => 'required|exists:patients,id',
+        'amount' => 'required|numeric|min:0.01',
+        'notes' => 'nullable|string|max:255'
+    ]);
+
+    // Authorization check
+    if (!Auth::user()->secretary) {
+        return response()->json([
+            'status' => 'unauthorized',
+            'message' => 'Unauthorized access'
+        ], 403);
+    }
+
+    $patient = Patient::findOrFail($validated['patient_id']);
+    // Check wallet activation first
+    if (!$patient->wallet_pin || !$patient->wallet_activated_at) {
+        return response()->json([
+            'status' => 'wallet_not_activated',
+            'message' => 'Cannot add funds - wallet is not activated',
+            'current_balance' => $patient->wallet_balance
+        ], 200);
+    }
+
+    // Only process deposit if wallet is activated
+    $result = $patient->deposit(
+        $validated['amount'],
+        $validated['notes'] ?? 'Added by secretary',
+        Auth::user()->id
+    );
+
+    // Simplify the success response since we've already validated
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Funds added successfully',
+        'transaction' => $result['transaction'],
+        'new_balance' => $result['new_balance']
+    ]);
+}
+
+
+
+
+public function getPatientWalletInfo($patientId)
+    {
+        $patient = Patient::with(['user', 'walletTransactions' => function ($q) {
+                $q->orderBy('created_at', 'desc')->limit(10);
+            }])->findOrFail($patientId);
+
+        return response()->json([
+            'patient' => $patient,
+            'wallet_balance' => $patient->wallet_balance,
+            'wallet_activated' => !is_null($patient->wallet_activated_at),
+            'recent_transactions' => $patient->walletTransactions
+        ]);
+}
+
+
+
+
+public function bookAppointment(Request $request)
+{
+    if (!Auth::user()->secretary) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    $validated = $request->validate([
+        'patient_id' => 'required|exists:patients,id',
+        'doctor_id' => 'required|exists:doctors,id',
+        'clinic_id' => 'required|exists:clinics,id',
+        'time_slot_id' => 'required|exists:time_slots,id',
+        'appointment_date' => 'required|date|after:now',
+        'reason' => 'nullable|string',
+        'price' => 'required|numeric|min:0',
+        'payment_method' => 'required|in:cash,card,insurance,wallet',
+    ]);
+
+    try {
+        DB::beginTransaction();
+
+        // Get the time slot
+        $slot = TimeSlot::where('id', $validated['time_slot_id'])
+            ->where('doctor_id', $validated['doctor_id'])
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        // Check if slot is already booked
+        if ($slot->is_booked) {
+            $existingAppointment = Appointment::where('time_slot_id', $slot->id)
+                ->whereIn('status', ['confirmed', 'completed'])
+                ->first();
+                if ($existingAppointment) {
+                return response()->json(['error' => 'This time slot has already been booked'], 409);
+            } else {
+                $slot->update(['is_booked' => false]);
+            }
+        }
+
+
+ $doctorExists = Doctor::withTrashed()->where('id', $request->doctor_id)->exists();
+
+    if (!$doctorExists) {
+        return response()->json([
+            'error' => 'doctor_not_found',
+            'message' => 'The selected doctor is not available for appointments'
+        ], 422);
+    }
+
+
+        // Create appointment
+        $appointment = Appointment::create([
+            'patient_id' => $validated['patient_id'],
+            'doctor_id' => $validated['doctor_id'],
+            'clinic_id' => $validated['clinic_id'],
+            'time_slot_id' => $validated['time_slot_id'],
+            'appointment_date' => $validated['appointment_date'],
+            'reason' => $validated['reason'],
+            'price' => $validated['price'],
+            'status' => 'confirmed',
+            'payment_status' => 'paid',
+        ]);
+
+        // Mark slot as booked
+        $slot->update(['is_booked' => true]);
+
+        // Get the single medical center wallet (since we're not using clinic-specific wallets)
+        $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+
+        // Handle payment based on method
+        if ($validated['payment_method'] === 'wallet') {
+            $patient = Patient::findOrFail($validated['patient_id']);
+
+            if ($patient->wallet_balance < $validated['price']) {
+                throw new \Exception('Insufficient wallet balance');
+            }
+
+            // Deduct from patient wallet
+            $patient->decrement('wallet_balance', $validated['price']);
+
+            // Create patient wallet transaction
+            WalletTransaction::create([
+                'patient_id' => $patient->id,
+                'amount' => $validated['price'],
+                'type' => 'payment',
+                'reference' => 'APT-' . $appointment->id,
+                'balance_before' => $patient->wallet_balance + $validated['price'],
+                'balance_after' => $patient->wallet_balance,
+                'notes' => 'Payment for appointment #' . $appointment->id
+            ]);
+        }
+
+        // For ALL payment methods, add to medical center wallet
+        $medicalCenterWallet->increment('balance', $validated['price']);
+
+        // Create medical center wallet transaction
+        MedicalCenterWalletTransaction::create([
+            'medical_wallet_id' => $medicalCenterWallet->id,
+            'amount' => $validated['price'],
+            'type' => 'payment',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $medicalCenterWallet->balance - $validated['price'],
+            'balance_after' => $medicalCenterWallet->balance,
+            'notes' => 'Payment ('.$validated['payment_method'].') from patient #' . $validated['patient_id'] . ' for appointment #' . $appointment->id,
+            'clinic_id' => $validated['clinic_id'] // This will be stored but not used for wallet balance
+        ]);
+
+        // Create payment record
+        $payment = Payment::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $validated['patient_id'],
+            'amount' => $validated['price'],
+            'method' => $validated['payment_method'],
+            'status' => 'paid',
+            'secretary_id' => Auth::user()->secretary->id,
+            'medical_center_wallet' => true,
+            'transaction_id' => $validated['payment_method'] === 'wallet'
+                ? 'WALLET-' . $appointment->id
+                : strtoupper($validated['payment_method']) . '-' . $appointment->id,
+            'paid_at' => now()
+        ]);
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Appointment booked and payment processed',
+            'appointment' => $appointment,
+            'payment' => $payment
+        ], 201);
+        } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'message' => 'Failed to book appointment',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+
+public function getAppointments(Request $request){
+    // Verify secretary
+    // if (!Auth::user()->secretary) {
+    //     return response()->json(['message' => 'Unauthorized'], 403);
+    // }
+
+    $type = $request->query('type', 'upcoming');
+    $perPage = $request->query('per_page', 10);
+    $clinicId = $request->query('clinic_id');
+    $doctorId = $request->query('doctor_id');
+
+    $query = Appointment::with([
+        'patient.user:id,first_name,last_name',
+        'doctor' => function($query) {
+            $query->withTrashed()->with(['user' => function($q) {
+                $q->withTrashed()->select('id', 'first_name', 'last_name');
+            }]);
+        },
+        'clinic:id,name',
+        'payments'
+    ]);
+
+    // Apply filters
+    if ($clinicId) {
+        $query->where('clinic_id', $clinicId);
+    }
+    if ($doctorId) {
+        $query->where('doctor_id', $doctorId);
+    }
+
+    // Filter by appointment type
+    switch ($type) {
+        case 'upcoming':
+            $query->where('status', 'confirmed')
+                ->where('appointment_date', '>=', now());
+            break;
+        case 'completed':
+            $query->where('status', 'completed');
+            break;
+        case 'cancelled':
+            $query->where('status', 'cancelled');
+            break;
+        case 'absent':
+            $query->where('status', 'absent');
+            break;
+        default:
+            return response()->json(['message' => 'Invalid appointment type'], 400);
+    }
+
+    $appointments = $query->orderBy('appointment_date', 'desc')
+        ->paginate($perPage);
+
+    return response()->json([
+        'data' => $appointments->items(),
+        'meta' => [
+            'current_page' => $appointments->currentPage(),
+            'per_page' => $appointments->perPage(),
+            'total' => $appointments->total(),
+        ]
+    ]);
+}
+
+public function secretaryBookAppointment(Request $request)
+    {
+        if (!Auth::user()->secretary) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'patient_id' => 'required_without:new_patient|exists:patients,id',
+            'new_patient' => 'required_without:patient_id|array',
+            'new_patient.first_name' => 'required_with:new_patient|string|max:255',
+            'new_patient.last_name' => 'required_with:new_patient|string|max:255',
+            'new_patient.email' => 'required_with:new_patient|email|unique:users,email',
+            'new_patient.phone' => 'required_with:new_patient|string|max:20',
+            'new_patient.date_of_birth' => 'required_with:new_patient|date',
+            'new_patient.gender' => 'required_with:new_patient|in:male,female,other',
+            'new_patient.address' => 'nullable|string',
+            'doctor_id' => 'required|exists:doctors,id',
+            'clinic_id' => 'required|exists:clinics,id',
+            'time_slot_id' => 'required|exists:time_slots,id',
+            'reason' => 'required|string|max:500',
+            'payment_method' => 'required|in:cash,card,insurance,wallet',
+            'notes' => 'nullable|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $secretary = Auth::user()->secretary;
+
+            if ($request->has('new_patient')) {
+                $newPatientData = $request->new_patient;
+
+                $patientRole = Role::firstOrCreate(
+                    ['name' => 'patient'],
+                    ['description' => 'Patient user']
+                );
+
+                $user = User::create([
+                    'first_name' => $newPatientData['first_name'],
+                    'last_name' => $newPatientData['last_name'],
+                    'email' => $newPatientData['email'],
+                    'phone' => $newPatientData['phone'],
+                    'password' => bcrypt('temporary_password'),
+                    'role_id' => $patientRole->id,
+                ]);
+
+                $patient = Patient::create([
+                    'user_id' => $user->id,
+                    'date_of_birth' => $newPatientData['date_of_birth'],
+                    'gender' => $newPatientData['gender'],
+                    'address' => $newPatientData['address'] ?? null,
+                    'phone_number' => $newPatientData['phone'],
+                ]);
+
+                $patientId = $patient->id;
+            } else {
+                $patientId = $request->patient_id;
+                $patient = Patient::findOrFail($patientId);
+            }
+
+            $slot = TimeSlot::where('id', $request->time_slot_id)
+                ->where('doctor_id', $request->doctor_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($slot->is_booked) {
+                return response()->json([
+                    'message' => 'This time slot is no longer available'
+                ], 409);
+            }
+
+            $doctor = Doctor::findOrFail($request->doctor_id);
+            $appointment = Appointment::create([
+                'patient_id' => $patientId,
+                'doctor_id' => $request->doctor_id,
+                'clinic_id' => $request->clinic_id,
+                'time_slot_id' => $request->time_slot_id,
+                'appointment_date' => $slot->date->format('Y-m-d') . ' ' . $slot->start_time,
+                'reason' => $request->reason,
+                'notes' => $request->notes,
+                'price' => $doctor->consultation_fee,
+                'status' => 'confirmed',
+                'booked_by_secretary' => true,
+                'secretary_id' => $secretary->id
+            ]);
+
+            $slot->update(['is_booked' => true]);
+
+            $paymentResult = $this->processAppointmentPayment(
+                $appointment,
+                $patient,
+                $request->payment_method,
+                $secretary->id
+            );
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Appointment booked successfully',
+                'appointment' => $appointment->load(['patient.user', 'doctor.user', 'clinic']),
+                'payment' => $paymentResult,
+                'new_patient_created' => $request->has('new_patient')
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to book appointment',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+protected function processAppointmentPayment($appointment, $patient, $paymentMethod, $secretaryId)
+    {
+        $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+
+        if ($paymentMethod === 'wallet') {
+            if (!$patient->wallet_activated_at) {
+                throw new \Exception('Patient wallet is not activated');
+            }
+
+            if ($patient->wallet_balance < $appointment->price) {
+                throw new \Exception('Insufficient wallet balance');
+            }
+
+            $patient->decrement('wallet_balance', $appointment->price);
+
+            WalletTransaction::create([
+                'patient_id' => $patient->id,
+                'amount' => $appointment->price,
+                'type' => 'payment',
+                'reference' => 'APT-' . $appointment->id,
+                'balance_before' => $patient->wallet_balance + $appointment->price,
+                'balance_after' => $patient->wallet_balance,
+                'notes' => 'Payment for appointment #' . $appointment->id
+            ]);
+        }
+
+        $medicalCenterWallet->increment('balance', $appointment->price);
+
+        MedicalCenterWalletTransaction::create([
+            'medical_wallet_id' => $medicalCenterWallet->id,
+            'clinic_id' => $appointment->clinic_id,
+            'amount' => $appointment->price,
+            'type' => 'payment',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $medicalCenterWallet->balance - $appointment->price,
+            'balance_after' => $medicalCenterWallet->balance,
+            'notes' => 'Payment (' . $paymentMethod . ') for appointment #' . $appointment->id
+        ]);
+
+        $payment = Payment::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $patient->id,
+            'amount' => $appointment->price,
+            'method' => $paymentMethod,
+            'status' => 'paid',
+            'secretary_id' => $secretaryId,
+            'medical_center_wallet' => true,
+            'transaction_id' => $paymentMethod === 'wallet'
+                ? 'WALLET-' . $appointment->id
+                : strtoupper($paymentMethod) . '-' . $appointment->id,
+            'paid_at' => now()
+        ]);
+
+        return $payment;
+    }
+
+
+
+
+
+
+
+public function getClinicDoctors(Clinic $clinic)
+    {
+        $doctors = $clinic->doctors()
+            ->with(['user', 'reviews', 'schedules'])
+            ->get();
+
+
+    
+        $formattedDoctors = $doctors->map(function ($doctor) {
+            $user = $doctor->user;
+
+            return [
+                'id' => $doctor->id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'specialty' => $doctor->specialty,
+                'experience_years' => $doctor->experience_years,
+                'profile_picture_url' => $user->getProfilePictureUrl(),
+                'rate' => (float)$doctor->rating,
+                // حلوة الفكرة
+                'is_active' => $user->is_active,
+                /* 'schedules' => $doctor->schedules->map(function ($schedule) {
+                    return [
+                        'day' => $schedule->day,
+                    ];
+                }) */
+            ];
+        });
+
+        return response()->json([
+            'doctors' => $formattedDoctors
+        ]);
+    }
+
+public function getClinicDoctorsWithSlots(Clinic $clinic, Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date_format:Y-m-d'
+        ]);
+        $doctors = $clinic->doctors()
+            ->with(['user', 'schedules', 'timeSlots' => function ($query) use ($request) {
+                $query->where('date', $request->date)
+                    ->where('is_booked', false);
+            }])
+            ->withAvg('reviews', 'rating')
+            ->get()
+            ->map(function ($doctor) {
+                return [
+                    'id' => $doctor->id,
+                    'first_name' => $doctor->user->first_name,
+                    'last_name' => $doctor->user->last_name,
+                    'specialty' => $doctor->specialty,
+                    'profile_picture_url' => $doctor->user->getProfilePictureUrl(),
+                    'experience_years' => $doctor->experience_years,
+                    'rating' => $doctor->reviews_avg_rating ? (float) $doctor->reviews_avg_rating : 0,
+                    'available_slots' => $doctor->timeSlots->map(function ($slot) {
+                        return [
+                            'id' => $slot->id,
+                            'start_time' => $slot->start_time,
+                            'end_time' => $slot->end_time
+                        ];
+                    })
+                ];
+            });
+
+        return response()->json($doctors);
+    }
+
+
+public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request)
+    {
+        $request->validate([
+            'period' => 'sometimes|integer|min:1|max:30',
+        ]);
+
+        date_default_timezone_set('Asia/Damascus');
+        Carbon::setTestNow(Carbon::now('Asia/Damascus'));
+
+        $period = $request->input('period', 7);
+        $now = Carbon::now('Asia/Damascus');
+
+        $workingDays = $doctor->schedules()
+            ->pluck('day')
+            ->map(fn($day) => strtolower($day))
+            ->toArray();
+
+        $startDate = Carbon::today('Asia/Damascus');
+        $endDate = $startDate->copy()->addDays($period);
+        $days = [];
+        $earliestDateInfo = null;
+
+        while ($startDate->lte($endDate)) {
+            $dayName = strtolower($startDate->englishDayOfWeek);
+            $dateDigital = $startDate->format('Y-m-d');
+
+            if (in_array($dayName, $workingDays)) {
+                $availableSlots = TimeSlot::where('doctor_id', $doctor->id)
+                    ->where('date', $dateDigital)
+                    ->where('is_booked', false)
+                    ->where(function ($query) use ($now, $dateDigital) {
+                        $query->where('date', '>', $now->format('Y-m-d'))
+                            ->orWhere(function ($q) use ($now, $dateDigital) {
+                                $q->where('date', $now->format('Y-m-d'))
+                                    ->where('start_time', '>=', $now->format('H:i:s'));
+                            });
+                    })
+                    ->orderBy('start_time')
+                    ->get();
+
+                if ($availableSlots->isNotEmpty()) {
+                    $dayInfo = [
+                        'full_date' => $startDate->format('Y-m-d'),
+                        'day_name' => $startDate->format('D'),
+                        'day_number' => $startDate->format('j'),
+                        'month' => $startDate->format('F'),
+                    ];
+
+                    if (!$earliestDateInfo || $startDate->lt(Carbon::parse($earliestDateInfo['full_date']))) {
+                        $firstSlot = $availableSlots->first();
+                        $dayInfo['time'] = Carbon::parse($firstSlot->start_time)->format('g:i A');
+                        $dayInfo['slot_id'] = $firstSlot->id;
+                        $earliestDateInfo = $dayInfo;
+                    }
+
+                    $days[] = $dayInfo;
+                }
+            }
+            $startDate->addDay();
+        }
+
+        $formattedDays = array_map(function ($day) {
+            return [
+                'full_date' => $day['full_date'],
+                'day_name' => $day['day_name'],
+                'day_number' => $day['day_number'],
+                'month' => $day['month']
+            ];
+        }, $days);
+
+        return response()->json([
+            'message' => 'available_days',
+            'earliest_date' => $earliestDateInfo,
+            'days' => $formattedDays
+        ]);
+    }
+
+    public function getAvailableTimes(Doctor $doctor, $date)
+    {
+        date_default_timezone_set('Asia/Damascus');
+        Carbon::setTestNow(Carbon::now('Asia/Damascus'));
+
+        $date = str_replace('date=', '', $date);
+
+        try {
+            $parsedDate = Carbon::parse($date)->timezone('Asia/Damascus')->format('Y-m-d');
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid date format'], 400);
+        }
+
+        $now = Carbon::now('Asia/Damascus');
+
+
+
+
+
+
+$slots = TimeSlot::where('doctor_id', $doctor->id)
+            ->where('date', $parsedDate)
+            ->where('is_booked', false)
+            ->where(function ($query) use ($now, $parsedDate) {
+                $query->where('date', '>', $now->format('Y-m-d'))
+                    ->orWhere(function ($q) use ($now, $parsedDate) {
+                        $q->where('date', $parsedDate)
+                            ->where('start_time', '>=', $now->format('H:i:s'));
+                    });
+            })
+            ->orderBy('start_time')
+            ->get()
+            ->map(function ($slot) use ($now) {
+                $time = Carbon::parse($slot->start_time)->format('g:i A');
+
+                return [
+                    'slot_id' => $slot->id,
+                    'time' => $time,
+                ];
+            })->toArray();
+
+        if (!empty($slots)) {
+            $slots[0]['time'] = $slots[0]['time'] . '';
+        }
+
+        return response()->json([
+            'times' => $slots,
+
+        ]);
+    }
+
+
+
+
+
+
+public function unblockPatient(Request $request)
+{
+    // Verify the authenticated user is a secretary
+if (Auth::user()->role_id !== 3) {
+    return response()->json(['message' => 'Unauthorized'], 403);
+}
+
+
+    $validated = $request->validate([
+        'patient_id' => 'required|exists:patients,id',
+    ]);
+
+    $patient = Patient::findOrFail($validated['patient_id']);
+
+    // Get all absent appointments
+    $absentAppointments = $patient->appointments()
+        ->where('status', 'absent')
+        ->get();
+
+    // Option 1: Change status to 'cancelled' (soft approach)
+    foreach ($absentAppointments as $appointment) {
+        $appointment->update([
+            'status' => 'cancelled',
+            'cancelled_by' => Auth::id(),
+        ]);
+    }
+    return response()->json('message:block removed');
+}
+
+
+public function listBlockedPatients()
+{
+    // Get the threshold from config
+    $threshold = config('app.absent_appointment_threshold', 3);
+
+    // Get patients who meet or exceed the threshold
+    $blockedPatients = Patient::withCount(['appointments as absent_count' => function($query) {
+            $query->where('status', 'absent');
+        }])
+        ->having('absent_count', '>=', $threshold)
+        ->with('user:id,first_name,last_name,email,phone')
+        ->get();
+
+    return response()->json([
+        'blocked_patients' => $blockedPatients->map(function($patient) {
+            return [
+                'id' => $patient->id,
+                'name' => $patient->user->first_name.' '.$patient->user->last_name,
+                'email' => $patient->user->email,
+                'phone' => $patient->user->phone,
+                'absent_count' => $patient->absent_count
+            ];
+        })
+    ]);
+}
 
 }
