@@ -68,14 +68,11 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-<<<<<<< HEAD
-=======
     // In your routes/api.php
 
     Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']); //tested
     Route::get('/doctors/{doctor}', [DoctorController::class, 'show']); //tessted
 
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
     // Admin-only routes
     Route::middleware('role:admin')->group(function () {
         Route::put('/doctors/{doctor}/admin_update', [AdminController::class, 'updateDoctor']); // tested
@@ -140,8 +137,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         });
 
         // days done
-<<<<<<< HEAD
-=======
         Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']);
 
         //times done
@@ -154,7 +149,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
         Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']); // tested
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
 
         //times done
 
@@ -185,8 +179,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     });
 
 
-<<<<<<< HEAD
-=======
     Route::get('clinics/{clinic}/wallet', [ClinicController::class, 'getWalletBalance']); // tamam
     Route::get('clinics/{clinic}/wallet/transactions', [ClinicController::class, 'getWalletTransactions']); //tamam
     Route::post('clinics/{clinic}/wallet/withdraw', [ClinicController::class, 'withdrawFromWallet']); // tamam
@@ -241,7 +233,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
     // Appointments
             Route::middleware(['role:secretary'])->group(function () {
         Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'rescheduleAppointment']); //tested
@@ -267,20 +258,19 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         });
 
 
-<<<<<<< HEAD
+
         // another try :
             Route::get('get_patients',[SecretaryController::class,'getPatients']);
             Route::post('secretary_book',[SecretaryController::class,'secretaryBookAppointment']);
 
 
-=======
+
         // Payments
         Route::post('/payments', [SecretaryController::class, 'makePayment']);
 
 
             Route::get('/medical_center_wallet', [MedicalCenterWalletController::class, 'show']); //tested
     Route::get('/medical_center_wallet/transactions', [MedicalCenterWalletController::class, 'transactions']); //tested //
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
     });
 
 
@@ -314,9 +304,8 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-<<<<<<< HEAD
         Route::middleware('role:doctor,secretary')->group(function () {
-=======
+
     //hereeeeeeeeeeeeeeeee
     Route::get('/appointments/{appointment}/reports', [PatientController::class, 'getAppointmentReports']);
 
@@ -326,7 +315,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
     Route::middleware('role:doctor,secretary')->group(function () {
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
         Route::get('/search/patients', [SearchController::class, 'searchPatients']); // tested
         });
 
@@ -347,7 +335,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
             Route::post('change_pin', [WalletController::class, 'changePin']);
             });
 
-<<<<<<< HEAD
            // Payments
            Route::get('/payments/history', [PaymentController::class, 'getPaymentHistory']); //tested
            Route::get('payments_info/{appointment_id}', [PaymentController::class, 'PaymentInfo']);
@@ -359,7 +346,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
                 Route::middleware(['role:doctor'])->group(function () {
             Route::prefix('doctor')->group(function () {
             Route::patch('appointments/{appointment}/absent', [doctorController::class, 'markAsAbsent']); // tested
-=======
+
         // Payments
         Route::get('/payments/history', [PaymentController::class, 'getPaymentHistory']);
         Route::get('/payments_info', [PaymentController::class, 'PaymentInfo']);
@@ -382,7 +369,6 @@ Route::get('patient/appointments/history',[PatientController::class,'getPatientH
     Route::middleware(['role:doctor'])->group(function () {
         Route::prefix('doctor')->group(function () {
             Route::patch('appointments/{appointment}/absent',[doctorController::class,'markAsAbsent']); // tested
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
             Route::patch('appointments/{appointment}/complete', [DoctorController::class, 'markAsCompleted']); // tested
             Route::get('specific/patients', [DoctorController::class, 'getDoctorSpecificPatients']); // tested
             Route::get('patients/{patient}/profile', [DoctorController::class, 'getPatientDetails']); // tested
@@ -526,9 +512,9 @@ Route::get('patient/appointments/history',[PatientController::class,'getPatientH
         Route::get('/picture', [AdminController::class, 'getProfilePictureFile']); // tested
 
 
-<<<<<<< HEAD
+
     });
-=======
+
 });
->>>>>>> 600f9493f26034fc823102ea4b5ca0ebd79e138f
+});
 });
