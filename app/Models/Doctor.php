@@ -230,9 +230,11 @@ public function scopeTopRated($query, $limit = 5)
         ->limit($limit);
 }
 
-/**
- * Calculate and update the doctor's average rating
- */
+
+
+
+
+
 
 
 

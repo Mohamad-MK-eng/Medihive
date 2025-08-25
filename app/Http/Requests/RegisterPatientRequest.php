@@ -30,7 +30,7 @@ class RegisterPatientRequest extends FormRequest
             'date_of_birth' => 'required|date',
             'address' => 'required|string',
             'gender' => 'required|string|in:male,female,other',
-            'blood_type' => 'required|string|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
+            'blood_type' => 'required|string|in:A +,A -,B +,B -,AB +,AB -,O +,O -',
             'chronic_conditions' => 'nullable|array',
             'insurance_provider' => 'nullable|string',
             'emergency_contact' => 'nullable|string'

@@ -18,13 +18,20 @@ return new class extends Migration {
             $table->decimal('amount', 10, 2);
             $table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal', 'fee']);
             $table->string('reference');
+    Schema::create('wallet_transactions', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('patient_id')->constrained('patients');
+    $table->decimal('amount', 10, 2);
+$table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal','fee']);
+   $table->string('reference');
             $table->decimal('balance_before', 10, 2);
             $table->decimal('balance_after', 10, 2);
             $table->text('notes')->nullable();
             $table->foreignId('admin_id')->nullable()->constrained('users');
             $table->timestamps();
         });
-    }
+    });
+}
 
     /**
      * Reverse the migrations.
