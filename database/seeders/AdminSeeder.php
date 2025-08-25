@@ -41,7 +41,7 @@ class AdminSeeder extends Seeder
             'last_name' => 'Secretary',
             'email' => 'secretary4@example.com',
             'password' => Hash::make('password'),
-            'role_id' => $roles['secretary']->id,
+            'role_id' => 3,
         ]);
           $secretary = Secretary::create([
             'user_id' => $secretaryUser->id,
