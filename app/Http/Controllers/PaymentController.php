@@ -33,7 +33,6 @@ class PaymentController extends Controller
 
 public function PaymentInfo(Request $request, $appointment_id)
 {
-    // Manually validate the appointment_id
     $validator = Validator::make(['appointment_id' => $appointment_id], [
         'appointment_id' => 'required|exists:appointments,id'
     ]);
@@ -213,86 +212,8 @@ protected function validatePaymentRequest(Request $request)
         });
     }
 
-    /*huge response :
-    return response()->json([
-    'success' => true,
-    'message' => 'Payment processed successfully',
-    'payment_id' => $payment->id,
-    'transaction' => [
-        'reference' => $transaction->reference,
-        'timestamp' => now()->toIso8601String(),
-        'amount' => [
-            'value' => $payment->amount,
-            'currency' => 'USD',
-            'formatted' => '$'.number_format($payment->amount, 2)
-        ],
-        'balance' => [
-            'previous' => [
-                'value' => $transaction->balance_before,
-                'formatted' => '$'.number_format($transaction->balance_before, 2)
-            ],
-            'current' => [
-                'value' => $transaction->balance_after,
-                'formatted' => '$'.number_format($transaction->balance_after, 2)
-            ]
-        ]
-    ],
-    'appointment' => [
-        'id' => $appointment->id,
-        'date' => $appointment->appointment_date->format('c'),
-        'doctor' => $appointment->doctor->user->name,
-        'clinic' => $appointment->clinic->name
-    ],
-    'receipt_url' => url('/receipts/'.$payment->id),
-    'next_steps' => [
-        'view_appointment' => url('/appointments/'.$appointment->id),
-        'download_receipt' => url('/receipts/'.$payment->id.'/pdf')
-    ]
-]);
 
-
-
-*/
-
-    protected function handleCardPayment(Appointment $appointment, array $data)
-    {
-        try {
-            Stripe::setApiKey(env('STRIPE_SECRET'));
-
-            $paymentIntent = PaymentIntent::create([
-                'amount' => $data['amount'] * 100,
-                'currency' => 'usd',
-                'payment_method_types' => ['card'],
-                'description' => 'Appointment #' . $appointment->id,
-            ]);
-
-            $payment = Payment::create([
-                'appointment_id' => $appointment->id,
-                'patient_id' => $appointment->patient_id,
-                'amount' => $data['amount'],
-                'method' => 'card',
-                'status' => 'requires_payment_method',
-                'transaction_id' => $paymentIntent->id,
-                'metadata' => [
-                    'client_secret' => $paymentIntent->client_secret
-                ]
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Payment intent created',
-                'payment' => $payment,
-                'client_secret' => $paymentIntent->client_secret,
-                'requires_action' => true
-            ]);
-        } catch (ApiErrorException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment processing failed: ' . $e->getMessage()
-            ], 400);
-        }
-    }
-
+    /// future plans
     protected function handleInsurancePayment(Appointment $appointment, array $data)
     {
         if (!$appointment->patient->insurance_coverage) {
@@ -334,14 +255,13 @@ public function getPaymentHistory(Request $request)
 
     $allTransactions = collect();
 
-    // Process wallet transactions (only deposits and withdrawals, exclude payments)
     $walletTransactions = $user->patient->walletTransactions()
         ->with([
             'admin',
             'secretary.user',
             'payment.secretary.user'
         ])
-        ->where('type', '!=', 'payment') // Exclude wallet payments since we'll get them from payments table
+        ->where('type', '!=', 'payment')
         ->get();
 
     foreach ($walletTransactions as $transaction) {
@@ -364,9 +284,7 @@ public function getPaymentHistory(Request $request)
                        $transaction->payment->secretary->user->first_name . ' ' .
                        $transaction->payment->secretary->user->last_name;
         }
-        elseif ($transaction->admin) {
-            $chargedBy = $transaction->admin->first_name.' '.$transaction->admin->last_name;
-        }
+
 
         $allTransactions->push([
             'id' => $transaction->id,
@@ -380,7 +298,6 @@ public function getPaymentHistory(Request $request)
         ]);
     }
 
-    // Process payments (appointment payments)
     $payments = $user->payments()
         ->with([
             'appointment.doctor.user',
@@ -434,17 +351,13 @@ public function getPaymentHistory(Request $request)
         ]);
     }
 
-    // Sort by date (newest first)
- // Sort by date (newest first)
+
 $sortedTransactions = $allTransactions->sortByDesc(function ($item) {
-    // Use timestamp for reliable sorting
     if (isset($item['timestamp']) && $item['timestamp']) {
         return $item['timestamp'];
     }
-    // Fallback to date string if timestamp not available
     return $item['date'] ?? 0;
 })->map(function ($item) {
-    // Remove temporary sorting fields
     unset($item['timestamp']);
     unset($item['sort_date']);
 
@@ -462,7 +375,6 @@ $sortedTransactions = $allTransactions->sortByDesc(function ($item) {
     return $item;
 })->values();
 
-    // Pagination
     $page = $request->input('page', 1);
     $perPage = 7;
 

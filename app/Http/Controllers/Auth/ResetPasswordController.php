@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Validator;
 
 use function Laravel\Prompts\error;
 
-class PasswordresetController extends LocalController
+class ResetPasswordController extends LocalController
 {
     public function userForgotPassword(Request $request) : JsonResponse
     {

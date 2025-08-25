@@ -8,6 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
 use App\Traits\HandlesFiles;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  *
@@ -52,7 +53,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|User whereUpdatedAt($value)
  * @mixin \Eloquent
  */
-class User extends Authenticatable
+class User extends Authenticatable  implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, HasApiTokens, Notifiable;
@@ -74,6 +75,7 @@ class User extends Authenticatable
     'profile_picture',
     'phone',
     'address',
+    'email_verified'
 ];
 // phone and address addition
 protected $dates =['deleted_at'];
@@ -90,6 +92,8 @@ protected $dates =['deleted_at'];
 
 
     protected $casts = [
+                'email_verified' => 'boolean', // Add this cast
+        'email_verified_at' => 'datetime',
         'phone',
         'role_id'
     ];
@@ -197,11 +201,10 @@ public function payments()
 
 
 
-    public function notifications()
-    {
-        return $this->morphMany(\Illuminate\Notifications\DatabaseNotification::class, 'notifiable');
-    }
-
+ public function sendEmailVerificationNotification(): void
+{
+    $this->notify(new \App\Notifications\VerifyApiEmail());
+}
 
 public function sendPasswordResetNotification($token)
     {

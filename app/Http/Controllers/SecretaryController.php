@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\Clinic;
 use App\Models\ClinicWallet;
 use App\Models\ClinicWalletTransaction;
 use App\Models\Doctor;
@@ -19,16 +20,10 @@ use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Validator;
 
 class SecretaryController extends Controller
 {
-
-
-
-
-
-
-
 
 
     public function makePayment(Request $request)
@@ -64,12 +59,11 @@ class SecretaryController extends Controller
             'patient_id' => $user->patient->id,
             'secretary_id' => $secretary->id ?? null,
             'transaction_reference' => $validated['transaction_reference'] ?? null,
-            'medical_center_wallet' => true // Mark as going to medical center
+            'medical_center_wallet' => true
         ];
 
         $payment = Payment::create($paymentData);
 
-        // Add to medical center wallet for cash payments
         if (in_array($validated['method'], ['cash', 'card', 'transfer'])) {
             $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
             $medicalCenterWallet->increment('balance', $validated['amount']);
@@ -112,7 +106,6 @@ public function addToPatientWallet(Request $request)
         'notes' => 'nullable|string|max:255'
     ]);
 
-    // Authorization check
     if (!Auth::user()->secretary) {
         return response()->json([
             'status' => 'unauthorized',
@@ -122,7 +115,6 @@ public function addToPatientWallet(Request $request)
 
     $patient = Patient::findOrFail($validated['patient_id']);
 
-    // Check wallet activation first
     if (!$patient->wallet_pin || !$patient->wallet_activated_at) {
         return response()->json([
             'status' => 'wallet_not_activated',
@@ -131,14 +123,12 @@ public function addToPatientWallet(Request $request)
         ], 200);
     }
 
-    // Only process deposit if wallet is activated
     $result = $patient->deposit(
         $validated['amount'],
         $validated['notes'] ?? 'Added by secretary',
         Auth::user()->id
     );
 
-    // Simplify the success response since we've already validated
     return response()->json([
         'status' => 'success',
         'message' => 'Funds added successfully',
@@ -148,16 +138,8 @@ public function addToPatientWallet(Request $request)
 }
 
 
-
-
-
-
-
-
-
 public function unblockPatient(Request $request)
 {
-    // Verify the authenticated user is a secretary
     if (!Auth::user()->hasRole('secretary')) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
@@ -168,12 +150,11 @@ public function unblockPatient(Request $request)
 
     $patient = Patient::findOrFail($validated['patient_id']);
 
-    // Get all absent appointments
+
     $absentAppointments = $patient->appointments()
         ->where('status', 'absent')
         ->get();
 
-    // Option 1: Change status to 'cancelled' (soft approach)
     foreach ($absentAppointments as $appointment) {
         $appointment->update([
             'status' => 'cancelled',
@@ -186,10 +167,8 @@ public function unblockPatient(Request $request)
 
 public function listBlockedPatients()
 {
-    // Get the threshold from config
     $threshold = config('app.absent_appointment_threshold', 3);
 
-    // Get patients who meet or exceed the threshold
     $blockedPatients = Patient::withCount(['appointments as absent_count' => function($query) {
             $query->where('status', 'absent');
         }])
@@ -228,14 +207,8 @@ public function listBlockedPatients()
     }
 
 
-
-
-
-
-
 public function getAppointments(Request $request)
 {
-    // Verify secretary
     if (!Auth::user()->secretary) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
@@ -256,7 +229,6 @@ public function getAppointments(Request $request)
         'payments'
     ]);
 
-    // Apply filters
     if ($clinicId) {
         $query->where('clinic_id', $clinicId);
     }
@@ -297,18 +269,6 @@ public function getAppointments(Request $request)
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 public function createPatient(Request $request)
 {
     if (!Auth::user()->secretary) {
@@ -329,13 +289,11 @@ public function createPatient(Request $request)
     try {
         DB::beginTransaction();
 
-        // Get or create patient role (same as register method)
         $patientRole = Role::firstOrCreate(
             ['name' => 'patient'],
             ['description' => 'Patient user']
         );
 
-        // Create user with role_id
         $user = User::create([
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
@@ -343,10 +301,9 @@ public function createPatient(Request $request)
             'phone' => $validated['phone'],
             'gender' => $validated['gender'],
             'password' => bcrypt('temporary_password'),
-            'role_id' => $patientRole->id, // Add this line
+            'role_id' => $patientRole->id,
         ]);
 
-        // Create patient
         $patient = Patient::create([
             'user_id' => $user->id,
             'date_of_birth' => $validated['date_of_birth'],
@@ -371,13 +328,7 @@ public function createPatient(Request $request)
 }
 
 
-
-
-
-
-
-
-
+// cash method here alaa
 public function bookAppointment(Request $request)
 {
     if (!Auth::user()->secretary) {
@@ -398,13 +349,11 @@ public function bookAppointment(Request $request)
     try {
         DB::beginTransaction();
 
-        // Get the time slot
         $slot = TimeSlot::where('id', $validated['time_slot_id'])
             ->where('doctor_id', $validated['doctor_id'])
             ->lockForUpdate()
             ->firstOrFail();
 
-        // Check if slot is already booked
         if ($slot->is_booked) {
             $existingAppointment = Appointment::where('time_slot_id', $slot->id)
                 ->whereIn('status', ['confirmed', 'completed'])
@@ -428,7 +377,6 @@ public function bookAppointment(Request $request)
     }
 
 
-        // Create appointment
         $appointment = Appointment::create([
             'patient_id' => $validated['patient_id'],
             'doctor_id' => $validated['doctor_id'],
@@ -441,13 +389,10 @@ public function bookAppointment(Request $request)
             'payment_status' => 'paid',
         ]);
 
-        // Mark slot as booked
         $slot->update(['is_booked' => true]);
 
-        // Get the single medical center wallet (since we're not using clinic-specific wallets)
         $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
 
-        // Handle payment based on method
         if ($validated['payment_method'] === 'wallet') {
             $patient = Patient::findOrFail($validated['patient_id']);
 
@@ -455,10 +400,8 @@ public function bookAppointment(Request $request)
                 throw new \Exception('Insufficient wallet balance');
             }
 
-            // Deduct from patient wallet
             $patient->decrement('wallet_balance', $validated['price']);
 
-            // Create patient wallet transaction
             WalletTransaction::create([
                 'patient_id' => $patient->id,
                 'amount' => $validated['price'],
@@ -470,10 +413,8 @@ public function bookAppointment(Request $request)
             ]);
         }
 
-        // For ALL payment methods, add to medical center wallet
         $medicalCenterWallet->increment('balance', $validated['price']);
 
-        // Create medical center wallet transaction
         MedicalCenterWalletTransaction::create([
             'medical_wallet_id' => $medicalCenterWallet->id,
             'amount' => $validated['price'],
@@ -482,10 +423,9 @@ public function bookAppointment(Request $request)
             'balance_before' => $medicalCenterWallet->balance - $validated['price'],
             'balance_after' => $medicalCenterWallet->balance,
             'notes' => 'Payment ('.$validated['payment_method'].') from patient #' . $validated['patient_id'] . ' for appointment #' . $appointment->id,
-            'clinic_id' => $validated['clinic_id'] // This will be stored but not used for wallet balance
+            'clinic_id' => $validated['clinic_id']
         ]);
 
-        // Create payment record
         $payment = Payment::create([
             'appointment_id' => $appointment->id,
             'patient_id' => $validated['patient_id'],
@@ -517,10 +457,6 @@ public function bookAppointment(Request $request)
     }
 }
 
-
-
-
-
 public function cancelAppointment(Request $request, $appointmentId)
 {
     if (!Auth::user()->secretary) {
@@ -529,7 +465,6 @@ public function cancelAppointment(Request $request, $appointmentId)
 
     $appointment = Appointment::with(['payments', 'patient'])->findOrFail($appointmentId);
 
-    // Check if already cancelled
     if ($appointment->status === 'cancelled') {
         return response()->json(['message' => 'Appointment already cancelled'], 400);
     }
@@ -537,7 +472,6 @@ public function cancelAppointment(Request $request, $appointmentId)
     try {
         DB::beginTransaction();
 
-        // Free up the time slot
         $slot = TimeSlot::where('id', $appointment->time_slot_id)
             ->lockForUpdate()
             ->first();
@@ -546,14 +480,12 @@ public function cancelAppointment(Request $request, $appointmentId)
             $slot->update(['is_booked' => false]);
         }
 
-        // Update appointment status
         $appointment->update([
             'status' => 'cancelled',
             'cancelled_by' => Auth::id(),
             'cancelled_at' => now(),
         ]);
 
-        // Process refund if needed
         $refundResult = $this->processRefundForCancellation($appointment);
 
         DB::commit();
@@ -584,7 +516,6 @@ protected function processRefundForCancellation(Appointment $appointment)
     $createdAt = $appointment->created_at;
     $hoursSinceBooking = $createdAt->diffInHours($now);
 
-    // Calculate refund amount (full within 24 hours, 70% after)
     $refundAmount = $hoursSinceBooking <= 24
         ? $appointment->price
         : $appointment->price * 0.7;
@@ -677,22 +608,235 @@ protected function processRefundForCancellation(Appointment $appointment)
 
 
 
+// another try for the webiar
+
+
+
+
+ public function getPatients(Request $request)
+    {
+        if (!Auth::user()->secretary) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $query = Patient::with(['user:id,first_name,last_name,email,phone']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('user', function($userQuery) use ($search) {
+                    $userQuery->where('first_name', 'like', "%{$search}%")
+                             ->orWhere('last_name', 'like', "%{$search}%")
+                             ->orWhere('email', 'like', "%{$search}%")
+                             ->orWhere('phone', 'like', "%{$search}%");
+                })->orWhere('phone_number', 'like', "%{$search}%");
+            });
+        }
+
+        $patients = $query->orderBy('created_at', 'desc')->paginate(20);
+
+        return response()->json([
+            'patients' => $patients->map(function($patient) {
+                return [
+                    'id' => $patient->id,
+                    'name' => $patient->user->first_name . ' ' . $patient->user->last_name,
+                    'email' => $patient->user->email,
+                    'phone' => $patient->phone_number ?: $patient->user->phone,
+                    'wallet_balance' => $patient->wallet_balance,
+                    'wallet_activated' => !is_null($patient->wallet_activated_at),
+                    'created_at' => $patient->created_at->format('Y-m-d')
+                ];
+            }),
+            'pagination' => [
+                'current_page' => $patients->currentPage(),
+                'total_pages' => $patients->lastPage(),
+                'total_items' => $patients->total()
+            ]
+        ]);
+    }
 
 
 
 
 
+    public function secretaryBookAppointment(Request $request)
+    {
+        if (!Auth::user()->secretary) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
+        $validator = Validator::make($request->all(), [
+            'patient_id' => 'required_without:new_patient|exists:patients,id',
+            'new_patient' => 'required_without:patient_id|array',
+            'new_patient.first_name' => 'required_with:new_patient|string|max:255',
+            'new_patient.last_name' => 'required_with:new_patient|string|max:255',
+            'new_patient.email' => 'required_with:new_patient|email|unique:users,email',
+            'new_patient.phone' => 'required_with:new_patient|string|max:20',
+            'new_patient.date_of_birth' => 'required_with:new_patient|date',
+            'new_patient.gender' => 'required_with:new_patient|in:male,female,other',
+            'new_patient.address' => 'nullable|string',
+            'doctor_id' => 'required|exists:doctors,id',
+            'clinic_id' => 'required|exists:clinics,id',
+            'time_slot_id' => 'required|exists:time_slots,id',
+            'reason' => 'required|string|max:500',
+            'payment_method' => 'required|in:cash,card,insurance,wallet',
+            'notes' => 'nullable|string'
+        ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
+        try {
+            DB::beginTransaction();
 
+            $secretary = Auth::user()->secretary;
 
+            if ($request->has('new_patient')) {
+                $newPatientData = $request->new_patient;
 
+                $patientRole = Role::firstOrCreate(
+                    ['name' => 'patient'],
+                    ['description' => 'Patient user']
+                );
 
+                $user = User::create([
+                    'first_name' => $newPatientData['first_name'],
+                    'last_name' => $newPatientData['last_name'],
+                    'email' => $newPatientData['email'],
+                    'phone' => $newPatientData['phone'],
+                    'password' => bcrypt('temporary_password'),
+                    'role_id' => $patientRole->id,
+                ]);
 
+                $patient = Patient::create([
+                    'user_id' => $user->id,
+                    'date_of_birth' => $newPatientData['date_of_birth'],
+                    'gender' => $newPatientData['gender'],
+                    'address' => $newPatientData['address'] ?? null,
+                    'phone_number' => $newPatientData['phone'],
+                ]);
 
+                $patientId = $patient->id;
+            } else {
+                $patientId = $request->patient_id;
+                $patient = Patient::findOrFail($patientId);
+            }
 
+            $slot = TimeSlot::where('id', $request->time_slot_id)
+                ->where('doctor_id', $request->doctor_id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
+            if ($slot->is_booked) {
+                return response()->json([
+                    'message' => 'This time slot is no longer available'
+                ], 409);
+            }
+
+            $doctor = Doctor::findOrFail($request->doctor_id);
+
+            $appointment = Appointment::create([
+                'patient_id' => $patientId,
+                'doctor_id' => $request->doctor_id,
+                'clinic_id' => $request->clinic_id,
+                'time_slot_id' => $request->time_slot_id,
+                'appointment_date' => $slot->date->format('Y-m-d') . ' ' . $slot->start_time,
+                'reason' => $request->reason,
+                'notes' => $request->notes,
+                'price' => $doctor->consultation_fee,
+                'status' => 'confirmed',
+                'booked_by_secretary' => true,
+                'secretary_id' => $secretary->id
+            ]);
+
+            $slot->update(['is_booked' => true]);
+
+            $paymentResult = $this->processAppointmentPayment(
+                $appointment,
+                $patient,
+                $request->payment_method,
+                $secretary->id
+            );
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Appointment booked successfully',
+                'appointment' => $appointment->load(['patient.user', 'doctor.user', 'clinic']),
+                'payment' => $paymentResult,
+                'new_patient_created' => $request->has('new_patient')
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to book appointment',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    protected function processAppointmentPayment($appointment, $patient, $paymentMethod, $secretaryId)
+    {
+        $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+
+        if ($paymentMethod === 'wallet') {
+            if (!$patient->wallet_activated_at) {
+                throw new \Exception('Patient wallet is not activated');
+            }
+
+            if ($patient->wallet_balance < $appointment->price) {
+                throw new \Exception('Insufficient wallet balance');
+            }
+
+            $patient->decrement('wallet_balance', $appointment->price);
+
+            WalletTransaction::create([
+                'patient_id' => $patient->id,
+                'amount' => $appointment->price,
+                'type' => 'payment',
+                'reference' => 'APT-' . $appointment->id,
+                'balance_before' => $patient->wallet_balance + $appointment->price,
+                'balance_after' => $patient->wallet_balance,
+                'notes' => 'Payment for appointment #' . $appointment->id
+            ]);
+        }
+
+        $medicalCenterWallet->increment('balance', $appointment->price);
+
+        MedicalCenterWalletTransaction::create([
+            'medical_wallet_id' => $medicalCenterWallet->id,
+            'clinic_id' => $appointment->clinic_id,
+            'amount' => $appointment->price,
+            'type' => 'payment',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $medicalCenterWallet->balance - $appointment->price,
+            'balance_after' => $medicalCenterWallet->balance,
+            'notes' => 'Payment (' . $paymentMethod . ') for appointment #' . $appointment->id
+        ]);
+
+        $payment = Payment::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $patient->id,
+            'amount' => $appointment->price,
+            'method' => $paymentMethod,
+            'status' => 'paid',
+            'secretary_id' => $secretaryId,
+            'medical_center_wallet' => true,
+            'transaction_id' => $paymentMethod === 'wallet'
+                ? 'WALLET-' . $appointment->id
+                : strtoupper($paymentMethod) . '-' . $appointment->id,
+            'paid_at' => now()
+        ]);
+
+        return $payment;
+    }
 
 
 }
+

@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 
 class SearchController extends Controller
 {
-    // Global clinic search
     public function searchClinics(Request $request)
     {
         $query = Clinic::query();
@@ -43,12 +42,7 @@ class SearchController extends Controller
                         'name' => $clinic->name,
                         'image_path' => $clinic->getIconUrl(),
                         'doctors_count' => count($clinic->doctors)
-/* $results = $query
-        ->withCount('doctors')
-        ->get();
 
- 'doctors_count' => $clinic->doctors_count // Use the withCount result
- */
 
 
                     ];
@@ -58,7 +52,6 @@ class SearchController extends Controller
         ]);
     }
 
-    // Global doctor search
     public function searchDoctors(Request $request)
     {
         $query = Doctor::with(['user', 'clinic', 'reviews']);
@@ -162,7 +155,6 @@ public function searchPatients(Request $request)
 }
 
 
-    // Global secretary search
     public function searchSecretaries(Request $request)
     {
         $query = Secretary::with('user');

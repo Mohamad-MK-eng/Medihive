@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Role;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller as RoutingController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -40,9 +41,13 @@ class AuthController extends Controller
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'role_id' => $patientRole->id,
+                'email_verified_at'=>false,
             ]);
+
+
+
             /// me me me m e
-            //  this is fucking insan
+            //  this is  insan
             Patient::create([
                 'user_id' => $user->id,
 
@@ -50,8 +55,9 @@ class AuthController extends Controller
 
 
 
-            $token = $user->createToken('Patient Access Token')->accessToken;
+ event(new \App\Events\EmailVerification($user->email));
 
+        $token = $user->createToken('Patient Access Token')->accessToken;
             return response()->json([
                 'message' => 'Patient registered successfully',
                 'access_token' => $token,
@@ -63,97 +69,95 @@ class AuthController extends Controller
 
 
 
-public function login(Request $request)
-{
-    $credentials = $request->validate([
-        'email' => 'required|email',
-        'password' => 'required|string'
-    ]);
+    public function login(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string'
+        ]);
 
-    if (!Auth::attempt($credentials)) {
-        return response()->json([
-            'error' => 'Unauthorized',
-            'message' => 'Invalid credentials'
-        ], 401);
-    }
-
-    $user = Auth::user();
-    $user->tokens()->delete(); // Revoke previous tokens
-
-    // Create role-specific token
-    $tokenName = ucfirst($user->role->name) . ' Access Token';
-    $token = $user->createToken($tokenName)->accessToken;
-
-    $roleName = strtolower($user->role->name);
-    $welcomeMessage = ucfirst($roleName) . ' logged in successfully';
-
-    // Common user data
-    $userData = [
-        'id' => $user->id,
-        'first_name' => $user->first_name,
-        'last_name' => $user->last_name,
-        'email' => $user->email,
-        'role_id' => $user->role_id,
-        'role_name' => $roleName,
-        'profile_picture' => $user->getProfilePictureUrl(),
-    ];
-
-    // Add role-specific data and return appropriate response
-    switch ($roleName) {
-        case 'patient':
-            if (!$user->patient) {
-                Auth::logout();
-                return response()->json([
-                    'error' => 'Forbidden',
-                    'message' => 'Patient account not properly configured'
-                ], 403);
-            }
-            $userData['patient_id'] = $user->patient->id;
-            $userData['phone_number'] = $user->patient->phone_number;
-            break;
-
-        case 'doctor':
-            if (!$user->doctor) {
-                Auth::logout();
-                return response()->json([
-                    'error' => 'Forbidden',
-                    'message' => 'Doctor account not properly configured'
-                ], 403);
-            }
-            $userData['doctor_id'] = $user->doctor->id;
-            $userData['specialty'] = $user->doctor->specialty;
-            break;
-
-        case 'secretary':
-            if (!$user->secretary) {
-                Auth::logout();
-                return response()->json([
-                    'error' => 'Forbidden',
-                    'message' => 'Secretary account not properly configured'
-                ], 403);
-            }
-            $userData['secretary_id'] = $user->secretary->id;
-            break;
-
-        case 'admin':
-            // No additional checks needed for admin
-            break;
-
-        default:
-            Auth::logout();
+        if (!Auth::attempt($credentials)) {
             return response()->json([
-                'error' => 'Forbidden',
-                'message' => 'Unknown user role'
-            ], 403);
-    }
+                'error' => 'Unauthorized',
+                'message' => 'Invalid credentials'
+            ], 401);
+        }
 
-    return response()->json([
-        'message' => $welcomeMessage,
-        'user' => $userData,
-        'access_token' => $token,
-        'token_type' => 'Bearer',
-    ]);
-}
+        $user = Auth::user();
+        $user->tokens()->delete();
+
+        $tokenName = ucfirst($user->role->name) . ' Access Token';
+        $token = $user->createToken($tokenName)->accessToken;
+
+        $roleName = strtolower($user->role->name);
+        $welcomeMessage = ucfirst($roleName) . ' logged in successfully';
+
+        // Common user data
+        $userData = [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'role_id' => $user->role_id,
+            'role_name' => $roleName,
+            'profile_picture' => $user->getProfilePictureUrl(),
+        ];
+
+        // Add role-specific data and return appropriate response
+        switch ($roleName) {
+            case 'patient':
+                if (!$user->patient) {
+                    Auth::logout();
+                    return response()->json([
+                        'error' => 'Forbidden',
+                        'message' => 'Patient account not properly configured'
+                    ], 403);
+                }
+                $userData['patient_id'] = $user->patient->id;
+                $userData['phone_number'] = $user->patient->phone_number;
+                break;
+
+            case 'doctor':
+                if (!$user->doctor) {
+                    Auth::logout();
+                    return response()->json([
+                        'error' => 'Forbidden',
+                        'message' => 'Doctor account not properly configured'
+                    ], 403);
+                }
+                $userData['doctor_id'] = $user->doctor->id;
+                $userData['specialty'] = $user->doctor->specialty;
+                break;
+
+            case 'secretary':
+                if (!$user->secretary) {
+                    Auth::logout();
+                    return response()->json([
+                        'error' => 'Forbidden',
+                        'message' => 'Secretary account not properly configured'
+                    ], 403);
+                }
+                $userData['secretary_id'] = $user->secretary->id;
+                break;
+
+            case 'admin':
+                break;
+
+            default:
+                Auth::logout();
+                return response()->json([
+                    'error' => 'Forbidden',
+                    'message' => 'Unknown user role'
+                ], 403);
+        }
+
+        return response()->json([
+            'message' => $welcomeMessage,
+            'user' => $userData,
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+        ]);
+    }
     // to try
     public function sendPasswordResetLink(Request $request)
     {
@@ -168,9 +172,6 @@ public function login(Request $request)
             : response()->json(['error' => __($status)], 400);
     }
 
-    /**
-     * Reset password
-     */
     public function resetPassword(Request $request)
     {
         $request->validate([
@@ -197,9 +198,7 @@ public function login(Request $request)
             : response()->json(['error' => __($status)], 400);
     }
 
-    /**
-     * Change password (protected route - requires authentication)
-     */
+
     public function changePassword(Request $request)
     {
         $request->validate([
@@ -218,19 +217,6 @@ public function login(Request $request)
 
         return response()->json(['message' => 'Password changed successfully']);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     public function logout(Request $request)

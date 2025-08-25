@@ -9,18 +9,17 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class TestEmail extends Mailable
+class SendCodeResetPassword extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function build()
-{
-return $this->subject('Test Email')
-->view('emails.test');
-}
-    public function __construct()
+    public $code;
+    /**
+     * Create a new message instance.
+     */
+    public function __construct($code)
     {
-        //
+        $this->code = $code;
     }
 
     /**
@@ -29,7 +28,7 @@ return $this->subject('Test Email')
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Test Email',
+            subject: 'Send Code Reset Password',
         );
     }
 
@@ -39,7 +38,7 @@ return $this->subject('Test Email')
     public function content(): Content
     {
         return new Content(
-            view: 'view.name',
+            markdown: 'emails.send-code-reset-password',
         );
     }
 

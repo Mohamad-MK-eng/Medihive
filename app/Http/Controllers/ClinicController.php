@@ -10,12 +10,12 @@ use App\Models\Specialty;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
 
 
 class ClinicController extends Controller
 {
-    // Get all clinics with their images
     public function index()
     {
         $clinics = Clinic::all()->map(function ($clinic) {
@@ -30,11 +30,6 @@ class ClinicController extends Controller
         return response()->json($clinics);
     }
 
-
-
-
-
-    // for a single clinic
 
     public function show($id)
     {
@@ -52,7 +47,6 @@ class ClinicController extends Controller
 
 
 
-    // modify for a single clinic
     public function getIconUrl($id)
     {
         $clinic = Clinic::findOrFail($id);
@@ -82,27 +76,12 @@ class ClinicController extends Controller
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-    // In AppointmentController.php
-
     public function getClinicDoctors(Clinic $clinic)
     {
-        // Eager load the necessary relationships
         $doctors = $clinic->doctors()
             ->with(['user', 'reviews', 'schedules'])
             ->get();
 
-        // Format the response
 
         // مبدئيا هيك تمام بس انت حاطط شرط حلو تبع is active هاد في حال بدو يستقيل ويصفي معايناته القديمة وما بده حدا جديد
         // بتعمل فلترة على اللي is active ? true
@@ -168,32 +147,4 @@ class ClinicController extends Controller
 
         return response()->json($doctors);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
