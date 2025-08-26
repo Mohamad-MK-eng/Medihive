@@ -49,12 +49,11 @@ class Clinic extends Model
 
 public function wallet()
 {
-    return $this->hasOne(ClinicWallet::class);
+    return $this->hasOne(MedicalCenterWallet::class);
 }
 
 
-
-    public function getIconUrl()
+public function getIconUrl()
     {
         if (!$this->image_path) {
             return asset('storage/Clinic_Icons/default.jpg');
@@ -83,4 +82,7 @@ public function wallet()
             return false;
         }
     }
+
+
+
 }

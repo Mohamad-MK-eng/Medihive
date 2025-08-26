@@ -20,6 +20,7 @@ return new class extends Migration
             $table->json('emergency_absences')->nullable(); // Track unexpected absences
             $table->json('performance_metrics')->nullable(); // Track performance data
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

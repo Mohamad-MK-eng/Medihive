@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, Patient, Prescription, Role, Salary, SalarySetting, Secretary, Specialty, TimeSlot};
+use App\Models\{Appointment, Clinic, DoctorSchedule, User, Doctor, MedicalCenterWallet, Patient, Prescription, Role, Salary, SalarySetting, Secretary, Specialty, TimeSlot};
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
@@ -32,7 +32,7 @@ class AdminSeeder extends Seeder
         Clinic::create([
             'name' => 'Opthalmology',
         ]);
-      
+
 
 
                // Create secretary
@@ -82,7 +82,7 @@ class AdminSeeder extends Seeder
             'date_of_birth' => '1990-01-01',
             'address' => '123 Test St',
             'gender' => 'male',
-            'blood_type' => 'O+',
+            'blood_type' => 'O +',
             'emergency_contact' => '9876543210'
         ]);
 
@@ -178,7 +178,7 @@ class AdminSeeder extends Seeder
         }
 
 
-
+MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
 
 
 

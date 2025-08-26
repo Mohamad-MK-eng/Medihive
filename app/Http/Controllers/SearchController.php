@@ -6,6 +6,7 @@ use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Secretary;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
@@ -108,46 +109,58 @@ class SearchController extends Controller
     }
 
 
+public function searchPatients(Request $request)
+{
+      $query = Patient::with(['user', 'appointments' => function($q) {
+        $q->orderBy('appointment_date', 'desc')->limit(1);
+    }]);
 
-    // هون ما عدلت عليه شي بعدين
+    if ($request->filled('keyword')) {
+        $keyword = $request->keyword;
 
-    // Global patient search
-    public function searchPatients(Request $request)
-    {
-        $query = Patient::with('user');
-
-        if ($request->has('name')) {
-            $query->whereHas('user', function ($q) use ($request) {
-                $q->where('first_name', 'like', '%' . $request->name . '%')
-                    ->orWhere('last_name', 'like', '%' . $request->name . '%');
-            });
-        }
-
-        if ($request->has('phone')) {
-            $query->where('phone_number', 'like', '%' . $request->phone . '%');
-        }
-
-        $results = $query->get();
-
-        if ($results->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No patients found matching your search criteria'
-            ], 404);
-        }
-        return response()->json([
-            'success' => true,
-            'data' => $results->map(function ($patient) {
-                return [
-                    'id' => $patient->id,
-                    'name' => $patient->user->full_name,
-                    'phone' => $patient->phone_number,
-                    'email' => $patient->user->email,
-                    'profile_picture' => $patient->user->getFileUrl('profile_picture')
-                ];
+        $query->where(function ($q) use ($keyword) {
+            $q->whereHas('user', function ($uq) use ($keyword) {
+                $uq->where('first_name', 'like', "%$keyword%")
+                   ->orWhere('last_name', 'like', "%$keyword%");
             })
-        ]);
+            ->orWhere('phone_number', 'like', "%$keyword%")
+            ->orWhereHas('user', function ($uq) use ($keyword) {
+                $uq->where('email', 'like', "%$keyword%");
+            });
+        });
+    } else {
+        return response()->json([
+            'success' => false,
+            'message' => 'Please provide a valid keyword to search.'
+        ], 400);
     }
+
+    $results = $query->get();
+
+    if ($results->isEmpty()) {
+        return response()->json([
+            'success' => false,
+            'message' => 'No patients found matching your search keyword'
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $results->map(function ($patient) {
+            $lastVisit = $patient->appointments->first();
+
+            return [
+                'patient_id' => $patient->id,
+                'user_id' => $patient->user->id ,
+                'patient_name' => $patient->user->first_name . ' '. $patient->user->last_name, // FIXED: Added ->user->
+                'phone' => $patient->phone_number,
+                'email' => $patient->user->email,
+                'profile_picture_url' => $patient->user->getProfilePictureUrl(),
+                'last_visit_at' => $lastVisit ? $lastVisit->appointment_date->format('Y-m-d') : 'Never'
+            ];
+        })
+    ], 200);
+}
 
 
     // Global secretary search

@@ -75,7 +75,7 @@ class Appointment extends Model
 
     public function doctor()
     {
-        return $this->belongsTo(Doctor::class);
+        return $this->belongsTo(Doctor::class)->withTrashed();
     }
 
 
@@ -119,17 +119,13 @@ return $this->hasOne(Report::class);
 
 
 
-/* public function markAsCompleted()
+public function markAsCompleted()
 {
-    if (!$this->report) {
-        throw new \Exception('Cannot complete appointment without a medical report');
-    }
-
     $this->update([
         'status' => 'completed',
         'completed_at' => now()
     ]);
-} */
+}
 
 /* protected static function boot()
 {

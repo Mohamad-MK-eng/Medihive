@@ -31,32 +31,36 @@ class PaymentController extends Controller
 
 
 
-public function PaymentInfo(Request $request)
+public function PaymentInfo(Request $request, $appointment_id)
 {
-    $validated = $request->validate([
+    // Manually validate the appointment_id
+    $validator = Validator::make(['appointment_id' => $appointment_id], [
         'appointment_id' => 'required|exists:appointments,id'
     ]);
 
-    $appointment = Appointment::with(['patient', 'payments'])->findOrFail($validated['appointment_id']);
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Invalid appointment ID',
+            'errors' => $validator->errors()
+        ], 422);
+    }
 
-    // Ensure payments is treated as a collection
-    $payments = $appointment->payments()->get();
+    $appointment = Appointment::with(['patient', 'payments'])->findOrFail($appointment_id);
 
     return response()->json([
         'success' => true,
         'appointment' => [
             'id' => $appointment->id,
             'patient' => $appointment->patient ? $appointment->patient->only(['id', 'name']) : null,
-            'amount_due' => $appointment->amount_due ?? 0,
             'payment_status' => $appointment->payment_status,
-            'existing_payments' => $payments->map(function($payment) {
+            'existing_payments' => $appointment->payments->map(function($payment) {
                 return [
                     'method' => $payment->method,
                     'amount' => $payment->amount,
                     'status' => $payment->status,
-                    'created_at' => $payment->created_at
+                    'created_at' => $payment->created_at->toDateTimeString()
                 ];
-            })->all() // Convert to array
+            })->all()
         ],
         'payment_options' => [
             'wallet' => $appointment->patient && $appointment->patient->wallet_activated_at !== null,
@@ -431,32 +435,32 @@ public function getPaymentHistory(Request $request)
     }
 
     // Sort by date (newest first)
-    $sortedTransactions = $allTransactions->sortByDesc(function ($item) {
-        if (isset($item['sort_date']) && $item['sort_date']) {
-            return $item['sort_date'];
-        }
-        if (isset($item['timestamp']) && $item['timestamp']) {
-            return $item['timestamp'];
-        }
-        return $item['date'] ?? 0;
-    })->map(function ($item) {
-        // Remove temporary sorting fields
-        unset($item['timestamp']);
-        unset($item['sort_date']);
+ // Sort by date (newest first)
+$sortedTransactions = $allTransactions->sortByDesc(function ($item) {
+    // Use timestamp for reliable sorting
+    if (isset($item['timestamp']) && $item['timestamp']) {
+        return $item['timestamp'];
+    }
+    // Fallback to date string if timestamp not available
+    return $item['date'] ?? 0;
+})->map(function ($item) {
+    // Remove temporary sorting fields
+    unset($item['timestamp']);
+    unset($item['sort_date']);
 
-        if ($item['type'] === 'deposit' || $item['type'] === 'withdrawal') {
-            return [
-                'id' => $item['id'],
-                'date' => $item['date'],
-                'time' => $item['time'],
-                'amount' => $item['amount'],
-                'type' => $item['type'],
-                'charged_by' => $item['charged_by']
-            ];
-        }
+    if ($item['type'] === 'deposit' || $item['type'] === 'withdrawal') {
+        return [
+            'id' => $item['id'],
+            'date' => $item['date'],
+            'time' => $item['time'],
+            'amount' => $item['amount'],
+            'type' => $item['type'],
+            'charged_by' => $item['charged_by']
+        ];
+    }
 
-        return $item;
-    })->values();
+    return $item;
+})->values();
 
     // Pagination
     $page = $request->input('page', 1);

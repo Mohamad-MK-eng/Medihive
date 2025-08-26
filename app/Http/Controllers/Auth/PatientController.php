@@ -139,41 +139,7 @@ class PatientController extends Controller
     }
 
 
-    public function getProfilePicture()
-    {
-        $patient = Auth::user()->patient;
 
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
-
-        if (!$patient->user->profile_picture) {
-            return response()->json(['message' => 'No profile picture set'], 404);
-        }
-
-        try {
-            // Get the stored path
-            $path = $patient->user->profile_picture;
-
-            // Remove any 'storage/' prefix if present
-            $path = str_replace('storage/', '', $path);
-
-            // Check if file exists
-            if (!Storage::disk('public')->exists($path)) {
-                return response()->json(['message' => 'Profile picture file not found'], 404);
-            }-
-
-            // Get the full filesystem path
-            $fullPath = Storage::disk('public')->path($path);
-
-            return response()->file($fullPath);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving profile picture',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
 
 
 
@@ -373,40 +339,7 @@ public function getPatientHistory(Request $request)
 
     // tested successfully
 
-    public function getMedicalHistory(Request $request)
-    {
-        $patient = Auth::user()->patient;
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
 
-
-         $history = $request->user()->patient->appointments()
-        ->with(['prescription', 'medicalNotes', 'doctor.user', 'clinic'])
-        ->where('appointment_date', '<=', now())
-        ->orderBy('appointment_date', 'desc')
-        ->get();
-
-    if ($history->isEmpty()) {
-        return response()->json([
-            'message' => 'No medical history found',
-            'data' => []
-        ]);
-    }
-
-
-      return $history->map(function ($appointment) {
-        return [
-            'id' => $appointment->id,
-            'date' => $appointment->appointment_date,
-            'clinic' => $appointment->clinic->name,
-            'doctor' => $appointment->doctor->user->name,
-            'diagnosis' => $appointment->diagnosis,
-            'notes' => $appointment->notes,
-            'prescription' => $appointment->prescription,
-        ];
-    });
-}
 
 
 
@@ -497,6 +430,94 @@ public function getPatientHistory(Request $request)
 
 
 
+
+
+/* exist in appointment controller hajjiii
+public function getAppointments(Request $request)
+{
+    $patient = Auth::user()->patient;
+
+    // Determine the type of appointments requested
+    $type = $request->input('type');
+
+    if ($type === 'upcoming') {
+        // Get upcoming appointments (not paginated)
+        $appointments = $patient->appointments()
+            ->with([
+                'doctor.user:id,first_name,last_name',
+                'clinic:id,name',
+                'payments' => function($query) {
+                    $query->where('status', 'completed')
+                          ->orWhere('status', 'paid');
+                }
+            ])
+            ->where('status', 'confirmed')
+            ->where('appointment_date', '>=', now())
+            ->orderBy('appointment_date', 'asc') // Show nearest first
+            ->get()
+            ->map(function ($appointment) {
+                $paymentMethod = $appointment->payments->isNotEmpty()
+                    ? $appointment->payments->first()->method
+                    : null;
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date->format('Y-m-d H:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentMethod === 'wallet' ? 'confirmed' : 'pending',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments
+        ]);
+    }
+    else {
+        // Default to completed appointments (paginated)
+        $appointments = $patient->appointments()
+            ->with([
+                'doctor.user:id,first_name,last_name',
+                'clinic:id,name',
+                'payments' => function($query) {
+                    $query->where('status', 'completed')
+                          ->orWhere('status', 'paid');
+                }
+            ])
+            ->where('status', 'completed')
+            ->orderBy('appointment_date', 'desc')
+            ->paginate(10)
+            ->through(function ($appointment) {
+                $paymentMethod = $appointment->payments->isNotEmpty()
+                    ? $appointment->payments->first()->method
+                    : null;
+
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date->format('Y-m-d H:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => 'completed',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments->items(),
+            'meta' => [
+                'current_page' => $appointments->currentPage(),
+                'last_page' => $appointments->lastPage(),
+                'per_page' => $appointments->perPage(),
+                'total' => $appointments->total(),
+            ]
+        ]);
+    }
+}
+
+*/
 
 
 
