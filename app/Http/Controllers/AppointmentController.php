@@ -13,8 +13,7 @@ use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
 use App\Notifications\AppointmentBooked;
 use App\Notifications\AppointmentCancelled;
-use App\Models\MedicalCenterWallet;
-use App\Models\MedicalCenterWalletTransaction;
+
 use App\Notifications\AppointmentConfirmationNotification;
 use App\Services\AppointmentService;
 use Illuminate\Http\Request;
@@ -1293,55 +1292,6 @@ public function processWalletRefund(Appointment $appointment, Payment $payment)
 
 
 
-
-public function processWalletRefund(Appointment $appointment, Payment $payment)
-{
-    $refundAmount = $appointment->price;
-    $patient = $appointment->patient;
-
-    // Get the single medical center wallet (same as in processWalletPayment)
-    $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
-
-    if ($medicalCenterWallet->balance >= $refundAmount) {
-        // Refund to patient
-        $patient->increment('wallet_balance', $refundAmount);
-
-        // Deduct from medical center wallet
-        $medicalCenterWallet->decrement('balance', $refundAmount);
-
-        // Create transactions
-        WalletTransaction::create([
-            'patient_id' => $patient->id,
-            'amount' => $refundAmount,
-            'type' => 'refund',
-            'reference' => 'APT-' . $appointment->id,
-            'balance_before' => $patient->wallet_balance - $refundAmount,
-            'balance_after' => $patient->wallet_balance,
-            'notes' => 'Refund for cancelled appointment #' . $appointment->id
-        ]);
-
-        MedicalCenterWalletTransaction::create([
-            'medical_wallet_id' => $medicalCenterWallet->id,
-            'clinic_id' => $appointment->clinic_id, // Track which clinic this refund is for
-            'amount' => $refundAmount,
-            'type' => 'refund',
-            'reference' => 'APT-' . $appointment->id,
-            'balance_before' => $medicalCenterWallet->balance + $refundAmount,
-            'balance_after' => $medicalCenterWallet->balance,
-            'notes' => 'Refund for cancelled appointment #' . $appointment->id
-        ]);
-
-        $payment->update([
-            'status' => 'refunded',
-            'refunded_at' => now(),
-            'refund_amount' => $refundAmount
-        ]);
-
-        return $refundAmount;
-    }
-
-    throw new \Exception('Medical center wallet has insufficient funds for refund');
-}
 
 
 

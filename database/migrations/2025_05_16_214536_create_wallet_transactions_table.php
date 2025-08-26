@@ -10,14 +10,6 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('wallet_transactions', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('patient_id')->constrained('patients')->onDelete('cascade');
-            $table->foreignId('secretary_id')->nullable()->constrained('secretaries')->onDelete('set null');
-
-            $table->decimal('amount', 10, 2);
-            $table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal', 'fee']);
-            $table->string('reference');
     Schema::create('wallet_transactions', function (Blueprint $table) {
     $table->id();
     $table->foreignId('patient_id')->constrained('patients');
@@ -29,8 +21,8 @@ $table->enum('type', ['deposit', 'payment', 'refund', 'withdrawal','fee']);
             $table->text('notes')->nullable();
             $table->foreignId('admin_id')->nullable()->constrained('users');
             $table->timestamps();
-        });
-    }
+        });}
+
 
     /**
      * Reverse the migrations.
