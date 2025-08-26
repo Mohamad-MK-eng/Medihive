@@ -58,7 +58,7 @@ class Patient extends Model
         'user_id',
         'first_name',
         'last_name',
-
+        
         'date_of_birth',
         'address',
         'profile_picture',
@@ -72,7 +72,7 @@ class Patient extends Model
         'wallet_pin',
         'wallet_activated_at',
         'pin_attempts',
-    'wallet_locked_until'
+        'wallet_locked_until'
     ];
 
     protected $casts = [

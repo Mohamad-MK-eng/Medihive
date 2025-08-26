@@ -57,13 +57,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     Route::get('/doctors/top', [DoctorController::class, 'getTopDoctors']);
     Route::get('/doctors/{doctor}', [DoctorController::class, 'show']);
 
-
-
-
-
-
-
-
     // Admin-only routes
     Route::middleware('role:admin')->group(function () {
         Route::put('/doctors/{doctor}/admin_update', [DoctorController::class, 'adminUpdate']);
@@ -84,6 +77,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
     Route::get('/appointments', [DoctorController::class, 'getAppointments']);
     Route::get('/time_slots', [DoctorController::class, 'getTimeSlots']);
 
+    Route::get('/allAppointments', [AdminController::class, 'getAppointments']);
 
 
 
@@ -138,7 +132,7 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-        Route::get('/clinics/{clinic}/doctors', [ClinicController::class, 'getClinicDoctors']);
+        // Route::get('/clinics/{clinic}/doctors', [ClinicController::class, 'getClinicDoctors']);
         Route::get('/clinics/{clinic}', [ClinicController::class, 'show']);
         Route::get('/clinics', [ClinicController::class, 'index']);
 
@@ -264,16 +258,39 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
         });
     });
 
+    Route::get('/allClinics', [AdminController::class, 'allClinics']);
+
+    Route::get('/allDoctors', [AdminController::class, 'allDoctors']);
+
+    Route::get('/searchDoctorsA', [AdminController::class, 'searchDoctorsA']);
+
+    Route::get('/searchClinicsA', [AdminController::class, 'searchClinicsA']);
+
+    Route::get('/allPatients', [AdminController::class, 'allPatients']);
+    Route::post('/addPatient', [AdminController::class, 'addPatient']);
+    Route::get('/search/patients', [AdminController::class, 'searchPatients']);
+    Route::get('/patientInfo/{patient_id}', [AdminController::class, 'getPatientById']);
+    Route::post('/editPatient/{patient_id}', [AdminController::class, 'updatePatient']);
+
+    Route::get('/clinics/{clinic}/doctors', [AdminController::class, 'getClinicDoctors']);
+
+    Route::get('/clinics/{clinic}/doctors-with-slots', [AdminController::class, 'getClinicDoctorsWithSlots']);
+
+    Route::get('/listBlockedPatients', action: [AdminController::class, 'listBlockedPatients']);
+    Route::post('/unblockPatient', action: [AdminController::class, 'unblockPatient']);
+
+    Route::post('/addToPatientWallet', action: [AdminController::class, 'addToPatientWallet']);
+    Route::get('/getPatientWalletInfo/{patient_id}', action: [AdminController::class, 'getPatientWalletInfo']);
 
 
 
+    Route::post('secretary_book',[AdminController::class,'secretaryBookAppointment']);
+
+    Route::get('/doctors/{doctor}/available_slots', [AppointmentController::class, 'getDoctorAvailableDaysWithSlots']); //tested
+    Route::get('doctors/{doctor}/available_times/{date}', [AppointmentController::class, 'getAvailableTimes']); // tested
 
 
-
-
-
-
-
+     Route::post('admin/profile/updateAdminInfo', [AdminController::class, 'updateAdminInfo']);  // done
 
     Route::middleware(['role:admin'])->group(function () {
         // Clinics
@@ -285,24 +302,27 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+        Route::get('/statistics', action: [AdminController::class, 'statistics']);
         //////////////////////////    clinic          ///////////////////////////////
         Route::post('/addClinic', [AdminController::class, 'addClinic']);
-        Route::get('/allClinics', [AdminController::class, 'allClinics']);
         Route::get('/gitClinicById/{clinic_id}', [AdminController::class, 'gitClinicById']);
         Route::post('/editClinic/{clinic_id}', [AdminController::class, 'editClinic']);
-        Route::post('/deleteClinic/{clinic_id}', [AdminController::class, 'deleteClinic']);
+        Route::delete('/deleteClinic/{clinic_id}', [AdminController::class, 'deleteClinic']);
 
         //////////////////////////    doctors          ///////////////////////////////
-        Route::get('/allDoctors', [AdminController::class, 'allDoctors']);
         Route::get('/DoctorInfo/{doctor_id}', [AdminController::class, 'DoctorInfo']);
         Route::post('/editDoctor/{doctor_id}', [AdminController::class, 'editDoctor']);
+        Route::post('/deleteDoctorA/{doctor_id}', [AdminController::class, 'deleteDoctorA']);
 
         //////////////////////////    secretary          ///////////////////////////////
         Route::post('/admin/create_secretary', [AdminController::class, 'createSecretary']);
         Route::get('/getSecretaryById/{id}', [AdminController::class, 'getSecretaryById']);
         Route::post('/secretaries/update/{id}', [AdminController::class, 'updateSecretary']);
 
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+        Route::delete('/deleteSecretary/{secretatire_id}', [AdminController::class, 'deleteSecretary']);
+       ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
         Route::post('/doctors/{doctor}/generate_timeslots', [AdminController::class, 'generateTimeSlotsForDoctor']);
@@ -318,7 +338,6 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
         Route::prefix('admin/profile')->group(function () {
-            Route::post('/updateAdminInfo', [AdminController::class, 'updateAdminInfo']);  // done
 
             //   Route::get('/picture', [AdminController::class, 'getProfilePicture']);
             Route::post('/picture', [AdminController::class, 'uploadProfilePicture']);
@@ -332,13 +351,9 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-
-
-
-
-
-
-
+        // Doctors
+        Route::post('/admin/create_doctor', [AdminController::class, 'createDoctor']);
+    });
 
 
 
@@ -358,7 +373,5 @@ Route::middleware(['auth:api', ApiAuthMiddleware::class])->group(function () {
 
 
 
-
-});
 
 });
