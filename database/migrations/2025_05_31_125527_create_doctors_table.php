@@ -25,6 +25,7 @@ return new class extends Migration
             $table->date('experience_start_date')->nullable()->default(DB::raw('CURRENT_DATE'));
             $table->softDeletes();
 
+
             $table->timestamps();
         });
     }

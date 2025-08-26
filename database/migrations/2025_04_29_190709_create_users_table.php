@@ -27,9 +27,6 @@ return new class extends Migration
             $table->softDeletes();
             $table->rememberToken();
             $table->timestamps();
-
-
-
         });
 
 // $table->unsignedBigInteger('order_id');

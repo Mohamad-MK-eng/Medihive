@@ -13,6 +13,7 @@ use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
 use App\Notifications\AppointmentBooked;
 use App\Notifications\AppointmentCancelled;
+
 use App\Notifications\AppointmentConfirmationNotification;
 use App\Services\AppointmentService;
 use Illuminate\Http\Request;
@@ -1288,6 +1289,7 @@ public function processWalletRefund(Appointment $appointment, Payment $payment)
 
     throw new \Exception('Medical center wallet has insufficient funds for refund');
 }
+
 
 
 
