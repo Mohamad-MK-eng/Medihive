@@ -111,7 +111,7 @@ class SearchController extends Controller
 
 public function searchPatients(Request $request)
 {
-    $query = Patient::with(['user', 'appointments' => function($q) {
+      $query = Patient::with(['user', 'appointments' => function($q) {
         $q->orderBy('appointment_date', 'desc')->limit(1);
     }]);
 
@@ -151,6 +151,7 @@ public function searchPatients(Request $request)
 
             return [
                 'patient_id' => $patient->id,
+                'user_id' => $patient->user->id ,
                 'patient_name' => $patient->user->first_name . ' '. $patient->user->last_name, // FIXED: Added ->user->
                 'phone' => $patient->phone_number,
                 'email' => $patient->user->email,

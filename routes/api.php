@@ -297,7 +297,7 @@ Route::get('patient/appointments/history',[PatientController::class,'getPatientH
 
 
 
-    Route::middleware(['role:admin'])->group(function () {
+    Route::middleware(['role:admin,secretary'])->group(function () {
         // Clinics
         Route::post('/clinics', [AdminController::class, 'createClinic']); // tested
         Route::put('/clinics/{clinic}', [AdminController::class, 'updateclinic']);  // tested
