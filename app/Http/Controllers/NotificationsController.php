@@ -13,7 +13,7 @@ class NotificationsController extends Controller
 
         return response()->json([
             'unread' => $user->unreadNotifications,
-            'read' => $user->readNotifications->take(10), // Last 10 read notifications
+            'read' => $user->readNotifications->take(10),
             'unread_count' => $user->unreadNotifications->count()
         ]);
     }

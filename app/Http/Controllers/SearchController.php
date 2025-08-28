@@ -6,11 +6,11 @@ use App\Models\Clinic;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Secretary;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
 {
-    // Global clinic search
     public function searchClinics(Request $request)
     {
         $query = Clinic::query();
@@ -42,12 +42,7 @@ class SearchController extends Controller
                         'name' => $clinic->name,
                         'image_path' => $clinic->getIconUrl(),
                         'doctors_count' => count($clinic->doctors)
-/* $results = $query
-        ->withCount('doctors')
-        ->get();
 
- 'doctors_count' => $clinic->doctors_count // Use the withCount result
- */
 
 
                     ];
@@ -57,7 +52,6 @@ class SearchController extends Controller
         ]);
     }
 
-    // Global doctor search
     public function searchDoctors(Request $request)
     {
         $query = Doctor::with(['user', 'clinic', 'reviews']);
@@ -108,7 +102,13 @@ class SearchController extends Controller
     }
 
 
+public function searchPatients(Request $request)
+{
+    $query = Patient::with(['user', 'appointments' => function($q) {
+        $q->orderBy('appointment_date', 'desc')->limit(1);
+    }]);
 
+<<<<<<< HEAD
 public function searchPatients(Request $request)
 {
       $query = Patient::with(['user', 'appointments' => function($q) {
@@ -118,6 +118,11 @@ public function searchPatients(Request $request)
     if ($request->filled('keyword')) {
         $keyword = $request->keyword;
 
+=======
+    if ($request->filled('keyword')) {
+        $keyword = $request->keyword;
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
         $query->where(function ($q) use ($keyword) {
             $q->whereHas('user', function ($uq) use ($keyword) {
                 $uq->where('first_name', 'like', "%$keyword%")
@@ -151,7 +156,10 @@ public function searchPatients(Request $request)
 
             return [
                 'patient_id' => $patient->id,
+<<<<<<< HEAD
                 'user_id' => $patient->user->id ,
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
                 'patient_name' => $patient->user->first_name . ' '. $patient->user->last_name, // FIXED: Added ->user->
                 'phone' => $patient->phone_number,
                 'email' => $patient->user->email,
@@ -161,8 +169,11 @@ public function searchPatients(Request $request)
         })
     ], 200);
 }
+<<<<<<< HEAD
+=======
 
-    // Global secretary search
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
+
     public function searchSecretaries(Request $request)
     {
         $query = Secretary::with('user');

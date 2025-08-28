@@ -6,6 +6,8 @@ use App\Models\Appointment;
 use App\Models\ClinicWallet;
 use App\Models\ClinicWalletTransaction;
 use App\Models\Doctor;
+use App\Models\MedicalCenterWallet;
+use App\Models\MedicalCenterWalletTransaction;
 use App\Models\Payment;
 use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
@@ -175,6 +177,7 @@ if ($validated['method'] === 'wallet') {
         ], 400);
     }
 
+<<<<<<< HEAD
 
 
     if ($validated['method'] === 'cash') {
@@ -196,6 +199,17 @@ if ($validated['method'] === 'wallet') {
         ], 401);
     }
 
+=======
+    // Verify PIN
+    if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
+        return response()->json([
+            'success' => false,
+            'error_code' => 'invalid_pin',
+            'message' => 'Incorrect PIN',
+        ], 401);
+    }
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
     // Process payment
     try {
         $this->processWalletPayment($patient, $doctor->consultation_fee, $appointment);
@@ -315,7 +329,11 @@ protected function processWalletPayment($patient, $amount, $appointment)
             'patient_id' => $patient->id,
             'amount' => $amount,
             'method' => 'wallet',
+<<<<<<< HEAD
             'status' => 'paid', // Changed from 'completed' to 'paid' to match your enum
+=======
+            'status' => 'completed',
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
             'transaction_id' => 'MCW-' . $patientTransaction->id,
             'paid_at' => now()
         ]);
@@ -900,15 +918,20 @@ public function getAppointments(Request $request)
     date_default_timezone_set('Asia/Damascus');
     $nowLocal = Carbon::now('Asia/Damascus');
 
-    $query = $patient->appointments()
-        ->with([
-            'doctor.user:id,first_name,last_name,profile_picture',
-            'clinic:id,name',
-            'payments' => function($query) {
-                $query->whereIn('status', ['completed', 'paid']);
-            }
-        ])
-        ->orderBy('appointment_date', 'desc');
+ $query = $patient->appointments()
+    ->with([
+        'doctor' => function($query) {
+            $query->withTrashed()
+                ->with(['user' => function($q) {
+                    $q->withTrashed()->select('id', 'first_name', 'last_name', 'profile_picture');
+                }]);
+        },
+        'clinic:id,name',
+        'payments' => function($query) {
+            $query->whereIn('status', ['completed', 'paid']);
+        }
+    ])
+    ->orderBy('appointment_date', 'desc');
 
     if ($type === 'upcoming') {
         $appointments = $query->where('status', 'confirmed')
@@ -920,7 +943,7 @@ public function getAppointments(Request $request)
                     ? 'paid'
                     : 'pending';
 
-                $doctorUser = $appointment->doctor->user;
+                $doctorUser = $appointment->doctor->user ?? null;
                 $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
                 $localTime = Carbon::parse($appointment->appointment_date)
                     ->setTimezone('Asia/Damascus');
@@ -929,9 +952,9 @@ public function getAppointments(Request $request)
                     'id' => $appointment->id,
                     'date' => $localTime->format('Y-m-d h:i A'),
                     'doctor_id' => $appointment->doctor->id,
-                    'first_name' =>  $appointment->doctor->user->first_name ,
-                     'last_name' =>   $appointment->doctor->user->last_name,
-                     'specialty' =>  $appointment->doctor->specialty,
+                    'first_name' => $doctorUser->first_name ?? 'Doctor',
+                    'last_name' => $doctorUser->last_name ?? 'Deleted',
+                    'specialty' => $appointment->doctor->specialty ?? 'Unknown',
                     'profile_picture_url' => $profilePictureUrl,
                     'clinic_name' => $appointment->clinic->name,
                     'type' => $paymentStatus,
@@ -959,7 +982,7 @@ public function getAppointments(Request $request)
                     ? 'paid'
                     : 'pending';
 
-                $doctorUser = $appointment->doctor->user;
+                $doctorUser = $appointment->doctor->user ?? null;
                 $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
                 $localTime = Carbon::parse($appointment->appointment_date)
                     ->setTimezone('Asia/Damascus');
@@ -968,9 +991,9 @@ public function getAppointments(Request $request)
                     'id' => $appointment->id,
                     'date' => $localTime->format('Y-m-d h:i A'),
                     'doctor_id' => $appointment->doctor->id,
-                    'first_name' =>  $appointment->doctor->user->first_name ,
-                     'last_name' =>   $appointment->doctor->user->last_name,
-                     'specialty' =>  $appointment->doctor->specialty,
+                    'first_name' => $doctorUser->first_name ?? 'Doctor',
+                    'last_name' => $doctorUser->last_name ?? 'Deleted',
+                    'specialty' => $appointment->doctor->specialty ?? 'Unknown',
                     'profile_picture_url' => $profilePictureUrl,
                     'clinic_name' => $appointment->clinic->name,
                     'type' => $paymentStatus,
@@ -988,7 +1011,7 @@ public function getAppointments(Request $request)
             ],
         ]);
     }
- else if ($type === 'absent') {
+    else if ($type === 'absent') {
         // Get only absent appointments
         $absentAppointments = $query->where('status', 'absent')
             ->paginate($perPage)
@@ -997,7 +1020,7 @@ public function getAppointments(Request $request)
                     ? 'paid'
                     : 'pending';
 
-                $doctorUser = $appointment->doctor->user;
+                $doctorUser = $appointment->doctor->user ?? null;
                 $profilePictureUrl = $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null;
                 $localTime = Carbon::parse($appointment->appointment_date)
                     ->setTimezone('Asia/Damascus');
@@ -1006,9 +1029,9 @@ public function getAppointments(Request $request)
                     'id' => $appointment->id,
                     'date' => $localTime->format('Y-m-d h:i A'),
                     'doctor_id' => $appointment->doctor->id,
-                    'first_name' => $appointment->doctor->user->first_name,
-                    'last_name' => $appointment->doctor->user->last_name,
-                    'specialty' => $appointment->doctor->specialty,
+                    'first_name' => $doctorUser->first_name ?? 'Doctor',
+                    'last_name' => $doctorUser->last_name ?? 'Deleted',
+                    'specialty' => $appointment->doctor->specialty ?? 'Unknown',
                     'profile_picture_url' => $profilePictureUrl,
                     'clinic_name' => $appointment->clinic->name,
                     'type' => $paymentStatus,
@@ -1031,6 +1054,9 @@ public function getAppointments(Request $request)
 
     return response()->json(['message' => 'Invalid appointment type'], 400);
 }
+
+
+
 
 
  public function updateAppointment(Request $request, $id)
@@ -1151,12 +1177,8 @@ protected function emptyAppointmentSlot(Appointment $appointment)
         }
     });
 }
-public function cancelAppointment(Request $request, $id)
-{
-    $validated = $request->validate([
-        'reason' => 'required|string|max:500'
-    ]);
 
+<<<<<<< HEAD
     return DB::transaction(function () use ($validated, $id) {
         try {
             $patient = Auth::user()->patient;
@@ -1244,6 +1266,8 @@ public function cancelAppointment(Request $request, $id)
         }
     });
 }
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
     public function rescheduleAppointment(Request $request, $id)
     {
@@ -1298,36 +1322,54 @@ public function cancelAppointment(Request $request, $id)
 
 
 
-public function processRefund(Request $request, $appointmentId)
+
+public function cancelAppointment(Request $request, $id)
 {
     $validated = $request->validate([
-        'refund_amount' => 'required|numeric|min:0.01',
-        'cancellation_fee' => 'sometimes|numeric|min:0',
-        'notes' => 'sometimes|string|max:255'
+        'reason' => 'required|string|max:500'
     ]);
 
-    if (!Auth::user()->secretary) {
-        return response()->json(['message' => 'Unauthorized'], 403);
-    }
+    return DB::transaction(function () use ($validated, $id) {
+        try {
+            $patient = Auth::user()->patient;
 
-    // Find the appointment with necessary relationships
-    $appointment = Appointment::with(['patient', 'clinic.wallet'])
-        ->findOrFail($appointmentId);
+            // Load the appointment with necessary relationships
+            $appointment = $patient->appointments()
+                ->with(['patient.user', 'doctor.user', 'clinic'])
+                ->where('status', '!=', 'completed')
+                ->findOrFail($id);
 
-    // Get or create the clinic wallet
-    $clinicWallet = $appointment->clinic->wallet()->firstOrCreate([], ['balance' => 0]);
+            // Free up the time slot with lock to prevent race conditions
+            $timeSlot = TimeSlot::where('id', $appointment->time_slot_id)
+                ->lockForUpdate()
+                ->first();
 
-    // Verify patient exists
-    if (!$appointment->patient) {
-        return response()->json(['message' => 'Patient not found for this appointment'], 404);
-    }
+            if ($timeSlot) {
+                $timeSlot->update(['is_booked' => false]);
+            }
 
-    return DB::transaction(function () use ($appointment, $clinicWallet, $validated) {
-        $patient = $appointment->patient;
+            // Update appointment status
+            $appointment->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancellation_reason' => $validated['reason']
+            ]);
 
-        // Check if clinic has enough balance for refund
-        if ($clinicWallet->balance < $validated['refund_amount']) {
+            // Process refund if paid via wallet
+            $payment = Payment::where('appointment_id', $appointment->id)
+                ->where('method', 'wallet')
+                ->where('status', 'completed')
+                ->first();
+
+            $refundAmount = 0;
+            if ($payment) {
+                $refundAmount = $this->processWalletRefund($appointment, $payment);
+            }
+
+
+
             return response()->json([
+<<<<<<< HEAD
                 'message' => 'Clinic does not have sufficient funds for this refund',
                 'clinic_balance' => $clinicWallet->balance,
                 'required_amount' => $validated['refund_amount']
@@ -1401,17 +1443,73 @@ public function processRefund(Request $request, $appointmentId)
                 'balance_after' => $clinicBalanceBeforeFee + $validated['cancellation_fee'],
                 'notes' => 'Cancellation fee from patient #' . $patient->id . ' for appointment #' . $appointment->id
             ]);
-        }
+=======
+                'message' => 'Appointment cancelled successfully',
+                'slot_freed' => $timeSlot ? $timeSlot->id : null,
+                'refund_processed' => $payment ? true : false,
+                'refund_amount' => $payment ? $refundAmount : 0
+            ]);
 
-        return response()->json([
-            'message' => 'Refund processed successfully',
-            'patient_new_balance' => $patient->fresh()->wallet_balance,
-            'clinic_new_balance' => $clinicWallet->fresh()->balance,
-            'refund_amount' => $validated['refund_amount'],
-            'cancellation_fee' => $validated['cancellation_fee'] ?? 0
-        ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'cancellation_failed',
+                'message' => 'Failed to cancel appointment: ' . $e->getMessage()
+            ], 500);
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
+        }
     });
 }
+
+public function processWalletRefund(Appointment $appointment, Payment $payment)
+{
+    $refundAmount = $appointment->price;
+    $patient = $appointment->patient;
+
+    // Get the single medical center wallet (same as in processWalletPayment)
+    $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+
+    if ($medicalCenterWallet->balance >= $refundAmount) {
+        // Refund to patient
+        $patient->increment('wallet_balance', $refundAmount);
+
+        // Deduct from medical center wallet
+        $medicalCenterWallet->decrement('balance', $refundAmount);
+
+        // Create transactions
+        WalletTransaction::create([
+            'patient_id' => $patient->id,
+            'amount' => $refundAmount,
+            'type' => 'refund',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $patient->wallet_balance - $refundAmount,
+            'balance_after' => $patient->wallet_balance,
+            'notes' => 'Refund for cancelled appointment #' . $appointment->id
+        ]);
+
+        MedicalCenterWalletTransaction::create([
+            'medical_wallet_id' => $medicalCenterWallet->id,
+            'clinic_id' => $appointment->clinic_id, // Track which clinic this refund is for
+            'amount' => $refundAmount,
+            'type' => 'refund',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $medicalCenterWallet->balance + $refundAmount,
+            'balance_after' => $medicalCenterWallet->balance,
+            'notes' => 'Refund for cancelled appointment #' . $appointment->id
+        ]);
+
+        $payment->update([
+            'status' => 'refunded',
+            'refunded_at' => now(),
+            'refund_amount' => $refundAmount
+        ]);
+
+        return $refundAmount;
+    }
+
+    throw new \Exception('Medical center wallet has insufficient funds for refund');
+}
+
+
 
 
 public function processWalletRefund(Appointment $appointment, Payment $payment)

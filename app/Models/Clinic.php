@@ -53,8 +53,7 @@ public function wallet()
 }
 
 
-
-    public function getIconUrl()
+public function getIconUrl()
     {
         if (!$this->image_path) {
             return asset('storage/Clinic_Icons/default.jpg');
@@ -83,4 +82,7 @@ public function wallet()
             return false;
         }
     }
+
+
+
 }

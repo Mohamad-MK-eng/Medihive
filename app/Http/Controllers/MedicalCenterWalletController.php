@@ -6,15 +6,22 @@ namespace App\Http\Controllers;
 use App\Models\MedicalCenterWallet;
 use App\Models\MedicalCenterWalletTransaction;
 use Illuminate\Http\Request;
+<<<<<<< HEAD
+=======
+use Illuminate\Routing\Controller;
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
 class MedicalCenterWalletController extends Controller
 {
 
+<<<<<<< HEAD
 
 
 
 
 // get wallet balance 'the central wallet ' for medical center
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
     public function show()
     {
         $wallet = MedicalCenterWallet::firstOrCreate([]);
@@ -33,9 +40,15 @@ class MedicalCenterWalletController extends Controller
 {
     $query = MedicalCenterWalletTransaction::with('clinic')->latest();
 
+<<<<<<< HEAD
     // Filter by transaction type (e.g., 'refund', 'appointment_payment', 'wallet_payment')
     if ($request->has('type')) {
         $validTypes = ['refund', 'appointment_payment', 'wallet_payment']; // Define allowed types
+=======
+    // Filter by transaction type (refund or appointment_payment(cash)  or wallet_payment)
+    if ($request->has('type')) {
+        $validTypes = ['refund', 'appointment_payment', 'wallet_payment'];
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
         if (in_array($request->type, $validTypes)) {
             $query->where('type', $request->type);
         }

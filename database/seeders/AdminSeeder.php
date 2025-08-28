@@ -19,11 +19,57 @@ class AdminSeeder extends Seeder
             'patient' => Role::firstOrCreate(['name' => 'patient'])
         ];
 
+<<<<<<< HEAD
         // Create clinics
         $clinic1 = Clinic::firstOrCreate(['name' => 'Oncology']);
         Clinic::firstOrCreate(['name' => 'ENT']);
         Clinic::firstOrCreate(['name' => 'Neurology']);
         Clinic::firstOrCreate(['name' => 'Ophthalmology']);
+=======
+        // Create clinic
+          Clinic::create([
+            'name' => 'ENt',
+        ]);
+        $clinic1 = Clinic::create([
+            'name' => 'Oncology',
+        ]);
+          Clinic::create([
+            'name' => 'Neurology',
+        ]);
+        Clinic::create([
+            'name' => 'Opthalmology',
+        ]);
+
+
+
+               // Create secretary
+        $secretaryUser = User::create([
+            'first_name' => 'Sara',
+            'last_name' => 'Secretary',
+            'email' => 'secretary4@example.com',
+            'password' => Hash::make('password'),
+            'role_id' => 3,
+        ]);
+          $secretary = Secretary::create([
+            'user_id' => $secretaryUser->id,
+            'salary' => 4000,
+            'workdays' => json_encode(['Sunday', 'Monday', 'Tuesday']),
+        ]);
+
+        // انشاء اعدادات الراتب
+        $salarySettings = SalarySetting::create([
+
+        ]);
+        // انشاء الراتب
+        $doctorSalary = Salary::create([
+            'secretary_id' => $secretary->id,
+            'base_amount' => 100,
+            'bonus_amount' => 0.50,
+            'total_amount' => 100.5,
+            'salary_setting_id' => $salarySettings->id,
+            'status' => 'pending',
+        ]);
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
         // Create secretary
         $secretaryUser = User::firstOrCreate(
@@ -60,6 +106,7 @@ class AdminSeeder extends Seeder
         );
 
         // Create patient
+<<<<<<< HEAD
         $patientUser = User::firstOrCreate(
             ['email' => 'patient4@example.com'],
             [
@@ -69,6 +116,27 @@ class AdminSeeder extends Seeder
                 'role_id' => $roles['patient']->id,
             ]
         );
+=======
+        $patientUser = User::create([
+            'first_name' => 'Test',
+            'last_name' => 'Patient',
+            'email' => 'patient4@example.com',
+            'password' => Hash::make('password'),
+            'role_id' => $roles['patient']->id,
+        ]);
+        // create Patient
+        $patient = Patient::create([
+            'user_id' => $patientUser->id,
+            'phone_number' => '1234567890',
+            'date_of_birth' => '1990-01-01',
+            'address' => '123 Test St',
+            'gender' => 'male',
+            'blood_type' => 'O +',
+            'emergency_contact' => '9876543210'
+        ]);
+
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
         $patient = Patient::firstOrCreate(
             ['user_id' => $patientUser->id],
@@ -184,7 +252,16 @@ class AdminSeeder extends Seeder
             );
         }
 
+<<<<<<< HEAD
         MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+=======
+MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+
+
+
+        // Insert all time slots at once for better performance
+        TimeSlot::insert($timeSlots);
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
         // Get a specific time slot for the appointment
         $appointmentSlot = TimeSlot::where('doctor_id', $doctor->id)

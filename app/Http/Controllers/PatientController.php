@@ -28,35 +28,33 @@ class PatientController extends Controller
     use HandlesFiles;
 
 
+public function getProfile()
+{
+    $user = Auth::user();
+    $patient = $user->patient;
 
-    public function getProfile()
-    {
-        $patient = Auth::user()->patient;
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
 
-        $profile = $patient->only([
-            'first_name',
-            'last_name',
-            'phone_number',
-            'address',
+    $profile = [
+        'first_name' => $user->first_name,
+        'last_name' => $user->last_name,
+        'email' => $user->email,
+        'phone' => $user->phone,
+        'profile_picture' => $user->getProfilePictureUrl(),
+        'patient_data' => $patient->only([
             'date_of_birth',
+            'address',
             'gender',
             'blood_type',
             'chronic_conditions',
             'emergency_contact',
-        ]);
+        ])
+    ];
 
-        $patient = Auth::user();
-        $patient->getProfilePictureUrl();
-
-        // Add user fields
-        $profile['first_name'] = $patient->user->first_name;
-        $profile['last_name'] = $patient->user->last_name;
-
-        return response()->json($profile);
-    }
+    return response()->json($profile);
+}
 
 
 
@@ -77,7 +75,7 @@ class PatientController extends Controller
             'address' => 'sometimes|string|nullable',
             'date_of_birth' => 'sometimes|date',
             'gender' => 'sometimes|string|in:male,female,other',
-            'blood_type' => 'sometimes|in:A+,A-,B+,B-,AB+,AB-,O+,O-',
+            'blood_type' => 'sometimes|in:A +,A -,B +,B -,AB +,AB -,O +,O -',
             'chronic_conditions' => 'nullable|array',
             'emergency_contact' => 'sometimes|string|max:255',
             'profile_picture' => 'sometimes|image|mimes:jpg,jpeg,png|max:2048'
@@ -213,7 +211,8 @@ class PatientController extends Controller
 
 
 
-    // 2. Get doctors for a clinic with profile pictures
+
+
 
 
 

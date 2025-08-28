@@ -19,8 +19,9 @@ use Carbon\Carbon;
 use DB;
 use Storage;
 use App\Traits\HandlesFiles;
+use Illuminate\Routing\Controller as RoutingController;
 
-class PatientController extends Controller
+class PatientController extends RoutingController
 {
     use HandlesFiles;
 
@@ -57,10 +58,6 @@ class PatientController extends Controller
     }
 
 
-
-
-
-
     public function updateProfile(Request $request)
     {
         $user = Auth::user();
@@ -83,8 +80,10 @@ class PatientController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['message' => 'invalid information'
-                ,'errors' => $validator->errors()], 422);
+            return response()->json([
+                'message' => 'invalid information',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
         // Handle profile picture update if present
@@ -113,10 +112,8 @@ class PatientController extends Controller
             ]);
         }
 
-        // Remove user-related fields from patient data
         $patientData = collect($validated)->except(['first_name', 'last_name', 'profile_picture'])->all();
 
-        // Update patient data
         $patient->update($patientData);
 
         return response()->json([
@@ -137,46 +134,6 @@ class PatientController extends Controller
             'message' => 'Profile updated successfully'
         ]);
     }
-
-
-    public function getProfilePicture()
-    {
-        $patient = Auth::user()->patient;
-
-        if (!$patient) {
-            return response()->json(['message' => 'Patient profile not found'], 404);
-        }
-
-        if (!$patient->user->profile_picture) {
-            return response()->json(['message' => 'No profile picture set'], 404);
-        }
-
-        try {
-            // Get the stored path
-            $path = $patient->user->profile_picture;
-
-            // Remove any 'storage/' prefix if present
-            $path = str_replace('storage/', '', $path);
-
-            // Check if file exists
-            if (!Storage::disk('public')->exists($path)) {
-                return response()->json(['message' => 'Profile picture file not found'], 404);
-            }-
-
-            // Get the full filesystem path
-            $fullPath = Storage::disk('public')->path($path);
-
-            return response()->file($fullPath);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving profile picture',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-
-
 
 
     public function uploadProfilePicture(Request $request)
@@ -213,13 +170,6 @@ class PatientController extends Controller
         }
     }
 
-
-
-
-    // 2. Get doctors for a clinic with profile pictures
-
-
-
     public function getWalletTransactions()
     {
         $patient = Auth::user()->patient;
@@ -234,30 +184,31 @@ class PatientController extends Controller
 
 
 
-            if ($transactions->isEmpty()) {
-        return response()->json([
-            'message' => 'No transactions found',
-            'data' => [],
-            'meta' => [
-                'current_page' => $transactions->currentPage(),
-                'per_page' => $transactions->perPage(),
-                'total' => $transactions->total(),
-                'last_page' => $transactions->lastPage(),
-            ]
-        ]);
-    }
+        if ($transactions->isEmpty()) {
+            return response()->json([
+                'message' => 'No transactions found',
+                'data' => [],
+                'meta' => [
+                    'current_page' => $transactions->currentPage(),
+                    'per_page' => $transactions->perPage(),
+                    'total' => $transactions->total(),
+                    'last_page' => $transactions->lastPage(),
+                ]
+            ]);
+        }
         return response()->json($transactions);
     }
 
 
-public function getPatientHistory(Request $request)
-{
-    $patient = Auth::user()->patient;
+    public function getPatientHistory(Request $request)
+    {
+        $patient = Auth::user()->patient;
 
-    if (!$patient) {
-        return response()->json(['message' => 'Patient profile not found'], 404);
-    }
+        if (!$patient) {
+            return response()->json(['message' => 'Patient profile not found'], 404);
+        }
 
+<<<<<<< HEAD
     // Custom validation for date (accepts both YYYY-M and YYYY-M-D)
     $validator = Validator::make($request->all(), [
         'date' => 'sometimes|regex:/^\d{4}-\d{1,2}(-\d{1,2})?$/',
@@ -265,80 +216,130 @@ public function getPatientHistory(Request $request)
         'per_page' => 'sometimes|integer|min:1|max:100',
         'page' => 'sometimes|integer|min:1'
     ]);
+=======
+        // Custom validation for date (accepts both YYYY-M and YYYY-M-D)
+        $validator = Validator::make($request->all(), [
+            'date' => 'sometimes|regex:/^\d{4}-\d{1,2}(-\d{1,2})?$/',
+            'clinic_id' => 'sometimes|exists:clinics,id',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+            'page' => 'sometimes|integer|min:1'
+        ]);
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
-    if ($validator->fails()) {
-        return response()->json([
-            'message' => 'Validation failed',
-            'errors' => $validator->errors()
-        ], 422);
-    }
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
-    $validated = $validator->validated();
+        $validated = $validator->validated();
 
-    $query = Appointment::with([
+        $query = Appointment::with([
             'clinic:id,name',
             'doctor.user:id,first_name,last_name,profile_picture',
             'doctor:id,user_id,specialty' // Ensure doctor is loaded
         ])
-        ->where('patient_id', $patient->id)
-        ->orderBy('appointment_date', 'desc');
+            ->where('patient_id', $patient->id)->where('status','completed')
+            ->orderBy('appointment_date', 'desc');
 
+<<<<<<< HEAD
     // Date filtering
     if ($request->has('date')) {
         $dateInput = $validated['date'];
         $dateParts = explode('-', $dateInput);
+=======
+        // Date filtering
+        if ($request->has('date')) {
+            $dateInput = $validated['date'];
+            $dateParts = explode('-', $dateInput);
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
-        if (count($dateParts) === 2) {
-            // Format: YYYY-M (month filter)
-            $year = $dateParts[0];
-            $month = $dateParts[1];
+            if (count($dateParts) === 2) {
+                // Format: YYYY-M (month filter)
+                $year = $dateParts[0];
+                $month = $dateParts[1];
 
-            // Validate month
-            if ($month < 1 || $month > 12) {
-                return response()->json([
-                    'message' => 'Invalid month value (1-12)',
-                    'errors' => ['date' => ['Month must be between 1 and 12']]
-                ], 422);
-            }
-
-            $query->whereYear('appointment_date', $year)
-                  ->whereMonth('appointment_date', $month);
-        } else {
-            // Format: YYYY-M-D (specific date filter)
-            try {
-                $date = Carbon::createFromFormat('Y-n-j', $dateInput);
-                if (!$date || $date->format('Y-n-j') !== $dateInput) {
-                    throw new \Exception('Invalid date');
+                // Validate month
+                if ($month < 1 || $month > 12) {
+                    return response()->json([
+                        'message' => 'Invalid month value (1-12)',
+                        'errors' => ['date' => ['Month must be between 1 and 12']]
+                    ], 422);
                 }
-                $query->whereDate('appointment_date', $date->format('Y-m-d'));
-            } catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Invalid date format',
-                    'errors' => ['date' => ['Date must be in format YYYY-M or YYYY-M-D']]
-                ], 422);
+
+                $query->whereYear('appointment_date', $year)
+                    ->whereMonth('appointment_date', $month);
+            } else {
+                // Format: YYYY-M-D (specific date filter)
+                try {
+                    $date = Carbon::createFromFormat('Y-n-j', $dateInput);
+                    if (!$date || $date->format('Y-n-j') !== $dateInput) {
+                        throw new \Exception('Invalid date');
+                    }
+                    $query->whereDate('appointment_date', $date->format('Y-m-d'));
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Invalid date format',
+                        'errors' => ['date' => ['Date must be in format YYYY-M or YYYY-M-D']]
+                    ], 422);
+                }
             }
         }
-    }
 
-    // Apply clinic filter if provided
-    if ($request->has('clinic_id')) {
-        $query->where('clinic_id', $validated['clinic_id']);
-    }
+        // Apply clinic filter if provided
+        if ($request->has('clinic_id')) {
+            $query->where('clinic_id', $validated['clinic_id']);
+        }
 
-    // Paginate results
-    $perPage = $validated['per_page'] ?? 10;
-    $appointments = $query->paginate($perPage);
+        // Paginate results
+        $perPage = $validated['per_page'] ?? 10;
+        $appointments = $query->paginate($perPage);
 
+<<<<<<< HEAD
     if ($appointments->isEmpty()) {
+=======
+        if ($appointments->isEmpty()) {
+            return response()->json([
+                'message' => 'No appointments found for the given criteria',
+                'data' => [],
+                'meta' => [
+                    'current_page' => $appointments->currentPage(),
+                    'per_page' => $appointments->perPage(),
+                    'total' => $appointments->total(),
+                    'last_page' => $appointments->lastPage(),
+                ]
+            ], 404);
+        }
+
+        // Format response with proper null checks
+        $formattedAppointments = $appointments->map(function ($appointment) {
+            $doctor = $appointment->doctor;
+            $doctorUser = $doctor->user ?? null;
+            $clinic = $appointment->clinic ?? null;
+
+            return [
+                'id' => $appointment->id,
+                'date' => $appointment->appointment_date->format('Y-n-j h:i A'),
+                'clinic_name' => $clinic ? $clinic->name : null,
+                'doctor_id' => $doctor ? $doctor->id : null,
+                'first_name' => $doctorUser ? $doctorUser->first_name : null,
+                'last_name' => $doctorUser ? $doctorUser->last_name : null,
+                'specialty' => $doctor ? $doctor->specialty : null,
+                'profile_picture_url' => $doctorUser ? $doctorUser->getFileUrl('profile_picture') : null
+            ];
+        });
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
         return response()->json([
-            'message' => 'No appointments found for the given criteria',
-            'data' => [],
+            'data' => $formattedAppointments,
             'meta' => [
                 'current_page' => $appointments->currentPage(),
                 'per_page' => $appointments->perPage(),
                 'total' => $appointments->total(),
                 'last_page' => $appointments->lastPage(),
             ]
+<<<<<<< HEAD
         ], 404);
     }
 
@@ -391,27 +392,18 @@ public function getPatientHistory(Request $request)
         return response()->json([
             'message' => 'No medical history found',
             'data' => []
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
         ]);
     }
 
 
-      return $history->map(function ($appointment) {
-        return [
-            'id' => $appointment->id,
-            'date' => $appointment->appointment_date,
-            'clinic' => $appointment->clinic->name,
-            'doctor' => $appointment->doctor->user->name,
-            'diagnosis' => $appointment->diagnosis,
-            'notes' => $appointment->notes,
-            'prescription' => $appointment->prescription,
-        ];
-    });
-}
 
 
 
 
 
+<<<<<<< HEAD
 
 
 
@@ -425,6 +417,9 @@ public function getPatientHistory(Request $request)
 
 
     // not tested  yet
+=======
+    //  working tamam
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
     public function getWalletBalance()
     {
         $patient = Auth::user()->patient;
@@ -441,12 +436,6 @@ public function getPatientHistory(Request $request)
 
 
 
-
-
-
-
-
-
     public function getPrescriptions()
     {
         $patient = Auth::user()->patient;
@@ -454,19 +443,19 @@ public function getPatientHistory(Request $request)
             return response()->json(['message' => 'Patient profile not found'], 404);
         }
 
-        // Alternative 1: If prescriptions are linked via appointments
         $prescriptions = $patient->appointments()
             ->with(['prescription'])
-            ->where('status', '!=', 'absent') // Ensure 'prescription' is a defined relationship in Appointment model
-            ->whereHas('prescription') // Only appointments with prescriptions
+            ->where('status', '!=', 'absent')
+            ->whereHas('prescription')
             ->get()
             ->pluck('prescription') // Extract prescriptions
-            ->filter(); // Remove null entries (if any)
+            ->filter();
 
-         if ($prescriptions->isEmpty()) {
-        return response()->json([
-            'message' => 'No prescriptions found'        ]);
-    }
+        if ($prescriptions->isEmpty()) {
+            return response()->json([
+                'message' => 'No prescriptions found'
+            ]);
+        }
         return response()->json($prescriptions);
     }
 
@@ -474,74 +463,153 @@ public function getPatientHistory(Request $request)
 
 
 
-
-public function getAppointmentReports(Appointment $appointment)
+    // exist in appointment controller hajjiii
+    /*
+public function getAppointments(Request $request)
 {
     $patient = Auth::user()->patient;
 
+    // Determine the type of appointments requested
+    $type = $request->input('type');
 
+    if ($type === 'upcoming') {
+        // Get upcoming appointments (not paginated)
+        $appointments = $patient->appointments()
+            ->with([
+                'doctor.user:id,first_name,last_name',
+                'clinic:id,name',
+                'payments' => function($query) {
+                    $query->where('status', 'completed')
+                          ->orWhere('status', 'paid');
+                }
+            ])
+            ->where('status', 'confirmed')
+            ->where('appointment_date', '>=', now())
+            ->orderBy('appointment_date', 'asc') // Show nearest first
+            ->get()
+            ->map(function ($appointment) {
+                $paymentMethod = $appointment->payments->isNotEmpty()
+                    ? $appointment->payments->first()->method
+                    : null;
 
-      if ($appointment->status === 'absent') {
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date->format('Y-m-d H:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => $paymentMethod === 'wallet' ? 'confirmed' : 'pending',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
         return response()->json([
-            'success' => false,
-            'message' => 'No report available for absent appointments'
-        ], 404);
+            'data' => $appointments
+        ]);
     }
+    else {
+        // Default to completed appointments (paginated)
+        $appointments = $patient->appointments()
+            ->with([
+                'doctor.user:id,first_name,last_name',
+                'clinic:id,name',
+                'payments' => function($query) {
+                    $query->where('status', 'completed')
+                          ->orWhere('status', 'paid');
+                }
+            ])
+            ->where('status', 'completed')
+            ->orderBy('appointment_date', 'desc')
+            ->paginate(10)
+            ->through(function ($appointment) {
+                $paymentMethod = $appointment->payments->isNotEmpty()
+                    ? $appointment->payments->first()->method
+                    : null;
 
-    if ($appointment->patient_id !== $patient->id) {
-        return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
+                return [
+                    'id' => $appointment->id,
+                    'date' => $appointment->appointment_date->format('Y-m-d H:i A'),
+                    'doctor_name' => 'Dr. ' . $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+                    'clinic_name' => $appointment->clinic->name,
+                    'type' => 'completed',
+                    'price' => $appointment->price,
+                    'reason' => $appointment->reason
+                ];
+            });
+
+        return response()->json([
+            'data' => $appointments->items(),
+            'meta' => [
+                'current_page' => $appointments->currentPage(),
+                'last_page' => $appointments->lastPage(),
+                'per_page' => $appointments->perPage(),
+                'total' => $appointments->total(),
+            ]
+        ]);
     }
-
-
-
-
-
-
-    if ($appointment->patient_id !== $patient->id) {
-        return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
-    }
-
-    // Load the report with prescriptions and related data
-    $report = $appointment->report()
-                ->with(['prescriptions', 'appointment.doctor.user', 'appointment.clinic'])
-                ->first();
-
-    if (!$report) {
-        return response()->json(['message' => 'No report found for this appointment'], 404);
-    }
-
-    // Format the response to match your interface
-    $formattedReport = [
-        'date' => $appointment->appointment_date->format('Y-n-j h:i A'), // "2025-7-20 10:00 AM"
-        'clinic' => $appointment->clinic->name, // "Oncology"
-        'doctor' => $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name, // "John White"
-        'specialty' => $appointment->doctor->specialty, // "special"
-        'title' => $report->title ?? 'Medical Report', // "Report Title"
-        'content' => $report->content, // The content of the report
-        'prescriptions' => $report->prescriptions->map(function($prescription) {
-            return [
-                'medication' => $prescription->medication, // "Paracetamol"
-                'dosage' => $prescription->dosage, // "500mg"
-                'frequency' => $prescription->frequency, // "3x/day"
-                'instructions' => $prescription->instructions, // "After meal"
-                'is_completed' => (bool)$prescription->is_completed // checkbox status
-            ];
-        })->toArray()
-    ];
-
-    return response()->json([
-        'success' => true,
-        'report' => $formattedReport
-    ]);
 }
+*/
+
+
+
+
+    public function getAppointmentReports(Appointment $appointment)
+    {
+        $patient = Auth::user()->patient;
+
+
+
+        if ($appointment->status === 'absent') {
+            return response()->json([
+                'success' => false,
+                'message' => 'No report available for absent appointments'
+            ], 404);
+        }
+
+        if ($appointment->patient_id !== $patient->id) {
+            return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
+        }
 
 
 
 
 
 
+        if ($appointment->patient_id !== $patient->id) {
+            return response()->json(['message' => 'Unauthorized access to appointment reports'], 403);
+        }
 
+        $report = $appointment->report()
+            ->with(['prescriptions', 'appointment.doctor.user', 'appointment.clinic'])
+            ->first();
 
+        if (!$report) {
+            return response()->json(['message' => 'No report found for this appointment'], 404);
+        }
+
+        $formattedReport = [
+            'date' => $appointment->appointment_date->format('Y-n-j h:i A'),
+            'clinic' => $appointment->clinic->name,
+            'doctor' => $appointment->doctor->user->first_name . ' ' . $appointment->doctor->user->last_name,
+            'specialty' => $appointment->doctor->specialty,
+            'title' => $report->title ?? 'Medical Report',
+            'content' => $report->content,
+            'prescriptions' => $report->prescriptions->map(function ($prescription) {
+                return [
+                    'medication' => $prescription->medication,
+                    'dosage' => $prescription->dosage,
+                    'frequency' => $prescription->frequency,
+                    'instructions' => $prescription->instructions,
+                    'is_completed' => (bool)$prescription->is_completed
+                ];
+            })->toArray()
+        ];
+
+        return response()->json([
+            'success' => true,
+            'report' => $formattedReport
+        ]);
+    }
 
 
     //  until another time

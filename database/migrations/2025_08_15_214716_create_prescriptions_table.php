@@ -14,11 +14,20 @@ return new class extends Migration
       Schema::create('prescriptions', function (Blueprint $table) {
     $table->id();
     $table->foreignId('report_id')->constrained('reports')->onDelete('cascade');
+<<<<<<< HEAD
     $table->foreignId('appointment_id')->constrained('appointments')->onDelete('cascade');
     $table->string('medication');
     $table->string('dosage');
     $table->string('frequency')->nullable(); // e.g., "3x/day"
     $table->text('instructions')->nullable(); // e.g., "After meal"
+=======
+   //check this relation
+    $table->foreignId('appointment_id')->constrained('appointments')->onDelete('cascade');
+    $table->string('medication');
+    $table->string('dosage');
+    $table->string('frequency')->nullable();
+    $table->text('instructions')->nullable();
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
     $table->boolean('is_completed')->default(false);
     $table->date('issue_date')->nullable();
     $table->date('expiry_date')->nullable();

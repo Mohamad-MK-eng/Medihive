@@ -627,48 +627,57 @@ public function editDoctor(Request $request, $doctorId){
     }
 }
 
-// تحديث دالة generateTimeSlotsForDoctor
-public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration){
+public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
+{
     $timeSlots = [];
+<<<<<<< HEAD
     $now = Carbon::now();
 
     \Log::info("Generating slots for doctor {$doctor->id} for {$daysToGenerate} days with {$slotDuration} minute slots");
+=======
+    $now = Carbon::now('Asia/Damascus'); // Use your timezone
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
-    for ($i = 0; $i < $daysToGenerate; $i++) {
-        $date = $now->copy()->addDays($i)->startOfDay();
+    \Log::info("Starting slot generation for doctor {$doctor->id}");
+
+    // Get all schedules for this doctor
+    $schedules = $doctor->schedules()->get();
+
+    if ($schedules->isEmpty()) {
+        \Log::error("No schedules found for doctor {$doctor->id}");
+        return 0;
+    }
+
+    for ($i = 1; $i <= $daysToGenerate; $i++) {
+        $date = $now->copy()->addDays($i);
         $dayName = strtolower($date->englishDayOfWeek);
 
-        $schedule = $doctor->schedules()->where('day', $dayName)->first();
+        // Find schedule for this day
+        $schedule = $schedules->firstWhere('day', $dayName);
         if (!$schedule) {
-            \Log::info("No schedule for {$dayName} on {$date->format('Y-m-d')}");
+            \Log::info("No schedule for {$dayName}, skipping");
             continue;
         }
 
         $dateStr = $date->format('Y-m-d');
-        $start = Carbon::parse($date->format('Y-m-d') . ' ' . $schedule->start_time);
-        $end = Carbon::parse($date->format('Y-m-d') . ' ' . $schedule->end_time);
+        $start = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            "{$dateStr} {$schedule->start_time}",
+            'Asia/Damascus'
+        );
+        $end = Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            "{$dateStr} {$schedule->end_time}",
+            'Asia/Damascus'
+        );
 
-        // للأيام المستقبلية، ابدأ من وقت البداية المحدد
-        // لليوم الحالي، ابدأ من الوقت الحالي إذا كان ضمن ساعات العمل
-        if ($date->isToday() && $now->between($start, $end)) {
-            // قرب الوقت الحالي إلى أقرب slot
-            $minutesToAdd = $slotDuration - ($now->minute % $slotDuration);
-            $start = $now->copy()->addMinutes($minutesToAdd)->startOfMinute();
-        }
+        \Log::info("Processing {$dateStr} ({$dayName}) from {$start} to {$end}");
 
         // Generate slots
         $current = $start->copy();
-        $slotsCount = 0;
-
-        while ($current->copy()->addMinutes($slotDuration)->lte($end)) {
-            $slotStart = $current->copy();
-            $slotEnd = $current->copy()->addMinutes($slotDuration);
-
-            // تأكد من أن الموعد في المستقبل
-            if ($slotEnd->lt($now)) {
-                $current->addMinutes($slotDuration);
-                continue;
-            }
+        while ($current->addMinutes($slotDuration)->lte($end)) {
+            $slotStart = $current->copy()->subMinutes($slotDuration);
+            $slotEnd = $current->copy();
 
             $timeSlots[] = [
                 'doctor_id' => $doctor->id,
@@ -679,12 +688,16 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
                 'created_at' => now(),
                 'updated_at' => now()
             ];
+<<<<<<< HEAD
 
             $slotsCount++;
             $current->addMinutes($slotDuration);
         }
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 
-        \Log::info("Generated {$slotsCount} slots for {$dateStr} ({$dayName})");
+            \Log::debug("Generated slot: {$slotStart->format('H:i')} - {$slotEnd->format('H:i')}");
+        }
     }
 
     if (!empty($timeSlots)) {
@@ -702,6 +715,66 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
     return 0;
 }
 
+
+
+public function generateTimeSlots(Doctor $doctor, $daysToGenerate = 30, $slotDuration = 30)
+{
+    $timeSlots = [];
+    $now = Carbon::now();
+    $generatedDays = 0;
+
+    \Log::info("Starting generation for {$daysToGenerate} days with {$slotDuration}min slots");
+
+    for ($i = 0; $i < $daysToGenerate && $generatedDays < $daysToGenerate; $i++) {
+        $date = $now->copy()->addDays($i);
+        $dayName = strtolower($date->englishDayOfWeek);
+
+        // Skip if no schedule for this day
+        if (!$doctor->schedules->where('day', $dayName)->count()) {
+            \Log::info("Skipping {$date->format('Y-m-d')} ({$dayName}): No schedule");
+            continue;
+        }
+
+        $schedule = $doctor->schedules->where('day', $dayName)->first();
+        $start = Carbon::parse($schedule->start_time);
+        $end = Carbon::parse($schedule->end_time);
+
+        // Adjust for current time if today
+        if ($date->isToday()) {
+            $currentTime = $now->copy()->setTimezone('UTC');
+            if ($currentTime > $start) {
+                $start = $currentTime->addMinutes($slotDuration - ($currentTime->minute % $slotDuration));
+            }
+        }
+
+        // Generate slots
+        $current = $start->copy();
+        while ($current->addMinutes($slotDuration)->lte($end)) {
+            $slotStart = $current->copy()->subMinutes($slotDuration);
+            $slotEnd = $current->copy();
+
+            $timeSlots[] = [
+                'doctor_id' => $doctor->id,
+                'date' => $date->format('Y-m-d'),
+                'start_time' => $slotStart->format('H:i:s'),
+                'end_time' => $slotEnd->format('H:i:s'),
+                'is_booked' => false,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+        }
+
+        $generatedDays++;
+        \Log::info("Generated slots for {$date->format('Y-m-d')}: " . count($timeSlots));
+    }
+
+    if (!empty($timeSlots)) {
+        TimeSlot::insert($timeSlots);
+        return count($timeSlots);
+    }
+
+    return 0;
+}
 
 //     public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slotDuration)
 // {
@@ -779,101 +852,78 @@ public function generateTimeSlotsForDoctor(Doctor $doctor, $daysToGenerate, $slo
 
 
 
-//     public function updateDoctor(Request $request, Doctor $doctor)
-//     {
-//         $validator = Validator::make($request->all(), [
+    public function updateDoctor(Request $request, Doctor $doctor)
+     {
+         $validator = Validator::make($request->all(), [
 
-//             'email' => [
-//                 'sometimes',
-//                 'email',
-//                 'unique:users,email,' . $doctor->user_id
-//             ],
-//             'phone_number' => 'sometimes|string|max:20',
+             'email' => [
+                 'sometimes',
+                 'email',
+                 'unique:users,email,' . $doctor->user_id
+             ],
+             'phone_number' => 'sometimes|string|max:20',
 
-//             // Doctor data
-//             'specialty' => 'sometimes|string|max:255',
-//             'bio' => 'nullable|string',
-//             'consultation_fee' => 'sometimes|numeric|min:120',
-//             'experience_years' => 'sometimes|integer|min:1',
-//             'clinic_id' => 'sometimes|exists:clinics,id',
-//             'workdays' => 'sometimes|array',
-//             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+             // Doctor data
+            'specialty' => 'sometimes|string|max:255',
+             'bio' => 'nullable|string',
+             'consultation_fee' => 'sometimes|numeric|min:120',
+             'experience_years' => 'sometimes|integer|min:1',
+            'clinic_id' => 'sometimes|exists:clinics,id',             'workdays' => 'sometimes|array',
+             'workdays.*' => 'string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
 
-//             // Status control
-//             'is_active' => 'sometimes|boolean'
-//         ]);
+             // Status control
+             'is_active' => 'sometimes|boolean'
+         ]);
 
-//         if ($validator->fails()) {
-//             return response()->json(['errors' => $validator->errors()], 422);
-//         }
+         if ($validator->fails()) {
+             return response()->json(['errors' => $validator->errors()], 422);
+         }
 
-//         $validated = $validator->validated();
+         $validated = $validator->validated();
 
-//         return DB::transaction(function () use ($request, $doctor, $validated) {
-//             // Update user data if present
-//             if (
-//                 isset($validated['email']) || isset($validated['phone_number'])
-//             ) {
+         return DB::transaction(function () use ($request, $doctor, $validated) {
+             // Update user data if present
+             if (
+                 isset($validated['email']) || isset($validated['phone_number'])
+             ) {
 
-//                 $userData = [
-//                   'email' => $validated['email'] ?? $doctor->user->email,
-//                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
-//                 ];
+                 $userData = [
+                   'email' => $validated['email'] ?? $doctor->user->email,
+                     'phone_number' => $validated['phone_number'] ?? $doctor->user->phone_number,
+                 ];
 
-//                 $doctor->user->update($userData);
-//             }
+                 $doctor->user->update($userData);
+             }
 
-//             // Update doctor data
-//             $doctorData = collect($validated)
-//                 ->except(['first_name', 'last_name', 'email', 'phone_number'])
-//                 ->toArray();
+             // Update doctor data
+             $doctorData = collect($validated)
+                 ->except(['first_name', 'last_name', 'email', 'phone_number'])
+                 ->toArray();
 
-//             $doctor->update($doctorData);
+             $doctor->update($doctorData);
 
-//             return response()->json([
-//                 'message' => 'Doctor updated successfully',
-//                 'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
-//             ]);
-//         });
-//     }
-    /**
-     * Delete a doctor (admin only)
-     */
-    public function deleteDoctor(Doctor $doctor)
-    {
-        // Check for upcoming appointments
-        $hasUpcomingAppointments = $doctor->appointments()
-            ->where('appointment_date', '>=', now())
-            ->whereIn('status', ['confirmed', 'pending'])
-            ->exists();
-
-        if ($hasUpcomingAppointments) {
-            return response()->json([
-                'message' => 'Cannot delete doctor with upcoming appointments',
-                'upcoming_appointments' => $doctor->appointments()
-                    ->where('appointment_date', '>=', now())
-                    ->count()
-            ], 422);
-        }
-
-        return DB::transaction(function () use ($doctor) {
-            // Archive or soft delete if implemented
-            if (method_exists($doctor, 'trashed')) {
-                $doctor->delete();
-                $doctor->user()->delete();
-            } else {
-                // Permanent deletion
-                $doctor->user()->delete();
-                $doctor->delete();
-            }
-
-            return response()->json([
-                'message' => 'Doctor deleted successfully',
-                'deleted_at' => now()->toDateTimeString()
-            ]);
-        });
+             return response()->json([
+                'message' => 'Doctor updated successfully',
+                 'doctor' => $doctor->fresh()->load(['user', 'clinic', 'schedules'])
+             ]);
+         });
     }
 
+
+public function deleteDoctor(Doctor $doctor)
+{
+
+    DB::transaction(function () use ($doctor) {
+        $doctor->delete();
+
+
+    });
+
+    return response()->json([
+        'message' => 'Doctor deleted successfully. Existing appointments remain intact.',
+        'deleted_at' => now()->toDateTimeString()
+    ]);
+}
 
 
 
@@ -1913,6 +1963,7 @@ public function updateAdminInfo(Request $request)
 public function statistics(){
     $now = Carbon::now();
 
+<<<<<<< HEAD
         return response()->json([
             'total_patients' => Patient::count(),
             'total_doctors' => Doctor::count(),
@@ -1929,6 +1980,8 @@ public function statistics(){
 ///////////////////////////////////////////////////////////////////////
 
 
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
  public function makePayment(Request $request)
 {
     $user = Auth::user();
@@ -2707,4 +2760,41 @@ public function listBlockedPatients()
     ]);
 }
 
+<<<<<<< HEAD
 }
+=======
+
+
+
+
+
+
+
+
+
+
+
+
+
+   public function statistics()
+    {
+        $now = Carbon::now();
+
+        return response()->json([
+            'total_patients' => Patient::count(),
+            'total_doctors' => Doctor::count(),
+            'total_appointments' => Appointment::count(),
+            'current_month_appointments' => Appointment::whereMonth('created_at', $now->month)
+                ->whereYear('created_at', $now->year)
+                ->count(),
+            'wallet_balance' => MedicalCenterWallet::first()->balance ?? 0,
+            'current_month_doctors' => Doctor::whereMonth('created_at', $now->month)
+                ->whereYear('created_at', $now->year)
+                ->count()
+        ]);
+    }
+}
+
+
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80

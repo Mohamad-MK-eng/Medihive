@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Events\EmailVerification;
 use App\Http\Controllers\Controller;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\Role;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller as RoutingController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,9 @@ use Str;
 
 class AuthController extends Controller
 {
+
+
+    /* original
     public function register(Request $request)
     {
 
@@ -40,9 +45,13 @@ class AuthController extends Controller
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
                 'role_id' => $patientRole->id,
+                'email_verified_at'=>false,
             ]);
+
+
+
             /// me me me m e
-            //  this is fucking insan
+            //  this is  insan
             Patient::create([
                 'user_id' => $user->id,
 
@@ -50,8 +59,9 @@ class AuthController extends Controller
 
 
 
-            $token = $user->createToken('Patient Access Token')->accessToken;
+ event(new \App\Events\EmailVerification($user->email));
 
+        $token = $user->createToken('Patient Access Token')->accessToken;
             return response()->json([
                 'message' => 'Patient registered successfully',
                 'access_token' => $token,
@@ -61,12 +71,77 @@ class AuthController extends Controller
         });
     }
 
+*/
 
+
+
+ public function register(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:8',
+            'phone_number' => 'required|string|min:8',
+            'address' => 'required|string',
+            'gender' => 'required',
+            'date_of_birth' => 'required|date',
+            'blood_type' => 'nullable|string',
+            'emergency_contact' => 'nullable|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        return DB::transaction(function () use ($request) {
+            $patientRole = Role::firstOrCreate(
+                ['name' => 'patient'],
+                ['description' => 'Patient user']
+            );
+
+            $user = User::create([
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'name' => $request->first_name . ' ' . $request->last_name,
+                'email' => $request->email,
+                'date_of_birth' => $request->date_of_birth,
+                'blood_type' => $request->blood_type,
+                'gender' => $request->gender,
+                'password' => Hash::make($request->password),
+                'phone_number' => $request->phone_number,
+                'role_id' => $patientRole->id,
+                'email_verified_at' => null, // Ensure email is not verified initially
+            ]);
+
+            Patient::create([
+                'user_id' => $user->id,
+                'phone_number' => $request->phone_number,
+                'date_of_birth' => $request->date_of_birth,
+                'address' => $request->address,
+                'gender' => $request->gender,
+                'blood_type' => $request->blood_type,
+                'emergency_contact' => $request->emergency_contact,
+            ]);
+
+            // 🔥 CRITICAL: Dispatch the email verification event
+            EmailVerification::dispatch($user->email);
+
+            $token = $user->createToken('Patient Access Token')->accessToken;
+
+            return response()->json([
+                'message' => 'Patient registered successfully. Please check your email for verification.',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'patient' => $user->load('patient'),
+                'email_verified' => false // Indicate email needs verification
+            ], 201);
+        });
+    }
 
 
     public function login(Request $request)
     {
-
         $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string'
@@ -80,34 +155,78 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
-        $user->tokens()->delete(); // for  previous tokens
+        $user->tokens()->delete();
 
-        $token = $user->createToken('Personal Access Token')->accessToken;
+        $tokenName = ucfirst($user->role->name) . ' Access Token';
+        $token = $user->createToken($tokenName)->accessToken;
 
-        // in case patient
-        if ($user->role->name === 'patient' || $user->role->name === 'doctor') {
+        $roleName = strtolower($user->role->name);
+        $welcomeMessage = ucfirst($roleName) . ' logged in successfully';
 
-            return response()->json([
-                'message' => 'Patient logged in successfully',
-                'user' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'email' => $user->email,
-                    'role_id' => $user->role_id,
-                    'profile_picture' => $user->getProfilePictureUrl(),
-                ],
+        // Common user data
+        $userData = [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'role_id' => $user->role_id,
+            'role_name' => $roleName,
+            'profile_picture' => $user->getProfilePictureUrl(),
+        ];
 
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ]);
+        // Add role-specific data and return appropriate response
+        switch ($roleName) {
+            case 'patient':
+                if (!$user->patient) {
+                    Auth::logout();
+                    return response()->json([
+                        'error' => 'Forbidden',
+                        'message' => 'Patient account not properly configured'
+                    ], 403);
+                }
+                $userData['patient_id'] = $user->patient->id;
+                $userData['phone_number'] = $user->patient->phone_number;
+                break;
+
+            case 'doctor':
+                if (!$user->doctor) {
+                    Auth::logout();
+                    return response()->json([
+                        'error' => 'Forbidden',
+                        'message' => 'Doctor account not properly configured'
+                    ], 403);
+                }
+                $userData['doctor_id'] = $user->doctor->id;
+                $userData['specialty'] = $user->doctor->specialty;
+                break;
+
+            case 'secretary':
+                if (!$user->secretary) {
+                    Auth::logout();
+                    return response()->json([
+                        'error' => 'Forbidden',
+                        'message' => 'Secretary account not properly configured'
+                    ], 403);
+                }
+                $userData['secretary_id'] = $user->secretary->id;
+                break;
+
+            case 'admin':
+                break;
+
+            default:
+                Auth::logout();
+                return response()->json([
+                    'error' => 'Forbidden',
+                    'message' => 'Unknown user role'
+                ], 403);
         }
-        // بالنسبة للأي فاعل أخر نفس السيناربو بهمني role Id منشان التوجيه عندي بافلاتر
+
         return response()->json([
-            'user' => $user->load('role'),
+            'message' => $welcomeMessage,
+            'user' => $userData,
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'role_name' => $user->role->name,
         ]);
     }
     // to try
@@ -124,9 +243,6 @@ class AuthController extends Controller
             : response()->json(['error' => __($status)], 400);
     }
 
-    /**
-     * Reset password
-     */
     public function resetPassword(Request $request)
     {
         $request->validate([
@@ -153,9 +269,7 @@ class AuthController extends Controller
             : response()->json(['error' => __($status)], 400);
     }
 
-    /**
-     * Change password (protected route - requires authentication)
-     */
+
     public function changePassword(Request $request)
     {
         $request->validate([
@@ -174,19 +288,6 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Password changed successfully']);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     public function logout(Request $request)

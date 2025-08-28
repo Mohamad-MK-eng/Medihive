@@ -12,12 +12,12 @@ use App\Models\Specialty;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Storage;
 
 
 class ClinicController extends Controller
 {
-    // Get all clinics with their images
     public function index()
     {
         $clinics = Clinic::all()->map(function ($clinic) {
@@ -32,11 +32,6 @@ class ClinicController extends Controller
         return response()->json($clinics);
     }
 
-
-
-
-
-    // for a single clinic
 
     public function show($id)
     {
@@ -54,7 +49,6 @@ class ClinicController extends Controller
 
 
 
-    // modify for a single clinic
     public function getIconUrl($id)
     {
         $clinic = Clinic::findOrFail($id);
@@ -84,27 +78,12 @@ class ClinicController extends Controller
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-    // In AppointmentController.php
-
     public function getClinicDoctors(Clinic $clinic)
     {
-        // Eager load the necessary relationships
         $doctors = $clinic->doctors()
             ->with(['user', 'reviews', 'schedules'])
             ->get();
 
-        // Format the response
 
         // مبدئيا هيك تمام بس انت حاطط شرط حلو تبع is active هاد في حال بدو يستقيل ويصفي معايناته القديمة وما بده حدا جديد
         // بتعمل فلترة على اللي is active ? true
@@ -141,6 +120,7 @@ class ClinicController extends Controller
             'date' => 'required|date_format:Y-m-d'
         ]);
 
+
         $doctors = $clinic->doctors()
             ->with(['user', 'schedules', 'timeSlots' => function ($query) use ($request) {
                 $query->where('date', $request->date)
@@ -169,34 +149,8 @@ class ClinicController extends Controller
 
         return response()->json($doctors);
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-public function getWalletBalance($clinicId)
-{
-    $clinic = Clinic::findOrFail($clinicId);
-    $wallet = $clinic->wallet()->firstOrCreate(['clinic_id' => $clinicId]);
-
-    return response()->json([
-        'clinic_id' => $clinic->id,
-        'clinic_name' => $clinic->name,
-        'balance' => $wallet->balance,
-        'last_updated' => $wallet->updated_at
-    ]);
 }
+<<<<<<< HEAD
 
 public function getWalletTransactions($clinicId)
 {
@@ -264,3 +218,5 @@ public function withdrawFromWallet(Request $request, $clinicId)
 
 
 
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80

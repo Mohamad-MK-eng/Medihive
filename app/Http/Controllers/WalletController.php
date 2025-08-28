@@ -32,6 +32,49 @@ class WalletController extends Controller
 
     }
 
+    public function changePin(Request $request)
+{
+    $request->validate([
+        'current_pin' => 'required|digits:4',
+        'new_pin' => 'required|digits:4',
+
+    ]);
+
+    $user = Auth::user();
+    $patient = $user->patient;
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    if (!$patient->wallet_activated_at) {
+        return response()->json(['message' => 'Wallet not activated'], 400);
+    }
+
+    if (!Hash::check($request->current_pin, $patient->wallet_pin)) {
+        return response()->json([
+            'message' => 'Incorrect current PIN'
+        ], 401);
+    }
+
+    if (Hash::check($request->new_pin, $patient->wallet_pin)) {
+        return response()->json([
+            'message' => 'New PIN must be different from current PIN'
+        ], 400);
+    }
+
+    $patient->update([
+        'wallet_pin' => Hash::make($request->new_pin),
+    ]);
+
+    return response()->json([
+        'message' => 'PIN changed successfully'
+    ]);
+}
+
+
+
+// charge function by secretary ////////
     public function addFunds(Request $request)
     {
         $validated = $request->validate([
@@ -114,7 +157,6 @@ class WalletController extends Controller
 
     public function getTransactions($patientId = null)
     {
-        // If patientId is provided, verify the requester has permission
         if ($patientId) {
             if (
                 !Auth::user()->hasRole('admin') &&
@@ -125,7 +167,6 @@ class WalletController extends Controller
 
             $patient = Patient::findOrFail($patientId);
         } else {
-            // Get transactions for current patient
             $patient = Auth::user()->patient;
             if (!$patient) {
                 return response()->json(['message' => 'Patient profile not found'], 404);
@@ -143,7 +184,6 @@ class WalletController extends Controller
     {
         $validated = $request->validate([
             'pin' => 'required|digits:4',
-         // لا تحطو يا كحبة   'pin_confirmation' => 'required'
         ]);
 
         $user = Auth::user();
@@ -175,8 +215,7 @@ class WalletController extends Controller
     }
 
 
-
-    //
+//  ما عم نستفيد منه بس خليه مستقبلا
     public function transferToClinic(Request $request)
     {
         $validated = $request->validate([

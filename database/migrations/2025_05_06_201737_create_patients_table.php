@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('insurance_provider')->nullable();
             $table->string('emergency_contact')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

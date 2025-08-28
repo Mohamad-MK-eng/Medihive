@@ -15,7 +15,6 @@ trait HandlesFiles
     public function uploadFile($file, $fieldName = 'profile_picture')
     {
         try {
-            // Get config - handle special case for users
             $config = $this->fileHandlingConfig[$fieldName] ?? [
                 'directory' => 'user_profile_pictures',
                 'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
@@ -23,7 +22,6 @@ trait HandlesFiles
                 'default' => 'default-user.jpg'
             ];
 
-            // Validate the file
             if (!$file->isValid()) {
                 throw new \Exception("Invalid file upload");
             }
@@ -40,16 +38,13 @@ trait HandlesFiles
 
 
               if (!empty($this->{$fieldName})) {
-            $this->deleteFile($fieldName); // This will delete the old file
+            $this->deleteFile($fieldName);
         }
-            // Generate secure filename
             $filename = Str::uuid()->toString() . '.' . $extension;
             $directory = trim($config['directory'], '/');
 
-            // Store the file and get the path
             $path = $file->storeAs($directory, $filename, 'public');
 
-            // Save the relative path (without 'public/' prefix)
             $this->{$fieldName} = $path;
             $this->save();
 
@@ -83,20 +78,16 @@ trait HandlesFiles
         'max_size' => 3072,
     ];
 
-    // إذا لا توجد قيمة للصورة → null مباشرة
     if (empty($this->{$fieldName})) {
         return null;
     }
 
-    // نظف المسار
     $path = ltrim(str_replace(['storage/', 'public/'], '', $this->{$fieldName}), '/');
 
-    // تحقق من وجود الملف فعلياً
     if (Storage::disk('public')->exists($path)) {
         return asset('storage/' . $path);
     }
 
-    // الملف غير موجود فعلياً → null
     return null;
 }
 
@@ -130,11 +121,13 @@ trait HandlesFiles
     }
 
 
-    /**
-     * Specific method for profile picture URL (for backward compatibility)
-     */
+
     public function getProfilePictureUrl()
     {
         return $this->getFileUrl('profile_picture');
     }
+<<<<<<< HEAD
+=======
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 }

@@ -6,9 +6,13 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+<<<<<<< HEAD
     /**
      * Run the migrations.
      */
+=======
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
     public function up(): void
     {
        Schema::create('medical_center_wallet_transactions', function (Blueprint $table) {

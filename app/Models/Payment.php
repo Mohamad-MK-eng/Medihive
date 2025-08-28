@@ -98,11 +98,19 @@ public function walletTransaction()
     }
 
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 public function medicalCenterWalletTransaction()
 {
     return $this->hasOne(MedicalCenterWalletTransaction::class, 'reference', 'transaction_id')
         ->where('reference', 'like', 'MCW-%');
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 0990b1cb7a8421c1b47e2ac2e468979376332b80
 }
