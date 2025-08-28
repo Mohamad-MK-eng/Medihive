@@ -118,6 +118,15 @@ return $this->hasOne(Report::class);
 
 
 
+public function markAsCompleted()
+{
+    $this->update([
+        'status' => 'completed',
+        'completed_at' => now()
+    ]);
+}
+
+
 
 /* public function markAsCompleted()
 {

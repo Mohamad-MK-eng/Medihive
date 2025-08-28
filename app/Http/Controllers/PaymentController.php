@@ -102,112 +102,99 @@ protected function validatePaymentRequest(Request $request)
         ]);
     }
 
-    public function handleWalletPayment(Appointment $appointment, array $data)
-    {
+ public function handleWalletPayment(Appointment $appointment, array $data)
+{
+    $patient = Auth::user()->patient;
 
-
-        $patient = Auth::user()->patient;
-
-        if (!$patient || !$patient->user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Patient user account not found'
-            ], 404);
-        }
-
-
-        if (!$patient->wallet_activated_at) {
-            return response()->json([
-                'success' => false,
-                'error_code' => self::WALLET_NOT_ACTIVATED,
-                'message' => 'Please activate your wallet before making payments',
-            ], 400);
-        }
-
-        if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
-            $attemptsLeft = self::MAX_PIN_ATTEMPTS - ($patient->pin_attempts + 1);
-
-            $patient->increment('pin_attempts');
-            if ($patient->pin_attempts >= self::MAX_PIN_ATTEMPTS) {
-                $patient->update(['wallet_locked_until' => now()->addHours(2)]);
-                return response()->json([
-                    'success' => false,
-                    'error_code' => 'too_many_attempts',
-                    'message' => 'Wallet temporarily locked. Try again after 2 hours.',
-                    'unlock_time' => now()->addHours(2)->toIso8601String()
-                ], 429);
-            }
-
-
-
-            return response()->json([
-                'success' => false,
-                'error_code' => self::INVALID_PIN,
-                'message' => 'Incorrect PIN. ',
-                'attempts_remaining' => $attemptsLeft,
-                'security_tip' => 'Never share your PIN with anyone'
-            ], 401);
-        }
-
-
-
-
-
-
-        if ($patient->wallet_balance < $data['amount']) {
-
-            $shortfall = $data['amount'] - $patient->wallet_balance;
-
-
-            return response()->json([
-                'success' => false,
-                'error_code' => self::INSUFFICIENT_BALANCE,
-                'message' => 'Your wallet balance is insufficient.',
-                'current_balance' => number_format($patient->wallet_balance, 2),
-                'required_amount' => number_format($data['amount'], 2),
-                'shortfall' => number_format($shortfall, 2),
-            ], 400);
-        }
-
-        return DB::transaction(function () use ($patient, $appointment, $data) {
-            $transaction = WalletTransaction::create([
-                'patient_id' => $patient->id,
-                'amount' => $data['amount'],
-                'type' => 'payment',
-                'reference' => 'APT-' . $appointment->id,
-                'balance_before' => $patient->wallet_balance,
-                'balance_after' => $patient->wallet_balance - $data['amount'],
-                'notes' => 'Payment for appointment #' . $appointment->id
-            ]);
-
-            $patient->decrement('wallet_balance', $data['amount']);
-
-            $payment = Payment::create([
-                'appointment_id' => $appointment->id,
-                'patient_id' => $patient->id,
-                'amount' => $data['amount'],
-                'method' => 'wallet',
-                'status' => 'paid',
-                'transaction_id' => 'WALLET-' . $transaction->id
-            ]);
-            $patient = $payment->patient;
-
-            $appointment->update(['payment_status' => 'paid']);
-
-            $patient->user->notify(new PaymentConfirmationNotification($payment));
-
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Payment completed via wallet',
-                'payment' => $payment,
-                'wallet_balance' => $patient->fresh()->wallet_balance,
-                'transaction' => $transaction,
-
-
-            ]);
-        });
+    if (!$patient || !$patient->user) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Patient user account not found'
+        ], 404);
     }
+
+    if (!$patient->wallet_activated_at) {
+        return response()->json([
+            'success' => false,
+            'error_code' => self::WALLET_NOT_ACTIVATED,
+            'message' => 'Please activate your wallet before making payments',
+        ], 400);
+    }
+
+    if (!Hash::check($data['wallet_pin'], $patient->wallet_pin)) {
+        $attemptsLeft = self::MAX_PIN_ATTEMPTS - ($patient->pin_attempts + 1);
+
+        $patient->increment('pin_attempts');
+        if ($patient->pin_attempts >= self::MAX_PIN_ATTEMPTS) {
+            $patient->update(['wallet_locked_until' => now()->addHours(2)]);
+            return response()->json([
+                'success' => false,
+                'error_code' => 'too_many_attempts',
+                'message' => 'Wallet temporarily locked. Try again after 2 hours.',
+                'unlock_time' => now()->addHours(2)->toIso8601String()
+            ], 429);
+        }
+
+        return response()->json([
+            'success' => false,
+            'error_code' => self::INVALID_PIN,
+            'message' => 'Incorrect PIN. ',
+            'attempts_remaining' => $attemptsLeft,
+            'security_tip' => 'Never share your PIN with anyone'
+        ], 401);
+    }
+
+    if ($patient->wallet_balance < $data['amount']) {
+        $shortfall = $data['amount'] - $patient->wallet_balance;
+
+        return response()->json([
+            'success' => false,
+            'error_code' => self::INSUFFICIENT_BALANCE,
+            'message' => 'Your wallet balance is insufficient.',
+            'current_balance' => number_format($patient->wallet_balance, 2),
+            'required_amount' => number_format($data['amount'], 2),
+            'shortfall' => number_format($shortfall, 2),
+        ], 400);
+    }
+
+    return DB::transaction(function () use ($patient, $appointment, $data) {
+        $transaction = WalletTransaction::create([
+            'patient_id' => $patient->id,
+            'amount' => $data['amount'],
+            'type' => 'payment',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $patient->wallet_balance,
+            'balance_after' => $patient->wallet_balance - $data['amount'],
+            'notes' => 'Payment for appointment #' . $appointment->id
+        ]);
+
+        $patient->decrement('wallet_balance', $data['amount']);
+
+        $payment = Payment::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $patient->id,
+            'amount' => $data['amount'],
+            'method' => 'wallet',
+            'status' => 'paid',
+            'transaction_id' => 'WALLET-' . $transaction->id
+        ]);
+
+        $patient = $payment->patient;
+
+        // REMOVE THIS LINE - it's causing the conflict:
+        // $appointment->update(['payment_status' => 'paid']);
+
+        $patient->user->notify(new PaymentConfirmationNotification($payment));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment completed via wallet',
+            'payment' => $payment,
+            'wallet_balance' => $patient->fresh()->wallet_balance,
+            'transaction' => $transaction,
+        ]);
+    });
+}
 
     /*huge response :
     return response()->json([

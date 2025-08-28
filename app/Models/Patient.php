@@ -210,9 +210,18 @@ class Patient extends Model
 
 
 
-
 public function deposit($amount, $notes = null, $secretaryId = null)
 {
+    // Check if wallet is activated before proceeding
+    if (!$this->wallet_pin || !$this->wallet_activated_at) {
+        return [
+            'success' => false,
+            'message' => 'Wallet is not activated',
+            'transaction' => null,
+            'new_balance' => $this->wallet_balance
+        ];
+    }
+
     return DB::transaction(function () use ($amount, $notes, $secretaryId) {
         // Get fresh data directly from database
         $currentBalance = DB::table('patients')
@@ -243,8 +252,9 @@ public function deposit($amount, $notes = null, $secretaryId = null)
             ->where('id', $this->id)
             ->update(['wallet_balance' => $newBalance]);
 
-        // Return the fresh balance
         return [
+            'success' => true,
+            'message' => 'Deposit successful',
             'transaction' => $transaction,
             'new_balance' => $newBalance
         ];

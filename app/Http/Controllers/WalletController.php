@@ -50,7 +50,7 @@ class WalletController extends Controller
             $transaction = $patient->deposit(
                 $validated['amount'],
                 $validated['notes'] ?? 'Added by staff',
-                
+
             );
 
             return response()->json([
@@ -61,6 +61,56 @@ class WalletController extends Controller
             ]);
         });
     }
+
+
+
+    public function changePin(Request $request)
+{
+    $request->validate([
+        'current_pin' => 'required|digits:4',
+        'new_pin' => 'required|digits:4',
+
+    ]);
+
+    $user = Auth::user();
+    $patient = $user->patient;
+
+    if (!$patient) {
+        return response()->json(['message' => 'Patient profile not found'], 404);
+    }
+
+    // Verify wallet is activated
+    if (!$patient->wallet_activated_at) {
+        return response()->json(['message' => 'Wallet not activated'], 400);
+    }
+
+    // Verify current PIN
+    if (!Hash::check($request->current_pin, $patient->wallet_pin)) {
+        return response()->json([
+            'message' => 'Incorrect current PIN'
+        ], 401);
+    }
+
+    // Check if new PIN is different
+    if (Hash::check($request->new_pin, $patient->wallet_pin)) {
+        return response()->json([
+            'message' => 'New PIN must be different from current PIN'
+        ], 400);
+    }
+
+    // Update the PIN
+    $patient->update([
+        'wallet_pin' => Hash::make($request->new_pin),
+    ]);
+
+    return response()->json([
+        'message' => 'PIN changed successfully'
+    ]);
+}
+
+
+
+
 
     public function getTransactions($patientId = null)
     {

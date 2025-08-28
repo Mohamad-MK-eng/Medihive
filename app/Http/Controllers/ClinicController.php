@@ -6,6 +6,8 @@ use App\Models\Clinic;
 use App\Models\ClinicWallet;
 use App\Models\ClinicWalletTransaction;
 use App\Models\Doctor;
+use App\Models\MedicalCenterWallet;
+use App\Models\MedicalCenterWalletTransaction;
 use App\Models\Specialty;
 use Carbon\Carbon;
 use DB;
@@ -198,7 +200,7 @@ public function getWalletBalance($clinicId)
 
 public function getWalletTransactions($clinicId)
 {
-    $wallet = ClinicWallet::with('transactions')
+    $wallet = MedicalCenterWallet::with('transactions')
         ->where('clinic_id', $clinicId)
         ->firstOrFail();
 
@@ -216,7 +218,7 @@ public function withdrawFromWallet(Request $request, $clinicId)
         'notes' => 'sometimes|string|max:255'
     ]);
 
-    $wallet = ClinicWallet::where('clinic_id', $clinicId)->firstOrFail();
+    $wallet = MedicalCenterWallet::where('clinic_id', $clinicId)->firstOrFail();
 
     if ($wallet->balance < $validated['amount']) {
         return response()->json([
@@ -228,7 +230,7 @@ public function withdrawFromWallet(Request $request, $clinicId)
     return DB::transaction(function () use ($wallet, $validated) {
         $wallet->decrement('balance', $validated['amount']);
 
-        ClinicWalletTransaction::create([
+        MedicalCenterWalletTransaction::create([
             'clinic_wallet_id' => $wallet->id,
             'amount' => $validated['amount'],
             'type' => 'withdrawal',

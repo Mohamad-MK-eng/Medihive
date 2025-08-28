@@ -16,12 +16,12 @@ class RoleSeeder extends Seeder
                 'description' => 'System Administrator'
             ],
             [
-                'id' => 2,
+                'id' => 3,
                 'name' => 'secretary',
                 'description' => 'Clinic Secretary'
             ],
             [
-                'id' => 3,
+                'id' => 2,
                 'name' => 'doctor',
                 'description' => 'Medical Doctor'
             ],

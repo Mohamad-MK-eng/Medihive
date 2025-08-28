@@ -69,45 +69,6 @@ trait HandlesFiles
 
 
 
-    /**
-     * Gets the URL for a file field
-     */
-
-
-   /*  public function getFileUrl($fieldName = 'profile_picture')
-    {
-        if (!isset($this->fileHandlingConfig[$fieldName])) {
-            return null;
-        }
-
-        $config = $this->fileHandlingConfig[$fieldName] ?? [
-            'directory' => 'user_profile_pictures',
-            'allowed_types' => ['jpg', 'jpeg', 'png', 'gif'],
-            'max_size' => 3072,
-        ];
-        // If no file is set, return default
-        if (empty($this->{$fieldName})) {
-            return asset('storage/' . $config['directory'] . '/' . $config['default']);
-        }
-
-        // Get the stored path
-        $path = $this->{$fieldName};
-
-        // Ensure the path doesn't already contain 'storage/' or 'public/'
-        $path = ltrim(str_replace(['storage/', 'public/'], '', $path), '/');
-
-        // Check if file exists in storage
-        if (Storage::disk('public')->exists($path)) {
-            return asset('storage/' . $path);
-        }
-
-        // Return default if file not found
-        return asset('storage/' . $config['directory'] . '/' . $config['default']);
-    } */
-
-
-
-
 
    // هاد منشان يرجعلي صورة المريض ب null بدل الdefault  في حال ما كانت موجودة
    public function getFileUrl($fieldName = 'profile_picture')
@@ -143,9 +104,7 @@ trait HandlesFiles
 
 
 
-    /**
-     * Deletes a file
-     */
+
     public function deleteFile($fieldName = 'profile_picture')
     {
         try {
@@ -178,24 +137,4 @@ trait HandlesFiles
     {
         return $this->getFileUrl('profile_picture');
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
-

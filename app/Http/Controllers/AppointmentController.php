@@ -11,6 +11,9 @@ use App\Models\TimeSlot;
 use App\Models\WalletTransaction;
 use App\Notifications\AppointmentBooked;
 use App\Notifications\AppointmentCancelled;
+use App\Models\MedicalCenterWallet;
+use App\Models\MedicalCenterWalletTransaction;
+use App\Models\Patient;
 use App\Notifications\AppointmentConfirmationNotification;
 use App\Services\AppointmentService;
 use Illuminate\Http\Request;
@@ -41,6 +44,20 @@ class AppointmentController extends Controller
         }
 
 
+
+           $doctorExists = Doctor::withTrashed()->where('id', $request->doctor_id)->exists();
+
+    if (!$doctorExists) {
+        return response()->json([
+            'error' => 'doctor_not_found',
+            'message' => 'The selected doctor is not available for appointments'
+        ], 422);
+    }
+
+
+
+
+
            $absentCount = Appointment::where('patient_id', $patient->id)
         ->where('status', 'absent')
         ->count();
@@ -67,10 +84,27 @@ class AppointmentController extends Controller
 
         return DB::transaction(function () use ($validated, $patient) {
             try {
-                $slot = TimeSlot::where('id', $validated['slot_id'])
-                    ->where('doctor_id', $validated['doctor_id'])
-                    ->lockForUpdate()  // here is the magic
-                    ->firstOrFail();
+             \Log::info("Attempting to book slot_id: {$validated['slot_id']} for doctor_id: {$validated['doctor_id']}");
+
+    $slot = TimeSlot::where('id', $validated['slot_id'])
+        ->where('doctor_id', $validated['doctor_id'])
+        ->lockForUpdate()
+        ->first();
+
+    \Log::debug("Slot query result: ".json_encode($slot));
+
+    if (!$slot) {
+        $availableSlots = TimeSlot::where('doctor_id', $validated['doctor_id'])
+            ->where('date', '>=', now()->format('Y-m-d'))
+            ->get();
+
+        \Log::error("Slot not found. Available slots: ".json_encode($availableSlots));
+
+        return response()->json([
+            'error' => 'Time slot not found or does not belong to this doctor',
+            'available_slots' => $availableSlots
+        ], 404);
+    }
 
                 if ($slot->is_booked) {
                  $existingAppointment = Appointment::where('time_slot_id', $slot->id)
@@ -84,6 +118,8 @@ class AppointmentController extends Controller
                     $slot->update(['is_booked' => false]);
                 }
             }
+
+
 
 
                 $doctor = Doctor::findOrFail($validated['doctor_id']);
@@ -129,23 +165,49 @@ $status = 'confirmed'; // Default status
                     ], 400);
                 }
 
+if ($validated['method'] === 'wallet') {
+    // Verify wallet is activated
+    if (!$patient->wallet_activated_at) {
+        return response()->json([
+            'success' => false,
+            'error_code' => 'wallet_not_activated',
+            'message' => 'Please activate your wallet before making payments',
+        ], 400);
+    }
 
-   if ($validated['method'] === 'wallet') {
-                // Verify wallet and process payment
-                if (!$this->processWalletPayment($patient, $doctor->consultation_fee, $appointment)) {
-                    throw new \Exception('Wallet payment failed');
-                }
-                $paymentStatus = 'paid';
-            }
 
-                // Simple PIN verification without attempt tracking
-                if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
-                    return response()->json([
-                        'success' => false,
-                        'error_code' => 'invalid_pin',
-                        'message' => 'Incorrect PIN',
-                    ], 401);
-                }
+
+    if ($validated['method'] === 'cash') {
+    Payment::create([
+        'appointment_id' => $appointment->id,
+        'patient_id' => $patient->id,
+        'amount' => $doctor->consultation_fee,
+        'method' => 'cash',
+        'status' => 'pending',
+        'paid_at' => null
+    ]);
+}
+    // Verify PIN
+    if (!Hash::check($validated['wallet_pin'], $patient->wallet_pin)) {
+        return response()->json([
+            'success' => false,
+            'error_code' => 'invalid_pin',
+            'message' => 'Incorrect PIN',
+        ], 401);
+    }
+
+    // Process payment
+    try {
+        $this->processWalletPayment($patient, $doctor->consultation_fee, $appointment);
+        $paymentStatus = 'paid';
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Wallet payment failed',
+            'message' => $e->getMessage()
+        ], 400);
+    }
+}
 
 
                 $paymentResult = $this->processWalletPayment($patient, $doctor->consultation_fee, $appointment);
@@ -166,6 +228,8 @@ $status = 'confirmed'; // Default status
     'message' => 'Operation Done Successfully',
     'appointment_details' => [
         'clinic' => $doctor->clinic->name,
+                    'payment_status' => $this->getPaymentStatus($appointment), // Get status from payments
+
         'doctor' => $doctor->user->first_name.' '.$doctor->user->last_name,
         'date' => $appointment->appointment_date->format('D d F Y'),
         'note' => 'Stay tuned for any updates'
@@ -176,6 +240,28 @@ $status = 'confirmed'; // Default status
         }
     });
 }
+
+protected function getPaymentStatus($appointment)
+{
+    // Check if there's a completed payment for this appointment
+    $payment = Payment::where('appointment_id', $appointment->id)
+        ->where('status', 'completed')
+        ->first();
+
+    if ($payment) {
+        return 'paid';
+    }
+
+    // Check if there's any payment record (might be pending)
+    $anyPayment = Payment::where('appointment_id', $appointment->id)->first();
+
+    if ($anyPayment) {
+        return $anyPayment->status; // pending, refunded, etc.
+    }
+
+    return 'pending'; // No payment record exists yet
+}
+
 
 
 protected function processWalletPayment($patient, $amount, $appointment)
@@ -196,9 +282,9 @@ protected function processWalletPayment($patient, $amount, $appointment)
         // Deduct from patient wallet
         $patient->decrement('wallet_balance', $amount);
 
-        // Add to clinic wallet
-        $clinicWallet = ClinicWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
-        $clinicWallet->increment('balance', $amount);
+        // Add to medical center wallet
+        $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+        $medicalCenterWallet->increment('balance', $amount);
 
         // Create patient wallet transaction
         $patientTransaction = WalletTransaction::create([
@@ -211,32 +297,32 @@ protected function processWalletPayment($patient, $amount, $appointment)
             'notes' => 'Payment for appointment #' . $appointment->id
         ]);
 
-        // Create clinic wallet transaction
-        ClinicWalletTransaction::create([
-            'clinic_wallet_id' => $clinicWallet->id,
+        // Create medical center wallet transaction
+        MedicalCenterWalletTransaction::create([
+            'medical_wallet_id' => $medicalCenterWallet->id,
+            'clinic_id' => $appointment->clinic_id,
             'amount' => $amount,
             'type' => 'payment',
             'reference' => 'APT-' . $appointment->id,
-            'balance_before' => $clinicWallet->balance - $amount,
-            'balance_after' => $clinicWallet->balance,
+            'balance_before' => $medicalCenterWallet->balance - $amount,
+            'balance_after' => $medicalCenterWallet->balance,
             'notes' => 'Payment from patient #' . $patient->id . ' for appointment #' . $appointment->id
         ]);
 
-        // Create payment record
+        // Create payment record with 'paid' status for wallet payments
         Payment::create([
             'appointment_id' => $appointment->id,
             'patient_id' => $patient->id,
             'amount' => $amount,
             'method' => 'wallet',
-            'status' => 'completed',
-            'transaction_id' => 'WALLET-' . $patientTransaction->id,
+            'status' => 'paid', // Changed from 'completed' to 'paid' to match your enum
+            'transaction_id' => 'MCW-' . $patientTransaction->id,
             'paid_at' => now()
         ]);
 
         return true;
     });
 }
-
 
 
 
@@ -521,7 +607,7 @@ public function getDoctorAvailableDaysWithSlots(Doctor $doctor, Request $request
     }, $days);
 
     return response()->json([
-        'message' => '',
+        'message' => 'available_days',
         'earliest_date' => $earliestDateInfo,
         'days' => $formattedDays
     ]);
@@ -1026,7 +1112,7 @@ protected function emptyAppointmentSlot(Appointment $appointment)
 
         if ($payment) {
             $refundAmount = $appointment->price;
-            $clinicWallet = ClinicWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
+            $clinicWallet = MedicalCenterWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
 
             if ($clinicWallet->balance >= $refundAmount) {
                 // Refund to patient
@@ -1046,7 +1132,7 @@ protected function emptyAppointmentSlot(Appointment $appointment)
                     'notes' => 'Refund for emptied appointment #' . $appointment->id
                 ]);
 
-                ClinicWalletTransaction::create([
+                MedicalCenterWalletTransaction::create([
                     'clinic_wallet_id' => $clinicWallet->id,
                     'amount' => $refundAmount,
                     'type' => 'refund',
@@ -1103,7 +1189,7 @@ public function cancelAppointment(Request $request, $id)
             $refundAmount = 0;
             if ($payment) {
                 $refundAmount = $appointment->price;
-                $clinicWallet = ClinicWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
+                $clinicWallet = MedicalCenterWallet::firstOrCreate(['clinic_id' => $appointment->clinic_id]);
 
                 if ($clinicWallet->balance >= $refundAmount) {
                     // Refund to patient
@@ -1123,7 +1209,7 @@ public function cancelAppointment(Request $request, $id)
                         'notes' => 'Refund for cancelled appointment #' . $appointment->id
                     ]);
 
-                    ClinicWalletTransaction::create([
+                    MedicalCenterWalletTransaction::create([
                         'clinic_wallet_id' => $clinicWallet->id,
                         'amount' => $refundAmount,
                         'type' => 'refund',
@@ -1271,7 +1357,7 @@ public function processRefund(Request $request, $appointmentId)
         ]);
 
         // Create clinic wallet transaction
-        ClinicWalletTransaction::create([
+        MedicalCenterWalletTransaction::create([
             'clinic_wallet_id' => $clinicWallet->id,
             'amount' => $validated['refund_amount'],
             'type' => 'refund',
@@ -1306,7 +1392,7 @@ public function processRefund(Request $request, $appointmentId)
             ]);
 
             // Clinic fee transaction
-            ClinicWalletTransaction::create([
+            MedicalCenterWalletTransaction::create([
                 'clinic_wallet_id' => $clinicWallet->id,
                 'amount' => $validated['cancellation_fee'],
                 'type' => 'fee',
@@ -1325,6 +1411,56 @@ public function processRefund(Request $request, $appointmentId)
             'cancellation_fee' => $validated['cancellation_fee'] ?? 0
         ]);
     });
+}
+
+
+public function processWalletRefund(Appointment $appointment, Payment $payment)
+{
+    $refundAmount = $appointment->price;
+    $patient = $appointment->patient;
+
+    // Get the single medical center wallet (same as in processWalletPayment)
+    $medicalCenterWallet = MedicalCenterWallet::firstOrCreate([], ['balance' => 0]);
+
+    if ($medicalCenterWallet->balance >= $refundAmount) {
+        // Refund to patient
+        $patient->increment('wallet_balance', $refundAmount);
+
+        // Deduct from medical center wallet
+        $medicalCenterWallet->decrement('balance', $refundAmount);
+
+        // Create transactions
+        WalletTransaction::create([
+            'patient_id' => $patient->id,
+            'amount' => $refundAmount,
+            'type' => 'refund',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $patient->wallet_balance - $refundAmount,
+            'balance_after' => $patient->wallet_balance,
+            'notes' => 'Refund for cancelled appointment #' . $appointment->id
+        ]);
+
+        MedicalCenterWalletTransaction::create([
+            'medical_wallet_id' => $medicalCenterWallet->id,
+            'clinic_id' => $appointment->clinic_id, // Track which clinic this refund is for
+            'amount' => $refundAmount,
+            'type' => 'refund',
+            'reference' => 'APT-' . $appointment->id,
+            'balance_before' => $medicalCenterWallet->balance + $refundAmount,
+            'balance_after' => $medicalCenterWallet->balance,
+            'notes' => 'Refund for cancelled appointment #' . $appointment->id
+        ]);
+
+        $payment->update([
+            'status' => 'refunded',
+            'refunded_at' => now(),
+            'refund_amount' => $refundAmount
+        ]);
+
+        return $refundAmount;
+    }
+
+    throw new \Exception('Medical center wallet has insufficient funds for refund');
 }
 
 

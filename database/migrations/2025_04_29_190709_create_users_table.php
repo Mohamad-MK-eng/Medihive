@@ -24,12 +24,9 @@ return new class extends Migration
             $table->string('address')->nullable();
             $table->string('gender')->nullable();
             $table->foreignId('role_id')->references('id')->on('roles')->onDelete('cascade');
-
+            $table->softDeletes();
             $table->rememberToken();
             $table->timestamps();
-
-
-
         });
 
 // $table->unsignedBigInteger('order_id');

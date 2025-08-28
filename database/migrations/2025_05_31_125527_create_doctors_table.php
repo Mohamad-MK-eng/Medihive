@@ -23,6 +23,7 @@ return new class extends Migration
             $table->decimal('consultation_fee', 8, 2)->default(100);
             $table->integer('experience_years')->default(2);
             $table->date('experience_start_date')->nullable()->default(DB::raw('CURRENT_DATE'));
+            $table->softDeletes();
 
 
             $table->timestamps();
